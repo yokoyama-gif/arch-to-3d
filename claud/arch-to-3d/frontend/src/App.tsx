@@ -182,12 +182,30 @@ function PlanPreview({
   volumes: VolumeInput[];
   points: ObservationPoint[];
 }) {
-  const minX = Math.min(0, ...volumes.map((volume) => volume.x)) - 2;
-  const minY = Math.min(0, ...volumes.map((volume) => volume.y)) - 2;
+  const minX =
+    Math.min(
+      0,
+      ...volumes.map((volume) => volume.x),
+      ...points.map((point) => point.position.x)
+    ) - 2;
+  const minY =
+    Math.min(
+      0,
+      ...volumes.map((volume) => volume.y),
+      ...points.map((point) => point.position.y)
+    ) - 2;
   const maxX =
-    Math.max(site.width, ...volumes.map((volume) => volume.x + volume.width)) + 2;
+    Math.max(
+      site.width,
+      ...volumes.map((volume) => volume.x + volume.width),
+      ...points.map((point) => point.position.x)
+    ) + 2;
   const maxY =
-    Math.max(site.depth, ...volumes.map((volume) => volume.y + volume.depth)) + 2;
+    Math.max(
+      site.depth,
+      ...volumes.map((volume) => volume.y + volume.depth),
+      ...points.map((point) => point.position.y)
+    ) + 2;
   const width = maxX - minX;
   const height = maxY - minY;
 
@@ -1057,3 +1075,4 @@ export default function App() {
     </div>
   );
 }
+
