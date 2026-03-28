@@ -1,7 +1,7 @@
 import { useRef, useState, useCallback } from "react";
 import type { Fixture, FixtureType, PipeRoute } from "../domain/types";
 import { fixtureLabels, fixtureColors } from "../domain/rules/fixtureDefaults";
-import { pipeColors } from "../domain/rules/pipeSpecs";
+import { pipeColors, pipeTypeLabels } from "../domain/rules/pipeSpecs";
 import { snapToGrid } from "../utils/geometry";
 
 const CANVAS_W = 6000; // mm
@@ -153,23 +153,107 @@ export function GridCanvas({
       {/* グリッド */}
       {gridLines}
 
-      {/* 配管ルート */}
+      {/* 配管ルート（管種ごとにオフセットして表示） */}
       {pipeRoutes.map((route, i) => {
+        // 同一設備の配管をオフセットして見やすくする
+        const sameFixtureRoutes = pipeRoutes.filter(
+          (r) => r.fixtureId === route.fixtureId
+        );
+        const indexInGroup = sameFixtureRoutes.indexOf(route);
+        const offset = (indexInGroup - (sameFixtureRoutes.length - 1) / 2) * 3;
+
         const pts = route.points
-          .map((p) => `${mmToPx(p.x)},${mmToPx(p.y)}`)
+          .map((p) => `${mmToPx(p.x) + offset},${mmToPx(p.y) + offset}`)
           .join(" ");
+
+        // ラベル位置: ルート中間セグメントの中点
+        const midIdx = Math.floor(route.points.length / 2);
+        const p0 = route.points[midIdx - 1] ?? route.points[0];
+        const p1 = route.points[midIdx] ?? route.points[0];
+        const labelX = mmToPx((p0.x + p1.x) / 2) + offset;
+        const labelY = mmToPx((p0.y + p1.y) / 2) + offset - 4;
+
         return (
-          <polyline
-            key={`route-${i}`}
-            points={pts}
-            fill="none"
-            stroke={pipeColors[route.pipeType] ?? "#999"}
-            strokeWidth={2}
-            strokeDasharray={route.pipeType === "vent" ? "4 2" : undefined}
-            opacity={0.7}
-          />
+          <g key={`route-${i}`}>
+            <polyline
+              points={pts}
+              fill="none"
+              stroke={pipeColors[route.pipeType] ?? "#999"}
+              strokeWidth={2}
+              strokeDasharray={route.pipeType === "vent" ? "4 2" : undefined}
+              opacity={0.7}
+            />
+            {/* 管種ラベル */}
+            <rect
+              x={labelX - 14}
+              y={labelY - 8}
+              width={28}
+              height={12}
+              rx={2}
+              fill="rgba(255,255,255,0.9)"
+              pointerEvents="none"
+            />
+            <text
+              x={labelX}
+              y={labelY}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fontSize={8}
+              fill={pipeColors[route.pipeType] ?? "#999"}
+              pointerEvents="none"
+              fontWeight={700}
+            >
+              {pipeTypeLabels[route.pipeType]}
+            </text>
+          </g>
         );
       })}
+
+      {/* 設備→PS 距離ラベル（設備ごとに1つ） */}
+      {(() => {
+        // 設備IDごとに最初のルートだけ使って距離表示
+        const shown = new Set<string>();
+        return pipeRoutes
+          .filter((r) => {
+            if (shown.has(r.fixtureId)) return false;
+            shown.add(r.fixtureId);
+            return true;
+          })
+          .map((route) => {
+            const fixture = fixtures.find((f) => f.id === route.fixtureId);
+            if (!fixture) return null;
+            const cx = mmToPx(fixture.x + fixture.w / 2);
+            const bottom = mmToPx(fixture.y + fixture.h);
+            const distM = (route.lengthMm / 1000).toFixed(1);
+            const labelW = 68;
+            const labelH = 18;
+            return (
+              <g key={`dist-${route.fixtureId}`}>
+                <rect
+                  x={cx - labelW / 2}
+                  y={bottom + 2}
+                  width={labelW}
+                  height={labelH}
+                  rx={3}
+                  fill="rgba(33,33,33,0.85)"
+                  pointerEvents="none"
+                />
+                <text
+                  x={cx}
+                  y={bottom + 2 + labelH / 2 + 1}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  fontSize={11}
+                  fill="#fff"
+                  fontWeight={600}
+                  pointerEvents="none"
+                >
+                  →PS {distM}m
+                </text>
+              </g>
+            );
+          });
+      })()}
 
       {/* 設備 */}
       {fixtures.map((f) => {
