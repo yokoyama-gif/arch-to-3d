@@ -27,7 +27,10 @@
       "Bash(/tmp/del3.ps1:*)",
       "Bash(powershell -ExecutionPolicy Bypass -File /tmp/del3.ps1)",
       "Bash(GIT_TERMINAL_PROMPT=0 git push origin claude/friendly-rubin)",
-      "Bash(echo \"EXIT:$?\")"
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(git push:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }
