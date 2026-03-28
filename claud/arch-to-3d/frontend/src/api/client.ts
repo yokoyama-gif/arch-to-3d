@@ -5,6 +5,7 @@ import type {
   SkyFactorRequest,
   SkyFactorResponse,
 } from "../types/skyfactor";
+import type { EstimateProject, PdfAnalysisResponse } from "../types/estimate";
 
 const api = axios.create({ baseURL: "/api" });
 
@@ -24,6 +25,28 @@ export async function analyzeSkyFactor(
 ): Promise<SkyFactorResponse> {
   try {
     const { data } = await api.post("/skyfactor/analyze", payload);
+    return data;
+  } catch (error) {
+    throw normalizeError(error);
+  }
+}
+
+export async function analyzePdf(file: File): Promise<PdfAnalysisResponse> {
+  const formData = new FormData();
+  formData.append("pdf", file);
+  try {
+    const { data } = await api.post("/estimate/analyze-pdf", formData);
+    return data;
+  } catch (error) {
+    throw normalizeError(error);
+  }
+}
+
+export async function exportCsv(project: EstimateProject): Promise<Blob> {
+  try {
+    const { data } = await api.post("/estimate/export-csv", project, {
+      responseType: "blob",
+    });
     return data;
   } catch (error) {
     throw normalizeError(error);

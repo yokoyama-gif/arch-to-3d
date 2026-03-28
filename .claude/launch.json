@@ -1,0 +1,25 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "backend",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"],
+      "port": 8000,
+      "cwd": "arch-to-3d/backend"
+    },
+    {
+      "name": "frontend",
+      "runtimeExecutable": "npx.cmd",
+      "runtimeArgs": ["vite", "--port", "5173"],
+      "port": 5173,
+      "cwd": "arch-to-3d/frontend"
+    },
+    {
+      "name": "gaiko",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8080"],
+      "port": 8080
+    }
+  ]
+}
