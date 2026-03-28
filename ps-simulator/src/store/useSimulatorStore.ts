@@ -35,6 +35,7 @@ type SimulatorState = {
   selectedFixtureId: string | null;
   addFixture: (type: FixtureType, x: number, y: number) => void;
   moveFixture: (id: string, x: number, y: number) => void;
+  resizeFixture: (id: string, w: number, h: number) => void;
   rotateFixture: (id: string) => void;
   deleteFixture: (id: string) => void;
   selectFixture: (id: string | null) => void;
@@ -111,6 +112,18 @@ export const useSimulatorStore = create<SimulatorState>((set, get) => {
       set((state) => ({
         fixtures: state.fixtures.map((f) =>
           f.id === id ? { ...f, x: snapToGrid(x, grid), y: snapToGrid(y, grid) } : f
+        ),
+      }));
+      get().recalculate();
+    },
+
+    resizeFixture: (id, w, h) => {
+      const grid = get().buildingSettings.gridSizeMm;
+      set((state) => ({
+        fixtures: state.fixtures.map((f) =>
+          f.id === id
+            ? { ...f, w: snapToGrid(Math.max(grid, w), grid), h: snapToGrid(Math.max(grid, h), grid) }
+            : f
         ),
       }));
       get().recalculate();

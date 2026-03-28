@@ -6,6 +6,7 @@ type Props = {
   buildingSettings: BuildingSettings;
   onUpdateSettings: (s: Partial<BuildingSettings>) => void;
   selectedFixture: Fixture | null;
+  onResize: (id: string, w: number, h: number) => void;
   onRotate: (id: string) => void;
   onDelete: (id: string) => void;
 };
@@ -14,6 +15,7 @@ export function PropertyPanel({
   buildingSettings,
   onUpdateSettings,
   selectedFixture,
+  onResize,
   onRotate,
   onDelete,
 }: Props) {
@@ -125,30 +127,40 @@ export function PropertyPanel({
       {selectedFixture && (
         <div style={{ marginTop: 16 }}>
           <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>選択設備</h3>
-          <table style={{ fontSize: 12, width: "100%" }}>
-            <tbody>
-              <tr>
-                <td>種別</td>
-                <td>{fixtureLabels[selectedFixture.type]}</td>
-              </tr>
-              <tr>
-                <td>位置</td>
-                <td>
-                  ({selectedFixture.x}, {selectedFixture.y})
-                </td>
-              </tr>
-              <tr>
-                <td>寸法</td>
-                <td>
-                  {selectedFixture.w} × {selectedFixture.h} mm
-                </td>
-              </tr>
-              <tr>
-                <td>回転</td>
-                <td>{selectedFixture.rotation}°</td>
-              </tr>
-            </tbody>
-          </table>
+          <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 8px", fontSize: 12, alignItems: "center" }}>
+            <label>種別</label>
+            <div>{fixtureLabels[selectedFixture.type]}</div>
+
+            <label>位置</label>
+            <div>({selectedFixture.x}, {selectedFixture.y})</div>
+
+            <label>幅(mm)</label>
+            <input
+              type="number"
+              value={selectedFixture.w}
+              step={50}
+              min={100}
+              onChange={(e) =>
+                onResize(selectedFixture.id, Number(e.target.value), selectedFixture.h)
+              }
+              style={inputStyle}
+            />
+
+            <label>奥行(mm)</label>
+            <input
+              type="number"
+              value={selectedFixture.h}
+              step={50}
+              min={100}
+              onChange={(e) =>
+                onResize(selectedFixture.id, selectedFixture.w, Number(e.target.value))
+              }
+              style={inputStyle}
+            />
+
+            <label>回転</label>
+            <div>{selectedFixture.rotation}°</div>
+          </div>
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
             <button
               onClick={() => onRotate(selectedFixture.id)}

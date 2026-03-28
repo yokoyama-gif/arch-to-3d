@@ -130,6 +130,7 @@ export default function App() {
             buildingSettings={store.buildingSettings}
             onUpdateSettings={store.setBuildingSettings}
             selectedFixture={selectedFixture}
+            onResize={store.resizeFixture}
             onRotate={store.rotateFixture}
             onDelete={store.deleteFixture}
           />
