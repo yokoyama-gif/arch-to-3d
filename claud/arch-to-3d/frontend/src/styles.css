@@ -599,6 +599,429 @@ select:focus {
   gap: 24px;
 }
 
+/* V2 Layout: PDF left, input right */
+.est-layout-v2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.est-pdf-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: sticky;
+  top: 80px;
+  align-self: start;
+  max-height: calc(100vh - 100px);
+}
+
+.est-input-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.est-pdf-panel {
+  overflow: hidden;
+}
+
+.est-pdf-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.est-pdf-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.est-dropzone-large {
+  padding: 80px 24px;
+}
+
+.est-pdf-viewer {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.est-pdf-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.est-pdf-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 252, 247, 0.8);
+  color: var(--ink);
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+.est-pdf-btn:hover:not(:disabled) {
+  background: rgba(196, 85, 44, 0.08);
+}
+
+.est-pdf-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.est-pdf-zoom,
+.est-pdf-pageinfo {
+  font-size: 0.85rem;
+  color: var(--muted);
+  min-width: 50px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.est-pdf-sep {
+  color: var(--line);
+  margin: 0 4px;
+}
+
+.est-pdf-scroll {
+  overflow: auto;
+  max-height: calc(100vh - 380px);
+  border-radius: 12px;
+  background: #f5f0e8;
+}
+
+.est-pdf-scroll canvas {
+  display: block;
+  margin: 0 auto;
+}
+
+/* Site info */
+.est-site-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  align-items: end;
+}
+
+.est-site-result {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(196, 85, 44, 0.06);
+  border: 1px solid rgba(196, 85, 44, 0.15);
+}
+
+.est-site-result span {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.est-site-result strong {
+  font-size: 1.15rem;
+  color: var(--accent-dark);
+}
+
+/* Project bar */
+.est-project-bar {
+  padding: 16px 20px;
+}
+
+.est-project-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+
+.est-project-fields label span {
+  font-size: 0.78rem;
+}
+
+.est-project-fields input {
+  padding: 8px 10px;
+  font-size: 0.9rem;
+}
+
+.est-area-hint {
+  display: flex;
+  align-items: center;
+  font-size: 0.85rem;
+  color: var(--accent-dark);
+  background: rgba(196, 85, 44, 0.06);
+  padding: 6px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* Steps indicator */
+.est-steps {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.est-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 252, 247, 0.8);
+  color: var(--muted);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.est-step:hover:not(:disabled) {
+  background: rgba(255, 252, 247, 1);
+  border-color: rgba(196, 85, 44, 0.2);
+}
+
+.est-step:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.est-step--active {
+  background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+  border-color: transparent;
+  color: #fff9f2;
+  box-shadow: 0 4px 16px rgba(141, 56, 24, 0.2);
+}
+
+.est-step--done:not(.est-step--active) {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+.est-step-num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.est-step--active .est-step-num {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.est-step-text {
+  font-size: 0.95rem;
+}
+
+.est-step-arrow {
+  color: var(--line);
+  font-size: 0.8rem;
+}
+
+/* Step content */
+.est-step-content {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.est-section-title {
+  margin: 0 0 8px;
+  font-size: 1.3rem;
+  font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
+}
+
+.est-section-desc {
+  margin: 0 0 20px;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+/* Upload section */
+.est-upload-section {
+  text-align: center;
+  padding: 40px;
+}
+
+.est-dropzone-icon {
+  font-size: 3rem;
+  margin-bottom: 12px;
+}
+
+.est-file-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.est-file-info span {
+  color: var(--ok);
+  font-weight: 600;
+}
+
+/* Site layout */
+.est-site-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.est-site-pdf {
+  overflow: hidden;
+}
+
+.est-pdf-mini-scroll {
+  overflow: auto;
+  max-height: 50vh;
+  border-radius: 12px;
+  background: #f5f0e8;
+}
+
+.est-pdf-mini-scroll canvas {
+  display: block;
+  margin: 0 auto;
+}
+
+.est-site-form {
+  padding: 28px;
+}
+
+.est-form-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.est-form-block h3 {
+  margin: 0 0 12px;
+  font-size: 1rem;
+  color: var(--accent-dark);
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.est-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.est-big-input {
+  font-size: 1.2rem !important;
+  padding: 14px 14px !important;
+  font-weight: 600;
+}
+
+/* Area calculation result */
+.est-area-result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 16px;
+  background: rgba(255, 252, 247, 0.9);
+  border: 1px solid var(--line);
+}
+
+.est-area-result-item {
+  text-align: center;
+  flex: 1;
+}
+
+.est-area-result-item span {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.est-area-result-item strong {
+  font-size: 1.1rem;
+}
+
+.est-area-result-main {
+  padding: 8px;
+  border-radius: 12px;
+  background: rgba(196, 85, 44, 0.08);
+}
+
+.est-area-result-main strong {
+  color: var(--accent-dark);
+  font-size: 1.3rem;
+}
+
+.est-area-result-sep {
+  font-size: 1.2rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.est-step-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+/* PDF site summary bar in estimate step */
+.est-pdf-site-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  margin-top: 8px;
+  border-radius: 12px;
+  background: rgba(196, 85, 44, 0.05);
+  border: 1px solid rgba(196, 85, 44, 0.12);
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.est-pdf-site-summary strong {
+  color: var(--accent-dark);
+}
+
+.est-edit-site-btn {
+  margin-left: auto;
+  padding: 4px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 252, 247, 0.8);
+  color: var(--muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.est-edit-site-btn:hover {
+  background: rgba(255, 252, 247, 1);
+  color: var(--ink);
+}
+
 .est-sidebar {
   display: flex;
   flex-direction: column;
@@ -978,11 +1401,14 @@ select:focus {
   .est-sidebar,
   .est-tabs,
   .est-table-panel:not(.est-overview-panel),
-  .est-header-right {
+  .est-header-right,
+  .est-pdf-column,
+  .est-project-bar {
     display: none !important;
   }
 
-  .est-layout {
+  .est-layout,
+  .est-layout-v2 {
     grid-template-columns: 1fr;
   }
 
@@ -1010,9 +1436,19 @@ select:focus {
   }
 }
 
-@media (max-width: 1100px) {
-  .est-layout {
+@media (max-width: 1200px) {
+  .est-layout,
+  .est-layout-v2 {
     grid-template-columns: 1fr;
+  }
+
+  .est-pdf-column {
+    position: static;
+    max-height: none;
+  }
+
+  .est-pdf-scroll {
+    max-height: 50vh;
   }
 
   .est-sidebar {
@@ -1031,6 +1467,11 @@ select:focus {
 
   .est-tab {
     min-width: 120px;
+  }
+
+  .est-site-grid,
+  .est-project-fields {
+    grid-template-columns: 1fr;
   }
 }
 
