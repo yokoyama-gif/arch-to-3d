@@ -1,6 +1,7 @@
 import type { BuildingSettings, Fixture } from "../domain/types";
 import { fixtureLabels } from "../domain/rules/fixtureDefaults";
 import { presets } from "../domain/rules/presets";
+import { NumberInput } from "./NumberInput";
 
 type Props = {
   buildingSettings: BuildingSettings;
@@ -41,21 +42,21 @@ export function PropertyPanel({
       <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>建物条件</h3>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 8px" }}>
         <label>階数</label>
-        <input
-          type="number"
+        <NumberInput
           value={s.floors}
           min={1}
           max={10}
-          onChange={(e) => onUpdateSettings({ floors: Number(e.target.value) })}
+          step={1}
+          onChange={(v) => onUpdateSettings({ floors: v })}
           style={inputStyle}
         />
 
         <label>住戸数</label>
-        <input
-          type="number"
+        <NumberInput
           value={s.unitCount}
           min={1}
-          onChange={(e) => onUpdateSettings({ unitCount: Number(e.target.value) })}
+          step={1}
+          onChange={(v) => onUpdateSettings({ unitCount: v })}
           style={inputStyle}
         />
 
@@ -89,36 +90,29 @@ export function PropertyPanel({
         </select>
 
         <label>天井懐(mm)</label>
-        <input
-          type="number"
+        <NumberInput
           value={s.ceilingPlenumMm}
           step={10}
-          onChange={(e) =>
-            onUpdateSettings({ ceilingPlenumMm: Number(e.target.value) })
-          }
+          min={0}
+          onChange={(v) => onUpdateSettings({ ceilingPlenumMm: v })}
           style={inputStyle}
         />
 
         <label>床段差許容(mm)</label>
-        <input
-          type="number"
+        <NumberInput
           value={s.floorStepAllowanceMm}
           step={10}
-          onChange={(e) =>
-            onUpdateSettings({ floorStepAllowanceMm: Number(e.target.value) })
-          }
+          min={0}
+          onChange={(v) => onUpdateSettings({ floorStepAllowanceMm: v })}
           style={inputStyle}
         />
 
         <label>グリッド(mm)</label>
-        <input
-          type="number"
+        <NumberInput
           value={s.gridSizeMm}
           step={50}
           min={50}
-          onChange={(e) =>
-            onUpdateSettings({ gridSizeMm: Number(e.target.value) })
-          }
+          onChange={(v) => onUpdateSettings({ gridSizeMm: v })}
           style={inputStyle}
         />
       </div>
@@ -135,25 +129,25 @@ export function PropertyPanel({
             <div>({selectedFixture.x}, {selectedFixture.y})</div>
 
             <label>幅(mm)</label>
-            <input
-              type="number"
+            <NumberInput
+              key={`w-${selectedFixture.id}`}
               value={selectedFixture.w}
               step={50}
               min={100}
-              onChange={(e) =>
-                onResize(selectedFixture.id, Number(e.target.value), selectedFixture.h)
+              onChange={(v) =>
+                onResize(selectedFixture.id, v, selectedFixture.h)
               }
               style={inputStyle}
             />
 
             <label>奥行(mm)</label>
-            <input
-              type="number"
+            <NumberInput
+              key={`h-${selectedFixture.id}`}
               value={selectedFixture.h}
               step={50}
               min={100}
-              onChange={(e) =>
-                onResize(selectedFixture.id, selectedFixture.w, Number(e.target.value))
+              onChange={(v) =>
+                onResize(selectedFixture.id, selectedFixture.w, v)
               }
               style={inputStyle}
             />

@@ -65,12 +65,12 @@ export function GridCanvas({
         return;
       }
       // 空白クリックで選択解除
-      if ((e.target as Element).tagName === "svg" || (e.target as Element).tagName === "rect") {
-        // グリッド背景のrectや直接SVGをクリックした場合
-        const isFixtureRect = (e.target as Element).getAttribute("data-fixture");
-        if (!isFixtureRect) {
-          onSelectFixture(null);
-        }
+      // data-fixture属性を持つ要素（設備rect）以外をクリックした場合に選択解除
+      const target = e.target as Element;
+      const isFixtureRect = target.getAttribute("data-fixture") ||
+        target.closest("[data-fixture]");
+      if (!isFixtureRect) {
+        onSelectFixture(null);
       }
     },
     [placingType, dragging, getMouseMm, onAddFixture, onSelectFixture]
@@ -260,9 +260,13 @@ export function GridCanvas({
         const isSelected = f.id === selectedFixtureId;
         const color = fixtureColors[f.type];
         return (
-          <g key={f.id}>
+          <g
+            key={f.id}
+            data-fixture="true"
+            style={{ cursor: "move" }}
+            onMouseDown={(e) => handleFixtureMouseDown(e, f)}
+          >
             <rect
-              data-fixture="true"
               x={mmToPx(f.x)}
               y={mmToPx(f.y)}
               width={mmToPx(f.w)}
@@ -271,8 +275,6 @@ export function GridCanvas({
               stroke={isSelected ? "#1976d2" : f.type === "ps" ? "#e65100" : "#666"}
               strokeWidth={isSelected ? 2.5 : 1}
               rx={2}
-              style={{ cursor: "move" }}
-              onMouseDown={(e) => handleFixtureMouseDown(e, f)}
             />
             <text
               x={mmToPx(f.x + f.w / 2)}

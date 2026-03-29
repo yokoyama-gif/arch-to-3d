@@ -118,11 +118,12 @@ export const useSimulatorStore = create<SimulatorState>((set, get) => {
     },
 
     resizeFixture: (id, w, h) => {
-      const grid = get().buildingSettings.gridSizeMm;
+      // snapToGridを使わず、ユーザー入力値をそのまま反映する
+      // （入力途中にグリッド丸めすると数字が打てなくなるため）
       set((state) => ({
         fixtures: state.fixtures.map((f) =>
           f.id === id
-            ? { ...f, w: snapToGrid(Math.max(grid, w), grid), h: snapToGrid(Math.max(grid, h), grid) }
+            ? { ...f, w: Math.max(50, w), h: Math.max(50, h) }
             : f
         ),
       }));

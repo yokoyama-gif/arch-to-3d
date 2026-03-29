@@ -30,7 +30,10 @@
       "Bash(echo \"EXIT:$?\")",
       "Bash(git push:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(npm run:*)",
+      "Bash(npx vite:*)",
+      "Bash(npx tsc:*)"
     ]
   }
 }
