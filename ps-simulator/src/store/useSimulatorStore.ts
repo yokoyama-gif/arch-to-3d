@@ -135,8 +135,19 @@ export const useSimulatorStore = create<SimulatorState>((set, get) => {
         fixtures: state.fixtures.map((f) => {
           if (f.id !== id) return f;
           const nextRotation = ((f.rotation + 90) % 360) as Rotation;
-          // 回転時にw/hを入れ替え
-          return { ...f, rotation: nextRotation, w: f.h, h: f.w };
+          // 中心座標を維持しながらw/hを入れ替え
+          const cx = f.x + f.w / 2;
+          const cy = f.y + f.h / 2;
+          const newW = f.h;
+          const newH = f.w;
+          return {
+            ...f,
+            rotation: nextRotation,
+            w: newW,
+            h: newH,
+            x: cx - newW / 2,
+            y: cy - newH / 2,
+          };
         }),
       }));
       get().recalculate();

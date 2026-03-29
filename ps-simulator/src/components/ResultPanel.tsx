@@ -1,6 +1,8 @@
+import { useMemo } from "react";
 import type { SlopeResult, PsResult, Fixture } from "../domain/types";
 import { fixtureLabels } from "../domain/rules/fixtureDefaults";
 import { pipeTypeLabels } from "../domain/rules/pipeSpecs";
+import { findOverlappingPairs } from "../utils/geometry";
 
 type Props = {
   fixtures: Fixture[];
@@ -24,9 +26,37 @@ export function ResultPanel({ fixtures, slopeResults, psResults }: Props) {
   const psList = fixtures.filter((f) => f.type === "ps");
   const hasPsWarning = psList.length === 0;
 
+  // 重なり検出
+  const overlaps = useMemo(() => findOverlappingPairs(fixtures), [fixtures]);
+
   return (
     <div style={{ fontSize: 12 }}>
       <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>判定結果</h3>
+
+      {/* 重なり警告 */}
+      {overlaps.length > 0 && (
+        <div
+          style={{
+            background: "#fce4ec",
+            padding: 8,
+            borderRadius: 4,
+            marginBottom: 8,
+            border: "1px solid #f44336",
+            fontSize: 11,
+          }}
+        >
+          <div style={{ fontWeight: 600, marginBottom: 2 }}>設備の重なりを検出</div>
+          {overlaps.map(([a, b], i) => {
+            const fa = fixtures.find((f) => f.id === a);
+            const fb = fixtures.find((f) => f.id === b);
+            return (
+              <div key={i}>
+                {fa ? fixtureLabels[fa.type] : "?"} ↔ {fb ? fixtureLabels[fb.type] : "?"}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {hasPsWarning && (
         <div
@@ -54,6 +84,7 @@ export function ResultPanel({ fixtures, slopeResults, psResults }: Props) {
               <th style={thStyle}>管種</th>
               <th style={thStyle}>横引(mm)</th>
               <th style={thStyle}>高低差(mm)</th>
+              <th style={thStyle}>許容(mm)</th>
               <th style={thStyle}>判定</th>
             </tr>
           </thead>
@@ -69,8 +100,16 @@ export function ResultPanel({ fixtures, slopeResults, psResults }: Props) {
                   <td style={{ ...tdStyle, textAlign: "right" }}>
                     {r.lengthMm}
                   </td>
-                  <td style={{ ...tdStyle, textAlign: "right" }}>
+                  <td style={{
+                    ...tdStyle,
+                    textAlign: "right",
+                    color: r.requiredDropMm > r.allowableDropMm ? "#f44336" : undefined,
+                    fontWeight: r.requiredDropMm > r.allowableDropMm ? 600 : undefined,
+                  }}>
                     {r.requiredDropMm.toFixed(1)}
+                  </td>
+                  <td style={{ ...tdStyle, textAlign: "right" }}>
+                    {r.allowableDropMm}
                   </td>
                   <td style={{ ...tdStyle, textAlign: "center" }}>
                     <span

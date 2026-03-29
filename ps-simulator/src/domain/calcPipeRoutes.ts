@@ -28,21 +28,36 @@ function findNearestPs(fixture: Fixture, psList: Fixture[]): Fixture | null {
 }
 
 /**
- * 2つのL字ルート（水平→垂直 / 垂直→水平）のうち短い方を返す。
- * マンハッタン距離なのでどちらも同じ長さだが、ルート形状は異なる。
+ * 2つのL字ルート（水平→垂直 / 垂直→水平）を生成し、
+ * より短い方（障害物がないので同距離だが形状が異なる）を選択する。
+ * 管種ごとに異なるルートを割り当てて視認性を向上させる。
  */
-function buildRoute(from: Point, to: Point): Point[] {
-  // 水平→垂直
-  return [from, { x: to.x, y: from.y }, to];
+function buildRoute(
+  from: Point,
+  to: Point,
+  variant: "h-first" | "v-first"
+): Point[] {
+  if (variant === "h-first") {
+    // 水平→垂直
+    return [from, { x: to.x, y: from.y }, to];
+  } else {
+    // 垂直→水平
+    return [from, { x: from.x, y: to.y }, to];
+  }
 }
 
 /**
  * 全設備から最寄りPSへの配管ルートを一括計算する。
+ * 排水系(soil/waste)は水平→垂直、給水系(cold/hot/gas)は垂直→水平で
+ * ルートを分離し、配管が重なりにくくする。
  */
 export function calcPipeRoutes(fixtures: Fixture[]): PipeRoute[] {
   const psList = fixtures.filter((f) => f.type === "ps");
   const equipment = fixtures.filter((f) => f.type !== "ps");
   const routes: PipeRoute[] = [];
+
+  // 排水系は水平→垂直、給水系は垂直→水平
+  const drainPipes = new Set<string>(["soil", "waste", "vent"]);
 
   for (const eq of equipment) {
     const ps = findNearestPs(eq, psList);
@@ -53,10 +68,12 @@ export function calcPipeRoutes(fixtures: Fixture[]): PipeRoute[] {
 
     const from = getCenter(eq);
     const to = getCenter(ps);
-    const points = buildRoute(from, to);
     const lengthMm = manhattan(from, to);
 
     for (const pipeType of pipeTypes) {
+      const variant = drainPipes.has(pipeType) ? "h-first" : "v-first";
+      const points = buildRoute(from, to, variant);
+
       routes.push({
         fixtureId: eq.id,
         psId: ps.id,
