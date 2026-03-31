@@ -27,7 +27,14 @@
       "Bash(/tmp/del3.ps1:*)",
       "Bash(powershell -ExecutionPolicy Bypass -File /tmp/del3.ps1)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(powershell -Command 'Get-PnpDevice -Class Bluetooth | Where-Object {$_.Status -eq \"\"OK\"\"} | Select-Object Status,FriendlyName')",
+      "Bash(powershell -Command 'Get-ItemProperty -Path \"\"HKCU:\\\\Control Panel\\\\Bluetooth\"\" -ErrorAction SilentlyContinue')",
+      "Bash(powershell -Command 'Set-ItemProperty -Path \"\"HKCU:\\\\Control Panel\\\\Bluetooth\"\" -Name \"\"Notification Area Icon\"\" -Value 1; Get-ItemProperty -Path \"\"HKCU:\\\\Control Panel\\\\Bluetooth\"\" -Name \"\"Notification Area Icon\"\"')",
+      "Bash(powershell -Command 'Restart-Service bthserv; Get-Service bthserv | Select-Object Name,Status')",
+      "Bash(powershell -Command 'Get-Service bthserv | Select-Object Name,Status,StartType')",
+      "Bash(powershell -Command 'Get-ItemProperty -Path \"\"HKCU:\\\\Control Panel\\\\Bluetooth\"\" -Name \"\"Notification Area Icon\"\"')",
+      "Bash(powershell -Command 'Start-Process \"\"ms-settings:bluetooth\"\"')"
     ]
   }
 }
