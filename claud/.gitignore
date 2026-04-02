@@ -1,0 +1,13 @@
+# Runtime / build artifacts
+arch-to-3d/.runtime/
+arch-to-3d/frontend/node_modules/
+arch-to-3d/frontend/tsconfig.tsbuildinfo
+arch-to-3d/frontend/package-lock.json
+
+# Claude Code
+.claude/
+
+# OS / editor
+desktop.ini
+*.lnk
+~$*
