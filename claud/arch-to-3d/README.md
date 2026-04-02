@@ -20,6 +20,18 @@
 - 場所: `backend`
 - 想定起動: `python -m venv .venv` -> `.venv\\Scripts\\activate` -> `pip install -r requirements.txt` -> `uvicorn main:app --reload`
 
+## ローカル起動スクリプト
+
+このリポジトリには、確認済みのポータブル runtime を使う起動スクリプトを同梱しています。
+
+- backend: `.\start-backend.ps1`
+- frontend: `.\start-frontend.ps1`
+
+起動後の URL:
+
+- backend: `http://127.0.0.1:8000`
+- frontend: `http://127.0.0.1:5173`
+
 ## JWW / JWC 取込
 
 JWW / JWC は直接解析ではなく、DXF 変換コマンド経由です。
