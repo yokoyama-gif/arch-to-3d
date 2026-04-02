@@ -27,7 +27,8 @@
       "Bash(/tmp/del3.ps1:*)",
       "Bash(powershell -ExecutionPolicy Bypass -File /tmp/del3.ps1)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(pip list:*)"
     ]
   }
 }
