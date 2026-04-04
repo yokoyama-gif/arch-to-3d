@@ -28,7 +28,8 @@
       "Bash(powershell -ExecutionPolicy Bypass -File /tmp/del3.ps1)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(pip list:*)"
+      "Bash(pip list:*)",
+      "Bash(python youtube_history.py)"
     ]
   }
 }
