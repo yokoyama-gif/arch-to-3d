@@ -1,6 +1,6 @@
 import { app, BrowserWindow, shell } from 'electron'
 import { join } from 'path'
-import { is } from 'electron-vite/main'
+import { is } from '@electron-toolkit/utils'
 import { setupIpcHandlers, cleanupHandlers } from './ipc-handlers'
 import { cleanupAllTemp } from './services/ffmpeg'
 
