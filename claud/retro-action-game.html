@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>DUNGEON ESCAPE - FC Style Action</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #111;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  overflow: hidden;
+}
+canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  border: 4px solid #444;
+}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+"use strict";
+
+// ============================================================
+// CONFIG
+// ============================================================
+const NATIVE_W = 256;
+const NATIVE_H = 240;
+const SCALE = Math.min(
+  Math.floor(window.innerWidth / NATIVE_W),
+  Math.floor(window.innerHeight / NATIVE_H),
+  3
+);
+const TILE = 16;
+const COLS = NATIVE_W / TILE;   // 16
+const ROWS = NATIVE_H / TILE;   // 15
+
+const canvas = document.getElementById("game");
+canvas.width  = NATIVE_W * SCALE;
+canvas.height = NATIVE_H * SCALE;
+const ctx = canvas.getContext("2d");
+ctx.imageSmoothingEnabled = false;
+
+// Offscreen buffer at native res
+const buf = document.createElement("canvas");
+buf.width = NATIVE_W;
+buf.height = NATIVE_H;
+const bx = buf.getContext("2d");
+bx.imageSmoothingEnabled = false;
+
+// ============================================================
+// COLORS (NES palette subset)
+// ============================================================
+const C = {
+  BG:       "#0f0f23",
+  WALL:     "#6b4226",
+  WALL2:    "#8b5e3c",
+  BRICK:    "#a0522d",
+  PLAYER:   "#3cb0f0",
+  PLAYER2:  "#1c6ea4",
+  ENEMY:    "#e04040",
+  ENEMY2:   "#a02020",
+  KEY:      "#ffd700",
+  KEY2:     "#ffa500",
+  EXIT:     "#40e040",
+  EXIT2:    "#208020",
+  SPIKE:    "#c0c0c0",
+  TEXT:     "#fcfcfc",
+  HUD_BG:   "#000",
+  LADDER:   "#8b6914",
+  LADDER2:  "#6b4f10",
+  COIN:     "#ffd700",
+  PLAT:     "#555577",
+  PLAT2:    "#3a3a55",
+};
+
+// ============================================================
+// INPUT
+// ============================================================
+const keys = {};
+window.addEventListener("keydown", e => { keys[e.code] = true; e.preventDefault(); });
+window.addEventListener("keyup",   e => { keys[e.code] = false; });
+
+// ============================================================
+// STAGE DATA
+// Each stage is a 2D array of ROWS x COLS tiles
+// Tile types:
+//   0 = empty, 1 = wall, 2 = platform (one-way),
+//   3 = ladder, 4 = spike, 5 = key, 6 = exit,
+//   7 = coin, 8 = enemy spawn (horizontal patrol),
+//   9 = enemy spawn (vertical patrol)
+// ============================================================
+const STAGES = [];
+
+// --- Helper: create empty stage with border ---
+function emptyStage() {
+  const s = [];
+  for (let r = 0; r < ROWS; r++) {
+    s[r] = [];
+    for (let c = 0; c < COLS; c++) {
+      if (r === 0 || r === ROWS - 1 || c === 0 || c === COLS - 1) {
+        s[r][c] = 1; // border walls
+      } else if (r === 1) {
+        s[r][c] = 0; // HUD row - keep empty
+      } else {
+        s[r][c] = 0;
+      }
+    }
+  }
+  return s;
+}
+
+// Stage 1: Tutorial - simple platforms
+(function() {
+  const s = emptyStage();
+  // Ground floor
+  for (let c = 1; c < 15; c++) s[13][c] = 1;
+  // Platforms
+  for (let c = 3; c <= 6; c++) s[10][c] = 2;
+  for (let c = 9; c <= 12; c++) s[10][c] = 2;
+  for (let c = 5; c <= 10; c++) s[7][c] = 2;
+  for (let c = 2; c <= 4; c++) s[4][c] = 2;
+  // Key on top-left platform
+  s[3][3] = 5;
+  // Exit bottom-right
+  s[12][14] = 6;
+  // Coins
+  s[9][4] = 7; s[9][11] = 7; s[6][7] = 7;
+  // One enemy patrol on ground
+  s[12][5] = 8;
+  STAGES.push(s);
+})();
+
+// Stage 2: More enemies, ladders
+(function() {
+  const s = emptyStage();
+  for (let c = 1; c < 15; c++) s[13][c] = 1;
+  // Ladder
+  for (let r = 8; r <= 12; r++) s[r][8] = 3;
+  // Platforms
+  for (let c = 1; c <= 5; c++) s[10][c] = 2;
+  for (let c = 10; c <= 14; c++) s[10][c] = 2;
+  for (let c = 3; c <= 7; c++) s[7][c] = 2;
+  for (let c = 9; c <= 13; c++) s[7][c] = 2;
+  for (let c = 5; c <= 10; c++) s[4][c] = 2;
+  // Key top center
+  s[3][7] = 5;
+  // Exit bottom-left
+  s[12][1] = 6;
+  // Enemies
+  s[12][10] = 8; s[9][4] = 8; s[6][11] = 8;
+  // Coins
+  s[9][2] = 7; s[9][12] = 7; s[6][5] = 7; s[3][9] = 7;
+  // Spikes
+  s[12][6] = 4; s[12][7] = 4;
+  STAGES.push(s);
+})();
+
+// Stage 3: Spike gauntlet
+(function() {
+  const s = emptyStage();
+  for (let c = 1; c < 15; c++) s[13][c] = 1;
+  // Platforms with gaps
+  for (let c = 1; c <= 3; c++) s[10][c] = 2;
+  for (let c = 6; c <= 8; c++) s[10][c] = 2;
+  for (let c = 11; c <= 14; c++) s[10][c] = 2;
+  for (let c = 3; c <= 5; c++) s[7][c] = 2;
+  for (let c = 8; c <= 11; c++) s[7][c] = 2;
+  for (let c = 1; c <= 3; c++) s[4][c] = 2;
+  for (let c = 12; c <= 14; c++) s[4][c] = 2;
+  // Spikes on ground
+  s[12][4] = 4; s[12][5] = 4; s[12][9] = 4; s[12][10] = 4;
+  // Key top-right
+  s[3][13] = 5;
+  // Exit top-left
+  s[3][2] = 6;
+  // Enemies
+  s[12][2] = 8; s[12][12] = 8; s[9][7] = 8; s[6][4] = 8; s[6][10] = 8;
+  // Coins
+  s[9][1] = 7; s[9][13] = 7; s[6][9] = 7; s[3][8] = 7;
+  // Ladder
+  for (let r = 5; r <= 6; r++) s[r][14] = 3;
+  STAGES.push(s);
+})();
+
+// Stage 4: Vertical challenge
+(function() {
+  const s = emptyStage();
+  for (let c = 1; c < 15; c++) s[13][c] = 1;
+  // Multiple ladders + platforms
+  for (let r = 9; r <= 12; r++) s[r][3] = 3;
+  for (let r = 5; r <= 8; r++) s[r][12] = 3;
+  for (let r = 9; r <= 12; r++) s[r][9] = 3;
+  for (let c = 1; c <= 5; c++) s[9][c] = 2;
+  for (let c = 7; c <= 11; c++) s[9][c] = 2;
+  for (let c = 10; c <= 14; c++) s[5][c] = 2;
+  for (let c = 1; c <= 6; c++) s[5][c] = 2;
+  for (let c = 6; c <= 9; c++) s[3][c] = 2;
+  // Spikes
+  s[12][5] = 4; s[12][6] = 4; s[12][7] = 4; s[12][8] = 4;
+  s[8][2] = 4; s[8][4] = 4;
+  // Key top center
+  s[2][7] = 5;
+  // Exit bottom corner
+  s[12][14] = 6;
+  // Enemies
+  s[12][2] = 8; s[12][12] = 8; s[8][9] = 8; s[4][3] = 8; s[4][12] = 8;
+  s[8][13] = 9; // vertical enemy
+  // Coins
+  s[8][1] = 7; s[8][10] = 7; s[4][5] = 7; s[4][13] = 7; s[2][9] = 7;
+  STAGES.push(s);
+})();
+
+// Stage 5: Hard
+(function() {
+  const s = emptyStage();
+  for (let c = 1; c < 15; c++) s[13][c] = 1;
+  // Minimal platforms
+  for (let c = 1; c <= 2; c++) s[11][c] = 2;
+  for (let c = 5; c <= 6; c++) s[11][c] = 2;
+  for (let c = 9; c <= 10; c++) s[11][c] = 2;
+  for (let c = 13; c <= 14; c++) s[11][c] = 2;
+  for (let c = 3; c <= 4; c++) s[9][c] = 2;
+  for (let c = 7; c <= 8; c++) s[9][c] = 2;
+  for (let c = 11; c <= 12; c++) s[9][c] = 2;
+  for (let c = 1; c <= 3; c++) s[7][c] = 2;
+  for (let c = 6; c <= 9; c++) s[7][c] = 2;
+  for (let c = 12; c <= 14; c++) s[7][c] = 2;
+  for (let c = 4; c <= 5; c++) s[5][c] = 2;
+  for (let c = 10; c <= 11; c++) s[5][c] = 2;
+  for (let c = 6; c <= 9; c++) s[3][c] = 2;
+  // Ladders
+  for (let r = 8; r <= 10; r++) s[r][6] = 3;
+  for (let r = 4; r <= 6; r++) s[r][10] = 3;
+  // Spikes everywhere
+  s[12][3] = 4; s[12][4] = 4; s[12][7] = 4; s[12][8] = 4;
+  s[12][11] = 4; s[12][12] = 4;
+  // Key
+  s[2][7] = 5;
+  // Exit
+  s[12][1] = 6;
+  // Enemies
+  s[12][6] = 8; s[12][13] = 8; s[10][2] = 8; s[8][8] = 8;
+  s[6][2] = 8; s[6][13] = 8; s[4][5] = 8;
+  s[4][8] = 9;
+  // Coins
+  s[10][1] = 7; s[10][14] = 7; s[8][4] = 7; s[8][12] = 7;
+  s[6][7] = 7; s[2][8] = 7;
+  STAGES.push(s);
+})();
+
+// Procedural stage generator for stages beyond defined ones
+function generateStage(stageNum) {
+  const s = emptyStage();
+  const rng = mulberry32(stageNum * 12345);
+
+  // Ground
+  for (let c = 1; c < 15; c++) s[13][c] = 1;
+
+  // Random platforms
+  const platCount = 5 + Math.min(stageNum, 8);
+  for (let i = 0; i < platCount; i++) {
+    const r = 3 + Math.floor(rng() * 10);
+    const c = 1 + Math.floor(rng() * 12);
+    const len = 2 + Math.floor(rng() * 3);
+    for (let j = 0; j < len && c + j < 15; j++) {
+      if (s[r][c + j] === 0) s[r][c + j] = 2;
+    }
+  }
+
+  // Random ladders
+  const ladderCount = 1 + Math.floor(rng() * 3);
+  for (let i = 0; i < ladderCount; i++) {
+    const c = 2 + Math.floor(rng() * 12);
+    const r1 = 4 + Math.floor(rng() * 5);
+    for (let r = r1; r <= r1 + 3 && r < 13; r++) {
+      s[r][c] = 3;
+    }
+  }
+
+  // Spikes
+  const spikeCount = Math.min(stageNum, 6);
+  for (let i = 0; i < spikeCount; i++) {
+    const c = 2 + Math.floor(rng() * 12);
+    if (s[12][c] === 0) s[12][c] = 4;
+  }
+
+  // Enemies
+  const enemyCount = 2 + Math.min(stageNum, 6);
+  for (let i = 0; i < enemyCount; i++) {
+    const r = 3 + Math.floor(rng() * 10);
+    const c = 2 + Math.floor(rng() * 12);
+    if (s[r][c] === 0) s[r][c] = (rng() > 0.7) ? 9 : 8;
+  }
+
+  // Coins
+  for (let i = 0; i < 4; i++) {
+    const r = 2 + Math.floor(rng() * 11);
+    const c = 1 + Math.floor(rng() * 14);
+    if (s[r][c] === 0) s[r][c] = 7;
+  }
+
+  // Key in upper area
+  let placed = false;
+  for (let attempt = 0; attempt < 50 && !placed; attempt++) {
+    const r = 2 + Math.floor(rng() * 4);
+    const c = 1 + Math.floor(rng() * 14);
+    if (s[r][c] === 0) { s[r][c] = 5; placed = true; }
+  }
+  if (!placed) s[2][7] = 5;
+
+  // Exit at bottom
+  placed = false;
+  for (let attempt = 0; attempt < 50 && !placed; attempt++) {
+    const c = 1 + Math.floor(rng() * 14);
+    if (s[12][c] === 0) { s[12][c] = 6; placed = true; }
+  }
+  if (!placed) s[12][14] = 6;
+
+  return s;
+}
+
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function getStage(n) {
+  if (n < STAGES.length) return STAGES[n];
+  return generateStage(n);
+}
+
+// ============================================================
+// GAME STATE
+// ============================================================
+let state = "title"; // title, playing, dead, gameover, stageclear, allclear
+let stageNum = 0;
+let score = 0;
+let lives = 3;
+let hasKey = false;
+let stageData = [];
+let enemies = [];
+let coins = [];
+let keyPos = null;
+let exitPos = null;
+let spikes = [];
+let ladders = [];
+let player = null;
+let deathTimer = 0;
+let clearTimer = 0;
+let flashTimer = 0;
+let titleBlink = 0;
+let attackTimer = 0;
+let attackDir = 1;
+
+// Player spawn
+let spawnX = 1.5 * TILE;
+let spawnY = 12 * TILE;
+
+// ============================================================
+// INIT STAGE
+// ============================================================
+function initStage() {
+  const sd = getStage(stageNum);
+  stageData = sd.map(row => [...row]); // deep copy
+  enemies = [];
+  coins = [];
+  spikes = [];
+  ladders = [];
+  keyPos = null;
+  exitPos = null;
+  hasKey = false;
+  attackTimer = 0;
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const t = stageData[r][c];
+      const x = c * TILE;
+      const y = r * TILE;
+      if (t === 5) {
+        keyPos = { x: x + 4, y: y + 4, w: 8, h: 8, collected: false };
+        stageData[r][c] = 0;
+      } else if (t === 6) {
+        exitPos = { x, y, w: TILE, h: TILE };
+        stageData[r][c] = 0;
+        spawnX = x; spawnY = y; // player spawns near exit initially? No, spawn bottom-left
+      } else if (t === 7) {
+        coins.push({ x: x + 4, y: y + 4, w: 8, h: 8, collected: false });
+        stageData[r][c] = 0;
+      } else if (t === 4) {
+        spikes.push({ x, y: y + 8, w: TILE, h: 8 });
+      } else if (t === 3) {
+        ladders.push({ x, y, w: TILE, h: TILE });
+      } else if (t === 8) {
+        enemies.push({
+          x, y: y, w: 14, h: 14,
+          vx: 0.6 + stageNum * 0.1, vy: 0,
+          dir: 1, type: "h",
+          startX: x, startY: y
+        });
+        stageData[r][c] = 0;
+      } else if (t === 9) {
+        enemies.push({
+          x, y: y, w: 14, h: 14,
+          vx: 0, vy: 0.5 + stageNum * 0.08,
+          dir: 1, type: "v",
+          startX: x, startY: y
+        });
+        stageData[r][c] = 0;
+      }
+    }
+  }
+
+  // Spawn player at bottom-left open space
+  spawnX = 1 * TILE + 1;
+  spawnY = 12 * TILE;
+  // Find first open ground tile for spawn
+  for (let c = 1; c < 15; c++) {
+    if (stageData[12][c] === 0 && stageData[13][c] === 1) {
+      spawnX = c * TILE + 1;
+      spawnY = 12 * TILE;
+      break;
+    }
+  }
+
+  player = {
+    x: spawnX, y: spawnY,
+    w: 14, h: 15,
+    vx: 0, vy: 0,
+    onGround: false,
+    onLadder: false,
+    facingR: true,
+    jumpHeld: false,
+  };
+}
+
+// ============================================================
+// COLLISION HELPERS
+// ============================================================
+function boxOverlap(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x &&
+         a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function tileAt(r, c) {
+  if (r < 0 || r >= ROWS || c < 0 || c >= COLS) return 1;
+  return stageData[r][c];
+}
+
+function isSolid(r, c) {
+  const t = tileAt(r, c);
+  return t === 1;
+}
+
+function isPlatform(r, c) {
+  return tileAt(r, c) === 2;
+}
+
+function isLadder(px, py, pw, ph) {
+  for (const l of ladders) {
+    if (px < l.x + l.w && px + pw > l.x && py < l.y + l.h && py + ph > l.y) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// ============================================================
+// PLAYER UPDATE
+// ============================================================
+function updatePlayer() {
+  const p = player;
+  const spd = 1.5;
+  const gravity = 0.25;
+  const jumpForce = -4.5;
+  const climbSpd = 1.2;
+
+  // Horizontal input
+  let dx = 0;
+  if (keys["ArrowLeft"] || keys["KeyA"])  { dx = -spd; p.facingR = false; }
+  if (keys["ArrowRight"] || keys["KeyD"]) { dx = spd; p.facingR = true; }
+
+  // Attack
+  if ((keys["KeyZ"] || keys["Space"]) && attackTimer <= 0) {
+    // Only allow attack with Z when not jumping with Space
+    if (keys["KeyZ"]) {
+      attackTimer = 15;
+      attackDir = p.facingR ? 1 : -1;
+    }
+  }
+  if (attackTimer > 0) attackTimer--;
+
+  // Check ladder
+  const onLadder = isLadder(p.x, p.y, p.w, p.h);
+
+  if (onLadder && (keys["ArrowUp"] || keys["KeyW"] || keys["ArrowDown"] || keys["KeyS"])) {
+    p.onLadder = true;
+  }
+
+  if (p.onLadder) {
+    p.vy = 0;
+    if (keys["ArrowUp"] || keys["KeyW"]) p.vy = -climbSpd;
+    if (keys["ArrowDown"] || keys["KeyS"]) p.vy = climbSpd;
+    if (!onLadder) p.onLadder = false;
+
+    // Jump off ladder
+    if (keys["Space"] || keys["ArrowUp"] || keys["KeyW"]) {
+      if (keys["Space"] && !p.jumpHeld) {
+        p.onLadder = false;
+        p.vy = jumpForce;
+      }
+    }
+  } else {
+    // Gravity
+    p.vy += gravity;
+    if (p.vy > 5) p.vy = 5;
+
+    // Jump
+    if ((keys["Space"] || keys["ArrowUp"] || keys["KeyW"]) && p.onGround && !p.jumpHeld) {
+      p.vy = jumpForce;
+      p.onGround = false;
+      p.jumpHeld = true;
+    }
+  }
+
+  if (!keys["Space"] && !keys["ArrowUp"] && !keys["KeyW"]) p.jumpHeld = false;
+
+  // Move X
+  p.x += dx;
+  // Collide X
+  const leftC  = Math.floor(p.x / TILE);
+  const rightC = Math.floor((p.x + p.w - 1) / TILE);
+  const topR   = Math.floor(p.y / TILE);
+  const botR   = Math.floor((p.y + p.h - 1) / TILE);
+
+  for (let r = topR; r <= botR; r++) {
+    if (isSolid(r, leftC)) {
+      p.x = (leftC + 1) * TILE;
+    }
+    if (isSolid(r, Math.floor((p.x + p.w - 1) / TILE))) {
+      p.x = Math.floor((p.x + p.w - 1) / TILE) * TILE - p.w;
+    }
+  }
+
+  // Move Y
+  p.y += p.vy;
+  p.onGround = false;
+
+  const topR2 = Math.floor(p.y / TILE);
+  const botR2 = Math.floor((p.y + p.h - 1) / TILE);
+  const leftC2  = Math.floor(p.x / TILE);
+  const rightC2 = Math.floor((p.x + p.w - 1) / TILE);
+
+  for (let c = leftC2; c <= rightC2; c++) {
+    if (p.vy < 0 && isSolid(topR2, c)) {
+      p.y = (topR2 + 1) * TILE;
+      p.vy = 0;
+    }
+    if (p.vy >= 0) {
+      const footR = Math.floor((p.y + p.h) / TILE);
+      if (isSolid(footR, c)) {
+        p.y = footR * TILE - p.h;
+        p.vy = 0;
+        p.onGround = true;
+      }
+      // One-way platforms: only when falling
+      if (!p.onLadder && isPlatform(footR, c) && p.vy >= 0) {
+        const platTop = footR * TILE;
+        if (p.y + p.h - p.vy <= platTop + 2) {
+          p.y = platTop - p.h;
+          p.vy = 0;
+          p.onGround = true;
+        }
+      }
+    }
+  }
+
+  // Collect key
+  if (keyPos && !keyPos.collected) {
+    if (boxOverlap(p, keyPos)) {
+      keyPos.collected = true;
+      hasKey = true;
+      score += 500;
+      flashTimer = 20;
+    }
+  }
+
+  // Collect coins
+  for (const coin of coins) {
+    if (!coin.collected && boxOverlap(p, coin)) {
+      coin.collected = true;
+      score += 100;
+    }
+  }
+
+  // Check exit
+  if (hasKey && exitPos && boxOverlap(p, exitPos)) {
+    state = "stageclear";
+    clearTimer = 90;
+    score += 1000 + stageNum * 200;
+    return;
+  }
+
+  // Check spike collision
+  for (const sp of spikes) {
+    if (boxOverlap(p, sp)) {
+      killPlayer();
+      return;
+    }
+  }
+
+  // Check enemy collision
+  const attackBox = attackTimer > 8 ? {
+    x: p.x + (attackDir > 0 ? p.w : -12),
+    y: p.y + 4,
+    w: 12,
+    h: 10,
+  } : null;
+
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i];
+    if (attackBox && boxOverlap(attackBox, e)) {
+      enemies.splice(i, 1);
+      score += 200;
+      continue;
+    }
+    if (boxOverlap(p, e)) {
+      killPlayer();
+      return;
+    }
+  }
+}
+
+function killPlayer() {
+  state = "dead";
+  deathTimer = 60;
+  lives--;
+}
+
+// ============================================================
+// ENEMY UPDATE
+// ============================================================
+function updateEnemies() {
+  for (const e of enemies) {
+    if (e.type === "h") {
+      e.x += e.vx * e.dir;
+      // Check wall ahead
+      const checkC = e.dir > 0
+        ? Math.floor((e.x + e.w) / TILE)
+        : Math.floor(e.x / TILE);
+      const checkR = Math.floor((e.y + e.h - 1) / TILE);
+
+      if (isSolid(checkR, checkC)) {
+        e.dir *= -1;
+      }
+      // Check if about to fall off platform
+      const footC = e.dir > 0
+        ? Math.floor((e.x + e.w) / TILE)
+        : Math.floor(e.x / TILE);
+      const belowR = Math.floor((e.y + e.h) / TILE);
+      if (!isSolid(belowR, footC) && !isPlatform(belowR, footC)) {
+        // Check if we're on a platform at all
+        const curBelowR = Math.floor((e.y + e.h) / TILE);
+        const curC = Math.floor((e.x + e.w / 2) / TILE);
+        if (isSolid(curBelowR, curC) || isPlatform(curBelowR, curC)) {
+          e.dir *= -1;
+        }
+      }
+    } else {
+      e.y += e.vy * e.dir;
+      const checkR = e.dir > 0
+        ? Math.floor((e.y + e.h) / TILE)
+        : Math.floor(e.y / TILE);
+      const checkC = Math.floor((e.x + e.w / 2) / TILE);
+      if (isSolid(checkR, checkC)) {
+        e.dir *= -1;
+      }
+      // Bounce range limit
+      if (Math.abs(e.y - e.startY) > TILE * 3) {
+        e.dir *= -1;
+      }
+    }
+  }
+}
+
+// ============================================================
+// DRAWING
+// ============================================================
+function drawTile(c, r) {
+  const x = c * TILE;
+  const y = r * TILE;
+  const t = stageData[r][c];
+
+  if (t === 1) {
+    // Brick wall
+    bx.fillStyle = C.WALL;
+    bx.fillRect(x, y, TILE, TILE);
+    bx.fillStyle = C.WALL2;
+    bx.fillRect(x + 1, y + 1, 6, 6);
+    bx.fillRect(x + 9, y + 1, 6, 6);
+    bx.fillRect(x + 1, y + 9, 6, 6);
+    bx.fillRect(x + 9, y + 9, 6, 6);
+    bx.fillStyle = C.BRICK;
+    bx.fillRect(x, y + 7, TILE, 2);
+    bx.fillRect(x + 7, y, 2, TILE);
+  } else if (t === 2) {
+    // Platform
+    bx.fillStyle = C.PLAT;
+    bx.fillRect(x, y, TILE, 4);
+    bx.fillStyle = C.PLAT2;
+    bx.fillRect(x, y + 4, TILE, 2);
+    // dots
+    bx.fillStyle = "#7777aa";
+    for (let i = 2; i < TILE; i += 4) bx.fillRect(x + i, y + 1, 2, 2);
+  } else if (t === 3) {
+    // Ladder
+    bx.fillStyle = C.LADDER;
+    bx.fillRect(x + 2, y, 3, TILE);
+    bx.fillRect(x + 11, y, 3, TILE);
+    bx.fillStyle = C.LADDER2;
+    bx.fillRect(x + 2, y + 3, 12, 2);
+    bx.fillRect(x + 2, y + 10, 12, 2);
+  } else if (t === 4) {
+    // Spikes
+    bx.fillStyle = C.SPIKE;
+    for (let i = 0; i < 4; i++) {
+      const sx = x + i * 4;
+      bx.fillRect(sx + 1, y + 12, 2, 4);
+      bx.fillRect(sx, y + 14, 4, 2);
+    }
+  }
+}
+
+function drawPlayer() {
+  const p = player;
+  const px = Math.round(p.x);
+  const py = Math.round(p.y);
+
+  // Body
+  bx.fillStyle = C.PLAYER;
+  bx.fillRect(px + 2, py + 2, 10, 8);
+  // Head
+  bx.fillStyle = C.PLAYER;
+  bx.fillRect(px + 3, py, 8, 6);
+  // Eyes
+  bx.fillStyle = "#fff";
+  if (p.facingR) {
+    bx.fillRect(px + 8, py + 2, 2, 2);
+  } else {
+    bx.fillRect(px + 4, py + 2, 2, 2);
+  }
+  // Legs
+  bx.fillStyle = C.PLAYER2;
+  bx.fillRect(px + 3, py + 10, 4, 5);
+  bx.fillRect(px + 8, py + 10, 4, 5);
+  // Feet
+  bx.fillStyle = C.PLAYER;
+  bx.fillRect(px + 2, py + 13, 5, 2);
+  bx.fillRect(px + 7, py + 13, 5, 2);
+
+  // Attack effect
+  if (attackTimer > 8) {
+    bx.fillStyle = "#fff";
+    const ax = attackDir > 0 ? px + p.w : px - 10;
+    bx.fillRect(ax, py + 4, 10, 3);
+    bx.fillStyle = C.KEY;
+    bx.fillRect(ax + 2, py + 5, 6, 1);
+  }
+}
+
+function drawEnemy(e) {
+  const ex = Math.round(e.x);
+  const ey = Math.round(e.y);
+  // Body
+  bx.fillStyle = C.ENEMY;
+  bx.fillRect(ex + 1, ey + 2, 12, 10);
+  // Head horns
+  bx.fillStyle = C.ENEMY2;
+  bx.fillRect(ex + 1, ey, 3, 4);
+  bx.fillRect(ex + 10, ey, 3, 4);
+  // Eyes
+  bx.fillStyle = "#fff";
+  bx.fillRect(ex + 3, ey + 4, 3, 3);
+  bx.fillRect(ex + 8, ey + 4, 3, 3);
+  bx.fillStyle = "#000";
+  bx.fillRect(ex + 4, ey + 5, 2, 2);
+  bx.fillRect(ex + 9, ey + 5, 2, 2);
+  // Legs
+  bx.fillStyle = C.ENEMY;
+  const legAnim = Math.floor(Date.now() / 150) % 2;
+  bx.fillRect(ex + 2, ey + 12, 4, 2 + legAnim);
+  bx.fillRect(ex + 8, ey + 12, 4, 2 + (1 - legAnim));
+}
+
+function drawKey() {
+  if (!keyPos || keyPos.collected) return;
+  const bob = Math.sin(Date.now() / 200) * 2;
+  const kx = Math.round(keyPos.x);
+  const ky = Math.round(keyPos.y + bob);
+  bx.fillStyle = C.KEY;
+  // Key shape
+  bx.fillRect(kx, ky + 1, 3, 5);
+  bx.fillRect(kx + 3, ky + 2, 5, 3);
+  bx.fillRect(kx + 5, ky + 4, 2, 3);
+  bx.fillStyle = C.KEY2;
+  bx.fillRect(kx + 1, ky + 2, 1, 3);
+}
+
+function drawExit() {
+  if (!exitPos) return;
+  const ex = exitPos.x;
+  const ey = exitPos.y;
+  if (hasKey) {
+    // Open door (green glow)
+    bx.fillStyle = C.EXIT;
+    bx.fillRect(ex + 2, ey + 1, 12, 15);
+    bx.fillStyle = C.EXIT2;
+    bx.fillRect(ex + 4, ey + 3, 8, 11);
+    // Glow
+    const g = Math.sin(Date.now() / 100) * 0.3 + 0.7;
+    bx.globalAlpha = g * 0.3;
+    bx.fillStyle = C.EXIT;
+    bx.fillRect(ex - 2, ey - 2, 20, 20);
+    bx.globalAlpha = 1;
+  } else {
+    // Closed door (dark)
+    bx.fillStyle = "#444";
+    bx.fillRect(ex + 2, ey + 1, 12, 15);
+    bx.fillStyle = "#333";
+    bx.fillRect(ex + 4, ey + 3, 8, 11);
+    bx.fillStyle = "#666";
+    bx.fillRect(ex + 11, ey + 8, 2, 2);
+  }
+}
+
+function drawCoins() {
+  for (const coin of coins) {
+    if (coin.collected) continue;
+    const bob = Math.sin(Date.now() / 300 + coin.x) * 1.5;
+    const cx = Math.round(coin.x);
+    const cy = Math.round(coin.y + bob);
+    bx.fillStyle = C.COIN;
+    bx.fillRect(cx + 1, cy, 6, 8);
+    bx.fillStyle = "#fff";
+    bx.fillRect(cx + 3, cy + 2, 2, 4);
+  }
+}
+
+// Simple pixel text renderer
+const FONT = {
+  " ": [0,0,0,0,0],
+  "0": [0xe,0x11,0x11,0x11,0xe],
+  "1": [0x4,0xc,0x4,0x4,0xe],
+  "2": [0xe,0x1,0xe,0x10,0x1f],
+  "3": [0x1e,0x1,0x6,0x1,0x1e],
+  "4": [0x12,0x12,0x1f,0x2,0x2],
+  "5": [0x1f,0x10,0x1e,0x1,0x1e],
+  "6": [0xe,0x10,0x1e,0x11,0xe],
+  "7": [0x1f,0x1,0x2,0x4,0x4],
+  "8": [0xe,0x11,0xe,0x11,0xe],
+  "9": [0xe,0x11,0xf,0x1,0xe],
+  "A": [0xe,0x11,0x1f,0x11,0x11],
+  "B": [0x1e,0x11,0x1e,0x11,0x1e],
+  "C": [0xf,0x10,0x10,0x10,0xf],
+  "D": [0x1e,0x11,0x11,0x11,0x1e],
+  "E": [0x1f,0x10,0x1e,0x10,0x1f],
+  "F": [0x1f,0x10,0x1e,0x10,0x10],
+  "G": [0xf,0x10,0x17,0x11,0xf],
+  "H": [0x11,0x11,0x1f,0x11,0x11],
+  "I": [0xe,0x4,0x4,0x4,0xe],
+  "J": [0x1,0x1,0x1,0x11,0xe],
+  "K": [0x11,0x12,0x1c,0x12,0x11],
+  "L": [0x10,0x10,0x10,0x10,0x1f],
+  "M": [0x11,0x1b,0x15,0x11,0x11],
+  "N": [0x11,0x19,0x15,0x13,0x11],
+  "O": [0xe,0x11,0x11,0x11,0xe],
+  "P": [0x1e,0x11,0x1e,0x10,0x10],
+  "Q": [0xe,0x11,0x15,0x12,0xd],
+  "R": [0x1e,0x11,0x1e,0x12,0x11],
+  "S": [0xf,0x10,0xe,0x1,0x1e],
+  "T": [0x1f,0x4,0x4,0x4,0x4],
+  "U": [0x11,0x11,0x11,0x11,0xe],
+  "V": [0x11,0x11,0x11,0xa,0x4],
+  "W": [0x11,0x11,0x15,0x1b,0x11],
+  "X": [0x11,0xa,0x4,0xa,0x11],
+  "Y": [0x11,0xa,0x4,0x4,0x4],
+  "Z": [0x1f,0x2,0x4,0x8,0x1f],
+  "-": [0,0,0xe,0,0],
+  ":": [0,0x4,0,0x4,0],
+  "!": [0x4,0x4,0x4,0,0x4],
+  ".": [0,0,0,0,0x4],
+  "/": [0x1,0x2,0x4,0x8,0x10],
+  "*": [0,0xa,0x4,0xa,0],
+};
+
+function drawText(str, x, y, color, scale) {
+  scale = scale || 1;
+  bx.fillStyle = color || C.TEXT;
+  str = str.toUpperCase();
+  let cx = x;
+  for (let i = 0; i < str.length; i++) {
+    const ch = FONT[str[i]];
+    if (ch) {
+      for (let row = 0; row < 5; row++) {
+        for (let bit = 0; bit < 5; bit++) {
+          if (ch[row] & (1 << (4 - bit))) {
+            bx.fillRect(cx + bit * scale, y + row * scale, scale, scale);
+          }
+        }
+      }
+    }
+    cx += 6 * scale;
+  }
+}
+
+function drawHUD() {
+  // HUD background
+  bx.fillStyle = C.HUD_BG;
+  bx.fillRect(0, 0, NATIVE_W, TILE);
+  // Score
+  drawText("SC:" + String(score).padStart(6, "0"), 2, 5);
+  // Lives
+  drawText("x" + lives, 120, 5);
+  // Small player icon for lives
+  bx.fillStyle = C.PLAYER;
+  bx.fillRect(112, 5, 6, 6);
+  // Stage
+  drawText("ST:" + (stageNum + 1), 155, 5);
+  // Key indicator
+  if (hasKey) {
+    bx.fillStyle = C.KEY;
+    bx.fillRect(210, 5, 4, 6);
+    bx.fillRect(214, 7, 4, 2);
+  }
+  // Flash effect when getting key
+  if (flashTimer > 0) {
+    bx.globalAlpha = flashTimer / 30;
+    bx.fillStyle = "#fff";
+    bx.fillRect(0, 0, NATIVE_W, NATIVE_H);
+    bx.globalAlpha = 1;
+    flashTimer--;
+  }
+}
+
+// ============================================================
+// TITLE SCREEN
+// ============================================================
+function drawTitle() {
+  bx.fillStyle = C.BG;
+  bx.fillRect(0, 0, NATIVE_W, NATIVE_H);
+
+  // Title
+  drawText("DUNGEON", 64, 50, C.KEY, 3);
+  drawText("ESCAPE", 73, 80, C.EXIT, 3);
+
+  // Castle decoration
+  bx.fillStyle = C.WALL;
+  for (let i = 0; i < 5; i++) {
+    bx.fillRect(60 + i * 30, 115, 16, 20);
+    bx.fillRect(64 + i * 30, 105, 8, 10);
+  }
+  bx.fillStyle = C.WALL2;
+  bx.fillRect(60, 135, 136, 8);
+
+  drawText("PRESS SPACE TO START", 32, 160, C.TEXT);
+
+  // Controls
+  drawText("ARROWS/WASD: MOVE", 44, 185, "#888");
+  drawText("SPACE: JUMP", 74, 197, "#888");
+  drawText("Z: ATTACK", 82, 209, "#888");
+
+  // Blinking
+  titleBlink++;
+  if (titleBlink % 60 < 30) {
+    drawText("PRESS SPACE TO START", 32, 160, C.KEY);
+  }
+}
+
+// ============================================================
+// MAIN LOOP
+// ============================================================
+function update() {
+  if (state === "title") {
+    if (keys["Space"]) {
+      state = "playing";
+      stageNum = 0;
+      score = 0;
+      lives = 3;
+      initStage();
+      keys["Space"] = false;
+    }
+  } else if (state === "playing") {
+    updatePlayer();
+    updateEnemies();
+  } else if (state === "dead") {
+    deathTimer--;
+    if (deathTimer <= 0) {
+      if (lives <= 0) {
+        state = "gameover";
+        deathTimer = 120;
+      } else {
+        state = "playing";
+        player.x = spawnX;
+        player.y = spawnY;
+        player.vx = 0;
+        player.vy = 0;
+        player.onGround = false;
+        player.onLadder = false;
+      }
+    }
+  } else if (state === "gameover") {
+    deathTimer--;
+    if (deathTimer <= 0 && keys["Space"]) {
+      state = "title";
+      keys["Space"] = false;
+    }
+  } else if (state === "stageclear") {
+    clearTimer--;
+    if (clearTimer <= 0) {
+      stageNum++;
+      initStage();
+      state = "playing";
+    }
+  }
+}
+
+function draw() {
+  // Clear native buffer
+  bx.fillStyle = C.BG;
+  bx.fillRect(0, 0, NATIVE_W, NATIVE_H);
+
+  if (state === "title") {
+    drawTitle();
+  } else if (state === "gameover") {
+    // Show stage in background
+    for (let r = 0; r < ROWS; r++)
+      for (let c = 0; c < COLS; c++) drawTile(c, r);
+    drawExit();
+    bx.fillStyle = "rgba(0,0,0,0.7)";
+    bx.fillRect(0, 0, NATIVE_W, NATIVE_H);
+    drawText("GAME OVER", 74, 100, C.ENEMY, 2);
+    drawText("SCORE:" + String(score).padStart(6, "0"), 68, 135, C.TEXT);
+    drawText("PRESS SPACE", 68, 165, C.KEY);
+  } else {
+    // Draw stage tiles
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        drawTile(c, r);
+      }
+    }
+
+    drawExit();
+    drawCoins();
+    drawKey();
+
+    // Draw enemies
+    for (const e of enemies) drawEnemy(e);
+
+    // Draw player
+    if (state === "dead") {
+      // Death flash
+      if (deathTimer % 6 < 3) drawPlayer();
+    } else if (state === "stageclear") {
+      drawPlayer();
+      // Stage clear overlay
+      bx.fillStyle = "rgba(0,0,0,0.4)";
+      bx.fillRect(0, 40, NATIVE_W, 60);
+      drawText("STAGE CLEAR!", 58, 55, C.EXIT, 2);
+    } else {
+      drawPlayer();
+    }
+
+    drawHUD();
+  }
+
+  // Scale to canvas
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(buf, 0, 0, canvas.width, canvas.height);
+}
+
+function gameLoop() {
+  update();
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+gameLoop();
+</script>
+</body>
+</html>
