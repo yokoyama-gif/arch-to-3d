@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>KEY ESCAPE - レトロアクション</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #111;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  overflow: hidden;
+}
+canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  border: 4px solid #444;
+}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+"use strict";
+
+// === 内部解像度（ファミコン風 256x240） ===
+const W = 256, H = 240;
+const TILE = 16;
+const COLS = W / TILE;
+const ROWS = H / TILE;
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+function resize() {
+  const s = Math.min(Math.floor(window.innerWidth / W), Math.floor(window.innerHeight / H), 3);
+  const scale = Math.max(s, 1);
+  canvas.width = W;
+  canvas.height = H;
+  canvas.style.width = W * scale + "px";
+  canvas.style.height = H * scale + "px";
+}
+resize();
+window.addEventListener("resize", resize);
+
+const PAL = {
+  bg: "#0f0f23", brick: "#c84c0c", brickHi: "#e8782c",
+  platform: "#6888fc", platHi: "#98b8fc",
+  player: "#fcfcfc", playerHi: "#68d8d8",
+  enemy: "#d82800", enemyHi: "#fc7460",
+  key: "#fce44c", keyHi: "#fcfc9c",
+  door: "#00a844", doorHi: "#4cdc48",
+  spike: "#a8a8a8", text: "#fcfcfc", hud: "#000000", star: "#fce44c",
+};
+
+const keys_pressed = {};
+window.addEventListener("keydown", e => { keys_pressed[e.code] = true; e.preventDefault(); });
+window.addEventListener("keyup", e => { keys_pressed[e.code] = false; });
+
+function isLeft()   { return keys_pressed["ArrowLeft"]  || keys_pressed["KeyA"]; }
+function isRight()  { return keys_pressed["ArrowRight"] || keys_pressed["KeyD"]; }
+function isJump()   { return keys_pressed["ArrowUp"]    || keys_pressed["KeyW"] || keys_pressed["Space"]; }
+function isAttack() { return keys_pressed["KeyZ"] || keys_pressed["KeyX"] || keys_pressed["ShiftLeft"]; }
+
+// ステージデータ
+// タイル: .=空 1=レンガ 2=足場 3=スパイク P=プレイヤー K=鍵 D=ドア
+// 敵タイプ: walker=左右巡回, jumper=跳ねる, flyer=上下飛行
+const STAGES = [
+  {
+    tiles: [
+      "................",
+      "................",
+      "................",
+      "......K.........",
+      "....111111......",
+      "................",
+      "..........D.....",
+      ".........111....",
+      "................",
+      "...222..........",
+      "................",
+      "P..........222..",
+      "111..........111",
+      "................",
+      "1111111111111111",
+    ],
+    enemies: [
+      { type: "walker", x: 8, y: 13, dir: 1, range: 5 },
+    ],
+  },
+  {
+    tiles: [
+      "................",
+      "................",
+      ".D..............",
+      ".11.............",
+      "................",
+      "......222.......",
+      "................",
+      "..........111...",
+      "................",
+      "....222.........",
+      "................",
+      ".............K..",
+      "1..........1111.",
+      "1...............",
+      "1111133331111111",
+    ],
+    enemies: [
+      { type: "walker", x: 5, y: 8, dir: -1, range: 4 },
+      { type: "walker", x: 10, y: 13, dir: 1, range: 3 },
+    ],
+  },
+  {
+    tiles: [
+      "................",
+      "................",
+      "..........D.....",
+      "..........11....",
+      "................",
+      "......222.......",
+      "................",
+      "...111..........",
+      "................",
+      "..........222...",
+      "................",
+      ".K..............",
+      ".11......11.....",
+      "................",
+      "1111133111133111",
+    ],
+    enemies: [
+      { type: "walker", x: 3, y: 7, dir: 1, range: 3 },
+      { type: "jumper", x: 8, y: 13, dir: 1, range: 4 },
+      { type: "flyer",  x: 13, y: 4, dir: 1, range: 4 },
+    ],
+  },
+  {
+    tiles: [
+      "................",
+      "................",
+      "...........K....",
+      "..........1111..",
+      "................",
+      "...222..........",
+      "................",
+      ".......111......",
+      "................",
+      "...........222..",
+      "................",
+      "D...............",
+      "11..............",
+      "................",
+      "1111331111331111",
+    ],
+    enemies: [
+      { type: "walker", x: 4, y: 4, dir: 1, range: 4 },
+      { type: "walker", x: 10, y: 13, dir: -1, range: 5 },
+      { type: "jumper", x: 7, y: 7, dir: -1, range: 3 },
+      { type: "flyer",  x: 2, y: 6, dir: 1, range: 3 },
+    ],
+  },
+  {
+    tiles: [
+      "................",
+      "................",
+      "D...............",
+      "11..............",
+      "................",
+      "....222.........",
+      "................",
+      "........111.....",
+      "................",
+      "...222..........",
+      "................",
+      "...........K....",
+      "..........1111..",
+      "................",
+      "1113311113311111",
+    ],
+    enemies: [
+      { type: "walker", x: 2, y: 14, dir: 1, range: 3 },
+      { type: "walker", x: 9, y: 14, dir: -1, range: 3 },
+      { type: "jumper", x: 5, y: 5, dir: 1, range: 3 },
+      { type: "flyer",  x: 12, y: 3, dir: -1, range: 5 },
+      { type: "flyer",  x: 6, y: 8, dir: 1, range: 3 },
+    ],
+  },
+];
+
+// ゲーム状態
+let state = "title";
+let score = 0, lives = 3, stageNum = 0, stageTimer = 0, deathTimer = 0, clearTimer = 0;
+let player = { x:0, y:0, vx:0, vy:0, onGround:false, hasKey:false, facing:1, attackTimer:0, blinkTimer:0 };
+let enemies = [], keyObj = null, doorObj = null, tiles = [], particles = [];
+
+function loadStage(n) {
+  const idx = n % STAGES.length;
+  const stage = STAGES[idx];
+  const loop = Math.floor(n / STAGES.length);
+  tiles = []; keyObj = null; doorObj = null; enemies = []; particles = [];
+  player.hasKey = false; player.attackTimer = 0; player.blinkTimer = 0; player.vx = 0; player.vy = 0;
+
+  for (let r = 0; r < ROWS; r++) {
+    tiles[r] = [];
+    const row = stage.tiles[r] || "";
+    for (let c = 0; c < COLS; c++) {
+      const ch = row[c] || ".";
+      if (ch === "P") { player.x = c * TILE + 4; player.y = r * TILE; tiles[r][c] = 0; }
+      else if (ch === "K") { keyObj = { x: c*TILE, y: r*TILE, collected: false, bobT: 0 }; tiles[r][c] = 0; }
+      else if (ch === "D") { doorObj = { x: c*TILE, y: r*TILE, open: false }; tiles[r][c] = 0; }
+      else if (ch === "1") tiles[r][c] = 1;
+      else if (ch === "2") tiles[r][c] = 2;
+      else if (ch === "3") tiles[r][c] = 3;
+      else tiles[r][c] = 0;
+    }
+  }
+
+  const speedMul = 1 + loop * 0.3;
+  for (const def of stage.enemies) {
+    enemies.push({
+      type: def.type, x: def.x*TILE, y: def.y*TILE,
+      startX: def.x*TILE, startY: def.y*TILE,
+      dir: def.dir||1, range: (def.range||3)*TILE,
+      speed: (def.type==="flyer"? 0.6 : 0.5) * speedMul,
+      vy: 0, jumpTimer: 0, alive: true,
+    });
+  }
+  for (let i = 0; i < loop && i < 3; i++) {
+    enemies.push({
+      type:"walker", x:(3+i*4)*TILE, y:13*TILE, startX:(3+i*4)*TILE, startY:13*TILE,
+      dir: i%2===0?1:-1, range:3*TILE, speed:0.5*speedMul, vy:0, jumpTimer:0, alive:true,
+    });
+  }
+}
+
+function getTile(px, py) {
+  const c = Math.floor(px/TILE), r = Math.floor(py/TILE);
+  if (c<0||c>=COLS||r<0||r>=ROWS) return 1;
+  return tiles[r][c];
+}
+function isSolid(px,py) { return getTile(px,py)===1; }
+function boxOverlap(ax,ay,aw,ah,bx,by,bw,bh) {
+  return ax<bx+bw && ax+aw>bx && ay<by+bh && ay+ah>by;
+}
+function spawnParticles(x,y,color,count) {
+  for (let i=0;i<count;i++) particles.push({
+    x, y, vx:(Math.random()-0.5)*3, vy:(Math.random()-1)*3,
+    life:20+Math.random()*20, color
+  });
+}
+
+const PW=8, PH=14, GRAVITY=0.25, JUMP_POWER=-4.2, MOVE_SPEED=1.5, FRICTION=0.8;
+
+function updatePlayer() {
+  if (player.blinkTimer>0) player.blinkTimer--;
+  if (player.attackTimer>0) player.attackTimer--;
+  if (isLeft()) { player.vx-=0.5; player.facing=-1; }
+  else if (isRight()) { player.vx+=0.5; player.facing=1; }
+  else player.vx*=FRICTION;
+  player.vx = Math.max(-MOVE_SPEED, Math.min(MOVE_SPEED, player.vx));
+  if (isJump() && player.onGround) { player.vy=JUMP_POWER; player.onGround=false; }
+  if (isAttack() && player.attackTimer===0) player.attackTimer=15;
+  player.vy+=GRAVITY;
+  if (player.vy>5) player.vy=5;
+
+  player.x+=player.vx;
+  if (isSolid(player.x, player.y+2) || isSolid(player.x, player.y+PH-2)) {
+    player.x=Math.ceil(player.x/TILE)*TILE; player.vx=0;
+  }
+  if (isSolid(player.x+PW-1, player.y+2) || isSolid(player.x+PW-1, player.y+PH-2)) {
+    player.x=Math.floor((player.x+PW-1)/TILE)*TILE-PW; player.vx=0;
+  }
+
+  const prevY=player.y;
+  player.y+=player.vy;
+  player.onGround=false;
+  if (player.vy>=0) {
+    for (let cx=0;cx<=1;cx++) {
+      const checkX=player.x+cx*(PW-2)+1, footY=player.y+PH, t=getTile(checkX,footY);
+      if (t===1) { player.y=Math.floor(footY/TILE)*TILE-PH; player.vy=0; player.onGround=true; break; }
+      if (t===2) {
+        const platTop=Math.floor(footY/TILE)*TILE;
+        if (prevY+PH<=platTop+2) { player.y=platTop-PH; player.vy=0; player.onGround=true; break; }
+      }
+    }
+  } else {
+    if (isSolid(player.x+1,player.y)||isSolid(player.x+PW-2,player.y)) {
+      player.y=Math.ceil(player.y/TILE)*TILE; player.vy=0;
+    }
+  }
+
+  // スパイク
+  for (let cx=0;cx<=1;cx++) {
+    if (getTile(player.x+cx*(PW-2)+1, player.y+PH-1)===3 ||
+        getTile(player.x+cx*(PW-2)+1, player.y+2)===3) { killPlayer(); return; }
+  }
+  if (player.y>H+16) { killPlayer(); return; }
+
+  // 鍵
+  if (keyObj && !keyObj.collected) {
+    if (boxOverlap(player.x,player.y,PW,PH, keyObj.x+2,keyObj.y+2,12,12)) {
+      keyObj.collected=true; player.hasKey=true;
+      if (doorObj) doorObj.open=true;
+      spawnParticles(keyObj.x+8,keyObj.y+8,PAL.key,12); score+=100;
+    }
+  }
+  // ドア
+  if (doorObj && doorObj.open) {
+    if (boxOverlap(player.x,player.y,PW,PH, doorObj.x+2,doorObj.y,12,16)) {
+      state="clear"; clearTimer=90; score+=500+stageNum*100;
+      spawnParticles(player.x+4,player.y+7,PAL.doorHi,20);
+    }
+  }
+  // 攻撃
+  if (player.attackTimer>10) {
+    const ax=player.facing===1? player.x+PW : player.x-12;
+    for (const e of enemies) {
+      if (!e.alive) continue;
+      if (boxOverlap(ax,player.y+2,12,10, e.x,e.y,14,14)) {
+        e.alive=false; score+=200;
+        spawnParticles(e.x+7,e.y+7,PAL.enemyHi,10);
+      }
+    }
+  }
+  // 敵接触
+  if (player.blinkTimer<=0) {
+    for (const e of enemies) {
+      if (!e.alive) continue;
+      if (boxOverlap(player.x,player.y,PW,PH, e.x+1,e.y+1,12,12)) { killPlayer(); return; }
+    }
+  }
+}
+
+function killPlayer() {
+  if (player.blinkTimer>0) return;
+  lives--;
+  spawnParticles(player.x+4,player.y+7,PAL.player,15);
+  if (lives<=0) { state="gameover"; deathTimer=120; }
+  else { state="dead"; deathTimer=60; }
+}
+
+function updateEnemies() {
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    if (e.type==="walker") {
+      e.x+=e.speed*e.dir;
+      if (Math.abs(e.x-e.startX)>e.range) {
+        e.dir*=-1; e.x=Math.max(e.startX-e.range, Math.min(e.startX+e.range, e.x));
+      }
+      if (isSolid(e.x-1,e.y+8)||isSolid(e.x+15,e.y+8)) e.dir*=-1;
+    } else if (e.type==="jumper") {
+      e.x+=e.speed*e.dir*0.8;
+      if (Math.abs(e.x-e.startX)>e.range) e.dir*=-1;
+      e.jumpTimer++; e.vy+=GRAVITY; e.y+=e.vy;
+      if (e.vy>=0 && getTile(e.x+7,e.y+16)===1) {
+        e.y=Math.floor((e.y+16)/TILE)*TILE-16; e.vy=0;
+        if (e.jumpTimer>40) { e.vy=-3.5; e.jumpTimer=0; }
+      }
+    } else if (e.type==="flyer") {
+      e.y+=e.speed*e.dir;
+      if (Math.abs(e.y-e.startY)>e.range) e.dir*=-1;
+    }
+  }
+}
+
+function updateParticles() {
+  for (let i=particles.length-1;i>=0;i--) {
+    const p=particles[i]; p.x+=p.vx; p.y+=p.vy; p.vy+=0.1; p.life--;
+    if (p.life<=0) particles.splice(i,1);
+  }
+}
+
+// === 描画 ===
+function drawTiles() {
+  for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++) {
+    const t=tiles[r][c], x=c*TILE, y=r*TILE;
+    if (t===1) {
+      ctx.fillStyle=PAL.brick; ctx.fillRect(x,y,TILE,TILE);
+      ctx.fillStyle=PAL.brickHi; ctx.fillRect(x+1,y+1,TILE-2,2); ctx.fillRect(x+1,y+1,2,TILE-2);
+      ctx.fillStyle="#8b2500"; ctx.fillRect(x+7,y,1,TILE); ctx.fillRect(x,y+7,TILE,1);
+    } else if (t===2) {
+      ctx.fillStyle=PAL.platform; ctx.fillRect(x,y,TILE,4);
+      ctx.fillStyle=PAL.platHi; ctx.fillRect(x,y,TILE,2);
+      ctx.fillStyle=PAL.platform;
+      for (let dx=0;dx<TILE;dx+=4) ctx.fillRect(x+dx,y+5,2,1);
+    } else if (t===3) {
+      ctx.fillStyle=PAL.spike;
+      for (let s=0;s<4;s++) {
+        const sx=x+s*4;
+        ctx.beginPath(); ctx.moveTo(sx,y+TILE); ctx.lineTo(sx+2,y+4); ctx.lineTo(sx+4,y+TILE); ctx.fill();
+      }
+    }
+  }
+}
+
+function drawPlayer() {
+  if (state==="dead"||state==="gameover") return;
+  if (player.blinkTimer>0 && Math.floor(player.blinkTimer/3)%2===0) return;
+  const x=Math.round(player.x), y=Math.round(player.y), f=player.facing;
+  ctx.fillStyle=PAL.playerHi; ctx.fillRect(x+1,y+3,6,8);
+  ctx.fillStyle=PAL.player; ctx.fillRect(x+1,y,6,4);
+  ctx.fillStyle="#222"; ctx.fillRect(x+(f===1?5:2),y+1,1,2);
+  const wf=Math.floor(stageTimer/6)%2;
+  ctx.fillStyle=PAL.playerHi;
+  if (player.onGround && Math.abs(player.vx)>0.3) {
+    ctx.fillRect(x+(wf?0:2),y+11,3,3); ctx.fillRect(x+(wf?5:3),y+11,3,3);
+  } else { ctx.fillRect(x+1,y+11,3,3); ctx.fillRect(x+4,y+11,3,3); }
+  if (player.attackTimer>10) {
+    ctx.fillStyle=PAL.keyHi;
+    const ax=f===1?x+PW:x-10;
+    ctx.fillRect(ax+2,y+4,8,2); ctx.fillRect(ax+4,y+2,4,6);
+  }
+}
+
+function drawEnemies() {
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    const x=Math.round(e.x), y=Math.round(e.y), t=stageTimer;
+    if (e.type==="walker") {
+      ctx.fillStyle=PAL.enemy; ctx.fillRect(x+2,y+2,12,10);
+      ctx.fillStyle=PAL.enemyHi; ctx.fillRect(x+3,y+3,10,4);
+      ctx.fillStyle="#fff"; ctx.fillRect(x+4,y+4,3,3); ctx.fillRect(x+9,y+4,3,3);
+      ctx.fillStyle="#222"; ctx.fillRect(x+5,y+5,1,1); ctx.fillRect(x+10,y+5,1,1);
+      ctx.fillStyle=PAL.enemy;
+      const wf=Math.floor(t/8)%2;
+      ctx.fillRect(x+2+wf,y+12,4,3); ctx.fillRect(x+9-wf,y+12,4,3);
+    } else if (e.type==="jumper") {
+      ctx.fillStyle="#a848fc"; ctx.fillRect(x+1,y+1,14,10);
+      ctx.fillStyle="#d088fc"; ctx.fillRect(x+2,y+2,12,4);
+      ctx.fillStyle="#fff"; ctx.fillRect(x+3,y+3,3,3); ctx.fillRect(x+10,y+3,3,3);
+      ctx.fillStyle="#222"; ctx.fillRect(x+4,y+4,1,1); ctx.fillRect(x+11,y+4,1,1);
+      ctx.fillStyle="#a848fc";
+      const stretch=e.vy<-1?5:2;
+      ctx.fillRect(x+4,y+11,2,stretch); ctx.fillRect(x+10,y+11,2,stretch);
+    } else if (e.type==="flyer") {
+      ctx.fillStyle="#00a844"; ctx.fillRect(x+3,y+4,10,8);
+      ctx.fillStyle="#4cdc48"; ctx.fillRect(x+4,y+5,8,4);
+      ctx.fillStyle="#fff"; ctx.fillRect(x+5,y+5,2,2); ctx.fillRect(x+9,y+5,2,2);
+      const wingY=Math.floor(t/4)%2===0?-2:1;
+      ctx.fillStyle="#4cdc48";
+      ctx.fillRect(x-1,y+5+wingY,4,3); ctx.fillRect(x+13,y+5+wingY,4,3);
+    }
+  }
+}
+
+function drawKey() {
+  if (!keyObj||keyObj.collected) return;
+  keyObj.bobT+=0.05;
+  const bob=Math.sin(keyObj.bobT)*2, x=keyObj.x+3, y=keyObj.y+3+bob;
+  ctx.fillStyle=PAL.key;
+  ctx.fillRect(x+2,y,6,4); ctx.fillRect(x+3,y+1,4,2);
+  ctx.fillStyle=PAL.bg; ctx.fillRect(x+4,y+1,2,2);
+  ctx.fillStyle=PAL.key;
+  ctx.fillRect(x+4,y+4,2,6); ctx.fillRect(x+6,y+7,2,2); ctx.fillRect(x+6,y+4,2,2);
+  if (Math.floor(stageTimer/10)%3===0) {
+    ctx.fillStyle=PAL.keyHi; ctx.fillRect(x-1,y-1,1,1); ctx.fillRect(x+9,y+1,1,1);
+  }
+}
+
+function drawDoor() {
+  if (!doorObj) return;
+  const x=doorObj.x, y=doorObj.y;
+  if (doorObj.open) {
+    ctx.fillStyle=PAL.doorHi; ctx.fillRect(x+1,y+1,14,14);
+    ctx.fillStyle=PAL.door; ctx.fillRect(x+3,y+3,10,10);
+    ctx.fillStyle="#000"; ctx.fillRect(x+4,y+4,8,8);
+    ctx.fillStyle=PAL.doorHi; ctx.fillRect(x+7,y+5,2,6); ctx.fillRect(x+5,y+7,6,2);
+  } else {
+    ctx.fillStyle=PAL.door; ctx.fillRect(x+1,y+1,14,14);
+    ctx.fillStyle="#1b6830"; ctx.fillRect(x+2,y+2,12,12);
+    ctx.fillStyle="#000"; ctx.fillRect(x+7,y+6,2,4); ctx.fillRect(x+6,y+6,4,2);
+  }
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    ctx.fillStyle=p.color;
+    ctx.globalAlpha=Math.min(1,p.life/10);
+    ctx.fillRect(Math.round(p.x),Math.round(p.y),2,2);
+  }
+  ctx.globalAlpha=1;
+}
+
+// 簡易ビットマップフォント(5x7)
+const FD = {
+  "0":"7f4141417f","1":"00000000ff","2":"794949494f","3":"494949497f","4":"0f0808087f",
+  "5":"4f4949497f","6":"7f4949497f","7":"010101017f","8":"7f4949497f","9":"4f4848487f",
+  "A":"7e09090e7e","B":"7f4949497f","C":"7f41414141","D":"7f4141413e","E":"7f49494949",
+  "F":"7f09090901","G":"7f41494979","H":"7f0808087f","I":"0041ff4100","J":"6041414101",
+  "K":"7f0814224f","L":"7f40404040","M":"7f0204027f","N":"7f0204087f","O":"7f4141417f",
+  "P":"7f0909090f","Q":"3f21516121","R":"7f09192946","S":"4f49494979","T":"01017f0101",
+  "U":"7f4040407f","V":"1f2040201f","W":"7f2010207f","X":"774808087f","Y":"070810087f",
+  "Z":"714945434f",":":"00002400","!":"005f0000"," ":"0000000000","-":"0008080800",
+  ".":"0040000000","+":"00081c0800","=":"0014141400",
+};
+
+function drawText(str, x, y) {
+  for (let i=0;i<str.length;i++) {
+    const d=FD[str[i].toUpperCase()];
+    if (!d) { x+=6; continue; }
+    for (let col=0;col<d.length/2;col++) {
+      const byte=parseInt(d.substr(col*2,2),16);
+      for (let bit=0;bit<7;bit++) if (byte&(1<<bit)) ctx.fillRect(x+col,y+bit,1,1);
+    }
+    x+=d.length/2+1;
+  }
+}
+
+function drawTextCentered(str, y) {
+  let w=0;
+  for (const ch of str.toUpperCase()) { const d=FD[ch]; w+=d? d.length/2+1 : 6; }
+  drawText(str, Math.floor((W-w)/2), y);
+}
+
+function drawHUD() {
+  ctx.fillStyle=PAL.hud; ctx.fillRect(0,0,W,12);
+  ctx.fillStyle=PAL.text; drawText("SCORE:"+String(score).padStart(6,"0"),4,3);
+  drawText("STG:"+(stageNum+1),110,3);
+  for (let i=0;i<lives;i++) {
+    ctx.fillStyle=PAL.playerHi; ctx.fillRect(200+i*10,3,6,7);
+    ctx.fillStyle=PAL.player; ctx.fillRect(201+i*10,2,4,3);
+  }
+}
+
+function drawTitle() {
+  ctx.fillStyle=PAL.bg; ctx.fillRect(0,0,W,H);
+  for (let i=0;i<30;i++) {
+    const sx=(i*37+stageTimer*0.2)%W, sy=(i*53+10)%(H-40)+20;
+    ctx.fillStyle=(i+Math.floor(stageTimer/20))%3===0? PAL.keyHi : "#446";
+    ctx.fillRect(Math.floor(sx),Math.floor(sy),1,1);
+  }
+  ctx.fillStyle=PAL.key; drawTextCentered("KEY ESCAPE",60);
+  ctx.fillStyle=PAL.playerHi;
+  drawTextCentered("GET THE KEY",90); drawTextCentered("REACH THE DOOR",102);
+  ctx.fillStyle=PAL.text;
+  drawTextCentered("ARROWS OR WASD: MOVE",130);
+  drawTextCentered("SPACE: JUMP",142);
+  drawTextCentered("Z OR X: ATTACK",154);
+  if (Math.floor(stageTimer/30)%2===0) {
+    ctx.fillStyle=PAL.star; drawTextCentered("PRESS SPACE TO START",190);
+  }
+  const dx=80, dy=210;
+  ctx.fillStyle=PAL.playerHi; ctx.fillRect(dx+1,dy+3,6,8);
+  ctx.fillStyle=PAL.player; ctx.fillRect(dx+1,dy,6,4);
+  ctx.fillStyle=PAL.key; ctx.fillRect(dx+30,dy+2,6,4); ctx.fillRect(dx+32,dy+6,2,4);
+  ctx.fillStyle=PAL.door; ctx.fillRect(dx+60,dy,14,14);
+  ctx.fillStyle="#1b6830"; ctx.fillRect(dx+62,dy+2,10,10);
+  ctx.fillStyle=PAL.enemy; ctx.fillRect(dx+100,dy+2,12,10);
+  ctx.fillStyle="#fff"; ctx.fillRect(dx+103,dy+4,2,2); ctx.fillRect(dx+107,dy+4,2,2);
+}
+
+function drawGameOver() {
+  ctx.fillStyle="rgba(0,0,0,0.7)"; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle=PAL.enemy; drawTextCentered("GAME OVER",100);
+  ctx.fillStyle=PAL.text; drawTextCentered("SCORE:"+String(score).padStart(6,"0"),120);
+  if (deathTimer<=0 && Math.floor(stageTimer/30)%2===0) {
+    ctx.fillStyle=PAL.star; drawTextCentered("PRESS SPACE",160);
+  }
+}
+
+function drawStageClear() {
+  ctx.fillStyle="rgba(0,0,0,0.5)"; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle=PAL.doorHi; drawTextCentered("STAGE CLEAR!",100);
+  ctx.fillStyle=PAL.text; drawTextCentered("SCORE:"+String(score).padStart(6,"0"),120);
+}
+
+// メインループ
+function update() {
+  stageTimer++;
+  if (state==="title") {
+    if (isJump()) { state="play"; score=0; lives=3; stageNum=0; loadStage(0); }
+  } else if (state==="play") {
+    updatePlayer(); updateEnemies(); updateParticles();
+  } else if (state==="dead") {
+    updateParticles(); deathTimer--;
+    if (deathTimer<=0) { state="play"; loadStage(stageNum); }
+  } else if (state==="clear") {
+    updateParticles(); clearTimer--;
+    if (clearTimer<=0) { stageNum++; state="play"; loadStage(stageNum); }
+  } else if (state==="gameover") {
+    updateParticles(); if (deathTimer>0) deathTimer--;
+    if (deathTimer<=0 && isJump()) state="title";
+  }
+}
+
+function draw() {
+  ctx.fillStyle=PAL.bg; ctx.fillRect(0,0,W,H);
+  if (state==="title") { drawTitle(); }
+  else {
+    drawTiles(); drawDoor(); drawKey(); drawEnemies(); drawPlayer(); drawParticles(); drawHUD();
+    if (state==="gameover") drawGameOver();
+    if (state==="clear") drawStageClear();
+    if (state==="dead") {
+      ctx.fillStyle="rgba(0,0,0,0.3)"; ctx.fillRect(0,0,W,H);
+      ctx.fillStyle=PAL.enemy; drawTextCentered("MISS!",H/2-4);
+    }
+  }
+}
+
+function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
+gameLoop();
+</script>
+</body>
+</html>

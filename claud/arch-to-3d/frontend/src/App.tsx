@@ -16,11 +16,28 @@ import type {
   VolumeKind,
 } from "./types/skyfactor";
 
+type Tone = "good" | "caution" | "bad" | "neutral";
+
+interface ImportSnapshot {
+  file_name: string;
+  detected_format: string;
+  unit: DrawingUnit;
+  planned_count: number;
+  context_count: number;
+}
+
 const boundaryLabels: Record<BoundaryKey, string> = {
   south: "南側",
   east: "東側",
   north: "北側",
   west: "西側",
+};
+
+const boundaryShortLabels: Record<BoundaryKey, string> = {
+  south: "S",
+  east: "E",
+  north: "N",
+  west: "W",
 };
 
 const ruleLabels: Record<RuleType, string> = {
@@ -43,6 +60,12 @@ const qualityPresets = {
     azimuth: 240,
     altitude: 36,
   },
+};
+
+const qualityLabels: Record<string, string> = {
+  standard: "標準",
+  dense: "高精度",
+  custom: "カスタム",
 };
 
 const initialBoundaryRules: BoundaryRuleSet = {
@@ -122,6 +145,40 @@ function formatNumber(value: number) {
   return value.toFixed(2);
 }
 
+function formatPercent(value: number) {
+  return `${formatNumber(value)}%`;
+}
+
+function formatMeters(value: number) {
+  return `${formatNumber(value)}m`;
+}
+
+function getToneFromMargin(margin: number | undefined): Tone {
+  if (margin === undefined) {
+    return "neutral";
+  }
+  if (margin < 0) {
+    return "bad";
+  }
+  if (margin < 3) {
+    return "caution";
+  }
+  return "good";
+}
+
+function getStatusLabel(margin: number | undefined) {
+  if (margin === undefined) {
+    return "解析待ち";
+  }
+  if (margin < 0) {
+    return "不足";
+  }
+  if (margin < 3) {
+    return "境界上";
+  }
+  return "余裕あり";
+}
+
 function colorForPoint(point: ObservationPoint | undefined) {
   if (!point) {
     return "#d6d1c4";
@@ -133,6 +190,19 @@ function colorForPoint(point: ObservationPoint | undefined) {
     return "#d88b2c";
   }
   return "#bf4b39";
+}
+
+function describeRule(rule: BoundaryRule) {
+  if (!rule.enabled) {
+    return "当該境界は判定対象から外しています。";
+  }
+  if (rule.rule_type === "fixed") {
+    return `基準天空率 ${formatPercent(rule.fixed_threshold)} を採用`;
+  }
+  if (rule.rule_type === "road") {
+    return `道路幅員 ${formatMeters(rule.road_width)} / 勾配 ${formatNumber(rule.slope)}`;
+  }
+  return `隣地側立上り ${formatMeters(rule.base_height)} / 勾配 ${formatNumber(rule.slope)}`;
 }
 
 function createVolume(kind: VolumeKind): VolumeInput {
@@ -171,6 +241,36 @@ function getQualityKey(settings: EvaluationSettings) {
     }
   }
   return "custom";
+}
+
+function StatusPill({
+  tone,
+  children,
+}: {
+  tone: Tone;
+  children: string;
+}) {
+  return <span className={`status-pill tone-${tone}`}>{children}</span>;
+}
+
+function MetricTile({
+  label,
+  value,
+  caption,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string;
+  caption: string;
+  tone?: Tone;
+}) {
+  return (
+    <article className={`metric-tile tone-${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{caption}</small>
+    </article>
+  );
 }
 
 function PlanPreview({
@@ -240,6 +340,30 @@ function PlanPreview({
           strokeWidth="0.18"
           rx="0.4"
         />
+        <text x={site.width / 2} y={1.1 - site.depth} className="boundary-label" textAnchor="middle">
+          北側境界 / {boundaryShortLabels.north}
+        </text>
+        <text x={site.width / 2} y={1.2} className="boundary-label" textAnchor="middle">
+          南側境界 / {boundaryShortLabels.south}
+        </text>
+        <text
+          x={site.width + 0.8}
+          y={-site.depth / 2}
+          className="boundary-label"
+          textAnchor="start"
+          dominantBaseline="middle"
+        >
+          東側 / {boundaryShortLabels.east}
+        </text>
+        <text
+          x={-0.8}
+          y={-site.depth / 2}
+          className="boundary-label"
+          textAnchor="end"
+          dominantBaseline="middle"
+        >
+          西側 / {boundaryShortLabels.west}
+        </text>
         {volumes.map((volume) => (
           <g key={volume.id}>
             <rect
@@ -276,27 +400,34 @@ function PlanPreview({
           />
         ))}
       </svg>
-      <div className="legend">
-        <span>
-          <i className="legend-swatch planned" />
-          計画建物
-        </span>
-        <span>
-          <i className="legend-swatch context" />
-          周辺建物
-        </span>
-        <span>
-          <i className="legend-swatch pass" />
-          余裕あり
-        </span>
-        <span>
-          <i className="legend-swatch warning" />
-          適合境界
-        </span>
-        <span>
-          <i className="legend-swatch fail" />
-          不適合
-        </span>
+
+      <div className="plan-foot">
+        <div className="legend">
+          <span>
+            <i className="legend-swatch planned" />
+            計画建物
+          </span>
+          <span>
+            <i className="legend-swatch context" />
+            周辺建物
+          </span>
+          <span>
+            <i className="legend-swatch pass" />
+            余裕あり
+          </span>
+          <span>
+            <i className="legend-swatch warning" />
+            境界上
+          </span>
+          <span>
+            <i className="legend-swatch fail" />
+            不足
+          </span>
+        </div>
+        <div className="plan-meta">
+          <span>敷地 {formatMeters(site.width)} × {formatMeters(site.depth)}</span>
+          <span>測点 {points.length} 点</span>
+        </div>
       </div>
     </div>
   );
@@ -311,6 +442,8 @@ function RuleCard({
   rule: BoundaryRule;
   onChange: (field: keyof BoundaryRule, value: boolean | number | RuleType) => void;
 }) {
+  const tone = rule.enabled ? "neutral" : "caution";
+
   return (
     <article className="rule-card">
       <div className="volume-card-header">
@@ -326,6 +459,11 @@ function RuleCard({
           />
           <span>{rule.enabled ? "有効" : "無効"}</span>
         </label>
+      </div>
+
+      <div className="rule-chip-row">
+        <StatusPill tone={tone}>{ruleLabels[rule.rule_type]}</StatusPill>
+        <span className="rule-summary">{describeRule(rule)}</span>
       </div>
 
       <div className="field-grid two-column compact-grid">
@@ -406,7 +544,11 @@ function RuleCard({
           </>
         ) : null}
       </div>
-      <p className="micro-copy">{ruleLabels[rule.rule_type]}を基準天空率に使用します。</p>
+      <p className="micro-copy">
+        {rule.enabled
+          ? "この境界の基準天空率算定に適用します。"
+          : "無効化中は測点を生成しません。"}
+      </p>
     </article>
   );
 }
@@ -419,6 +561,7 @@ export default function App() {
   const [importing, setImporting] = useState(false);
   const [drawingFile, setDrawingFile] = useState<File | null>(null);
   const [importWarnings, setImportWarnings] = useState<string[]>([]);
+  const [importSnapshot, setImportSnapshot] = useState<ImportSnapshot | null>(null);
   const [importOptions, setImportOptions] = useState({
     unit: "mm" as DrawingUnit,
     default_planned_height: 12,
@@ -457,7 +600,7 @@ export default function App() {
     setError(null);
     try {
       const imported = await importDrawing(drawingFile, importOptions);
-      applyImportedDrawing(imported);
+      applyImportedDrawing(imported, drawingFile.name);
     } catch (importError: unknown) {
       if (
         typeof importError === "object" &&
@@ -473,7 +616,7 @@ export default function App() {
     }
   }
 
-  function applyImportedDrawing(imported: DrawingImportResponse) {
+  function applyImportedDrawing(imported: DrawingImportResponse, fileName: string) {
     const nextRequest: SkyFactorRequest = {
       ...request,
       site: imported.site,
@@ -481,6 +624,15 @@ export default function App() {
     };
     setRequest(nextRequest);
     setImportWarnings(imported.warnings);
+    setImportSnapshot({
+      file_name: fileName,
+      detected_format: imported.detected_format,
+      unit: imported.unit,
+      planned_count: imported.volumes.filter((volume) => volume.kind === "planned")
+        .length,
+      context_count: imported.volumes.filter((volume) => volume.kind === "context")
+        .length,
+    });
     void runAnalysis(nextRequest);
   }
 
@@ -563,14 +715,39 @@ export default function App() {
     setRequest(initialRequest);
     setImportWarnings([]);
     setDrawingFile(null);
+    setImportSnapshot(null);
     void runAnalysis(initialRequest);
   }
 
+  const boundaryKeys = Object.keys(boundaryLabels) as BoundaryKey[];
+  const plannedVolumes = request.volumes.filter((volume) => volume.kind === "planned");
+  const contextVolumes = request.volumes.filter((volume) => volume.kind === "context");
+  const plannedFootprint = plannedVolumes.reduce(
+    (sum, volume) => sum + volume.width * volume.depth,
+    0
+  );
+  const siteArea = request.site.width * request.site.depth;
+  const activeBoundaryCount = boundaryKeys.filter(
+    (boundary) => request.boundary_rules[boundary].enabled
+  ).length;
+  const currentQualityKey = getQualityKey(request.settings);
   const worstPoints =
     result?.observation_points
       .slice()
       .sort((left, right) => left.margin_percent - right.margin_percent)
       .slice(0, 8) ?? [];
+  const overallTone = getToneFromMargin(result?.summary.minimum_margin_percent);
+  const overallStatus = getStatusLabel(result?.summary.minimum_margin_percent);
+  const worstPoint =
+    result?.observation_points.find(
+      (point) => point.id === result.summary.worst_point_id
+    ) ?? worstPoints[0];
+  const weakestBoundary =
+    result?.boundaries.reduce((minimum, current) =>
+      current.minimum_margin_percent < minimum.minimum_margin_percent
+        ? current
+        : minimum
+    ) ?? null;
 
   return (
     <div className="app-shell">
