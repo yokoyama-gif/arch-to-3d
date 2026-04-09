@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>将棋ゲーム</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="hero">
+        <p class="eyebrow">LOCAL BOARD GAME</p>
+        <h1>将棋ゲーム</h1>
+        <p class="lead">
+          先手・後手で交互に指すローカル対戦です。成り、持ち駒の打ち、二歩の禁止、王手の回避までブラウザだけで遊べます。
+        </p>
+      </header>
+
+      <section class="layout">
+        <aside class="sidebar">
+          <section class="panel status-panel">
+            <p class="panel-label">対局状況</p>
+            <div class="turn-row">
+              <span id="turn-badge" class="turn-badge sente">先手</span>
+              <strong id="turn-text">先手の番</strong>
+            </div>
+            <p id="status-text" class="status-text">駒を選んでください。</p>
+            <dl class="meta-grid">
+              <div>
+                <dt>手数</dt>
+                <dd id="move-count">0</dd>
+              </div>
+              <div>
+                <dt>合法手</dt>
+                <dd id="legal-count">0</dd>
+              </div>
+            </dl>
+            <p id="selection-text" class="selection-text">
+              盤上の駒、または自分の持ち駒を選択できます。
+            </p>
+          </section>
+
+          <section class="panel hand-panel">
+            <div class="hand-heading">
+              <p class="panel-label">後手の持ち駒</p>
+              <span class="hand-note">上段</span>
+            </div>
+            <div id="gote-hand" class="hand-grid" aria-label="後手の持ち駒"></div>
+          </section>
+
+          <section class="panel action-panel">
+            <button id="restart-button" class="action-button" type="button">
+              初期配置に戻す
+            </button>
+          </section>
+
+          <section class="panel history-panel">
+            <p class="panel-label">棋譜</p>
+            <ol id="history-list" class="history-list" aria-live="polite"></ol>
+          </section>
+
+          <section class="panel hand-panel">
+            <div class="hand-heading">
+              <p class="panel-label">先手の持ち駒</p>
+              <span class="hand-note">下段</span>
+            </div>
+            <div id="sente-hand" class="hand-grid" aria-label="先手の持ち駒"></div>
+          </section>
+
+          <section class="panel rules-panel">
+            <p class="panel-label">ルールメモ</p>
+            <ul>
+              <li>自玉が王手になる手は選べません。</li>
+              <li>成れる手は移動時に確認、強制成りは自動で処理します。</li>
+              <li>歩の二歩、行きどころのない駒打ちは禁止しています。</li>
+              <li>千日手と打ち歩詰め判定は省略しています。</li>
+            </ul>
+          </section>
+        </aside>
+
+        <section class="board-panel">
+          <div class="board-header">
+            <div>
+              <p class="panel-label">将棋盤</p>
+              <h2>9 x 9 Board</h2>
+            </div>
+            <p class="board-caption">
+              後手が上、先手が下です。後手の駒は上下反転で表示します。
+            </p>
+          </div>
+
+          <div class="board-shell">
+            <div id="file-labels" class="axis axis-top" aria-hidden="true"></div>
+            <div class="board-main">
+              <div id="rank-labels" class="axis axis-side" aria-hidden="true"></div>
+              <div id="board" class="board" role="grid" aria-label="将棋盤"></div>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="./script.js"></script>
+  </body>
+</html>

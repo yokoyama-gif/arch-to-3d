@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tetris</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+
+  <main class="app">
+    <section class="hero">
+      <p class="eyebrow">ARCADE PROTOTYPE</p>
+      <h1>TETRIS</h1>
+      <p class="tagline">ブラウザだけで遊べる、ネオン調のシングルプレイ版。キーボードでもタッチでも操作できます。</p>
+    </section>
+
+    <section class="layout">
+      <aside class="panel side">
+        <div class="stat-grid">
+          <article class="stat-card">
+            <span class="stat-label">SCORE</span>
+            <strong id="score">0</strong>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">LINES</span>
+            <strong id="lines">0</strong>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">LEVEL</span>
+            <strong id="level">1</strong>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">STATUS</span>
+            <strong id="status">RUN</strong>
+          </article>
+        </div>
+
+        <section class="mini-panel">
+          <div class="mini-heading">
+            <h2>HOLD</h2>
+            <span>1回/落下</span>
+          </div>
+          <canvas id="hold" width="144" height="144" aria-label="ホールド"></canvas>
+        </section>
+
+        <section class="mini-panel">
+          <h2>操作</h2>
+          <ul class="key-list">
+            <li><span>移動</span><code>&larr; / &rarr;</code></li>
+            <li><span>回転</span><code>&uarr; / Z</code></li>
+            <li><span>ソフトドロップ</span><code>&darr;</code></li>
+            <li><span>ハードドロップ</span><code>SPACE</code></li>
+            <li><span>ホールド</span><code>C / SHIFT</code></li>
+            <li><span>一時停止</span><code>P</code></li>
+          </ul>
+        </section>
+      </aside>
+
+      <section class="board-panel">
+        <div class="board-shell">
+          <div class="scanline" aria-hidden="true"></div>
+          <canvas id="board" width="320" height="640" aria-label="テトリス盤面"></canvas>
+
+          <div class="overlay hidden" id="overlay" aria-live="polite">
+            <p id="overlay-label">PAUSED</p>
+            <button class="primary" id="overlay-button" type="button">再開</button>
+          </div>
+
+          <div class="toast" id="toast" aria-live="polite"></div>
+        </div>
+
+        <div class="actions">
+          <button class="primary" id="startPause" type="button">一時停止</button>
+          <button id="restart" type="button">リスタート</button>
+        </div>
+      </section>
+
+      <aside class="panel side">
+        <section class="mini-panel">
+          <div class="mini-heading">
+            <h2>NEXT</h2>
+            <span>5 pieces</span>
+          </div>
+          <canvas id="next" width="144" height="432" aria-label="次のミノ"></canvas>
+        </section>
+
+        <section class="mini-panel">
+          <h2>ルール</h2>
+          <p class="rule-text">ラインを消すと加点。10ラインごとにレベルアップし、落下速度が上がります。4ライン同時消しで大きく伸びます。</p>
+        </section>
+
+        <section class="mini-panel controls-panel">
+          <h2>タッチ操作</h2>
+          <div class="touch-grid">
+            <button class="touch-button wide" data-action="hold" type="button">HOLD</button>
+            <button class="touch-button" data-action="rotateLeft" type="button">Z</button>
+            <button class="touch-button" data-action="rotateRight" type="button">ROT</button>
+            <button class="touch-button" data-action="left" type="button">LEFT</button>
+            <button class="touch-button" data-action="down" type="button">DOWN</button>
+            <button class="touch-button" data-action="right" type="button">RIGHT</button>
+            <button class="touch-button wide accent" data-action="drop" type="button">DROP</button>
+            <button class="touch-button wide" data-action="pause" type="button">PAUSE</button>
+          </div>
+        </section>
+      </aside>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>株式会社小菅工務店 - 共同住宅建築</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans JP', sans-serif;
+        }
+        .hero-bg {
+            background-image: url('work.png');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }
+        /* Chat bubble styles */
+        .chat-bubble-bot {
+            background-color: #e5e7eb; /* gray-200 */
+            color: #1f2937; /* gray-800 */
+            border-radius: 20px 20px 20px 5px;
+        }
+        .chat-bubble-user {
+            background-color: #3b82f6; /* blue-500 */
+            color: white;
+            border-radius: 20px 20px 5px 20px;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+
+    <!-- Header -->
+    <header class="bg-white shadow-sm sticky top-0 z-50">
+        <div class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="flex items-center">
+                 <img src="logo.png" alt="株式会社小菅工務店 ロゴ" class="h-10 mr-3">
+            </div>
+            <nav class="hidden md:flex space-x-8">
+                <a href="#greeting" class="text-gray-600 hover:text-blue-600">ご挨拶</a>
+                <a href="#strengths" class="text-gray-600 hover:text-blue-600">私たちの強み</a>
+                <a href="#works" class="text-gray-600 hover:text-blue-600">施工事例</a>
+                <a href="#contact" class="text-gray-600 hover:text-blue-600">お問い合わせ</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero-bg text-white h-[60vh] flex items-center justify-center relative">
+        <div class="absolute inset-0 bg-black opacity-50"></div>
+        <div class="text-center z-10">
+             <h1 class="text-5xl md:text-6xl font-bold mb-4 leading-tight">
+                <span class="block text-orange-400 text-6xl md:text-7xl mb-4 font-extrabold tracking-wider">「施工力で」</span>
+                <span class="block">土地目いっぱいに建てる</span><br>
+                <span class="block">収益性の高い木造共同住宅</span>
+            </h1>
+        </div>
+    </section>
+
+    <main class="container mx-auto px-6 py-16">
+
+        <!-- Greeting Section -->
+        <section id="greeting" class="mb-20 text-center">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6">共同住宅事業部の立ち上げ</h2>
+            <div class="max-w-4xl mx-auto text-left leading-relaxed text-gray-700 space-y-4 bg-white p-8 rounded-lg shadow-md">
+                <p>こんにちは。小菅工務店の小菅です。私は、1999年に大工の一人親方として京都市伏見区羽東師で創業しました。職人としてスタートした私は、あくまでも現場を重視し、専属大工による施工という現代では、少なくなった方法で、家づくりをしてきました。</p>
+                <p>苦節25年の中で、京都に根差し、今では、京都大手のデベロッパーからの請負を含めて、年間約70-80棟の木造住宅建築をしています。さらに、2000㎡を超える鉄骨の大規模な倉庫の建築なども手掛けてきました。</p>
+                <p>そのような中、近年の法改正において大規模な木造建築というものを知り、弊社の狭小地木造建築の経験と、大規模な倉庫の施工経験を合わせて、特に、木造三階建て共同住宅という分野に、私たちの経験を活かせるのではないかと考えました。</p>
+                <p>近年京都でも、木造三階建て共同住宅は、多く建設されています。しかし、そのほとんどが大阪など、京都以外の会社によってなされています。私たちは、京都の工務店として、京都に木造３階建て共同住宅を建てていきたいと考えております。</p>
+            </div>
+        </section>
+
+        <!-- Strengths Section -->
+        <section id="strengths" class="mb-20">
+            <h2 class="text-3xl font-bold text-center text-gray-800 mb-12">私たちの７つの強み</h2>
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <!-- Strength 1 -->
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-xl font-bold mb-2 text-blue-600">木造建築による<br>自由度の高い設計、施工</h3>
+                    <p class="text-gray-600">鉄骨造やRC造に比べ、木造は設計の自由度が高く、変形地や狭小地でも敷地のポテンシャルを最大限に引き出すプランニングが可能です。私たちはその特性を活かし、お客様の理想を形にします。</p>
+                </div>
+                <!-- Strength 2 -->
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-xl font-bold mb-2 text-blue-600">（土地取得を逃さない）<br>高速設計</h3>
+                    <p class="text-gray-600">土地取得から共同住宅建築を検討する場合、土地取得が大きなハードルになります。私たちは、信頼できる専門家を厳選し、最短当日、平均１日、遅くとも２～３日でプランニングします。</p>
+                </div>
+                <!-- Strength 3 -->
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-xl font-bold mb-2 text-blue-600">土地を使いきる<br>ギリギリ設計、施工</h3>
+                    <p class="text-gray-600">収益性に一番重要なことは、土地を法律のギリギリまで使いきることです。私たちは、設計士と協力し、ギリギリの設計をし、それを実現する施工力があります。</p>
+                </div>
+                <!-- Strength 4 -->
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-xl font-bold mb-2 text-blue-600">確かで誠実な施工品質</h3>
+                    <p class="text-gray-600">私たちは現代では数少ない、専属大工による責任施工を貫いています。経験豊富な自社の職人が、設計図の意図を正確に汲み取り、細部にまで魂を込めて施工。見えない部分まで一切妥協しない、誠実な家づくりが私たちの誇りです。</p>
+                </div>
+                <!-- Strength 5 -->
+                 <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-xl font-bold mb-2 text-blue-600">年間70-80棟の施工実績</h3>
+                    <p class="text-gray-600">大手デベロッパーからの安定した受注を含め、年間70-80棟の豊富な施工実績を誇ります。このスケールメリットを活かし、高品質な建材を安定的に、そして適正な価格で調達することが可能です。</p>
+                </div>
+                <!-- Strength 6 -->
+                 <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-xl font-bold mb-2 text-blue-600">中間マージンののらない<br>適正価格</h3>
+                    <p class="text-gray-600">私たちは下請けに丸投げせず、自社の専属大工が責任を持って施工します。これにより、余計な中間マージンを徹底的に排除。さらに、長年の実績による大量仕入れでコストを抑え、高品質な共同住宅を適正価格でご提供します。</p>
+                </div>
+                <!-- Strength 7 -->
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-xl font-bold mb-2 text-blue-600">京都密着のサポート</h3>
+                    <p class="text-gray-600">1999年の創業以来、四半世紀にわたり京都の地で実績を積み重ねてきました。アフターフォローに伺うと、お引き渡し当時は赤ちゃんだったお子様が、立派に成長されていることも。この土地を知り尽くした私たちだからこそできる、末永いお付き合いをお約束します。</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Works Section -->
+        <section id="works" class="mb-20">
+            <h2 class="text-3xl font-bold text-center text-gray-800 mb-4">施工事例</h2>
+            <p class="text-center text-gray-600 mb-12">私たちが手がけた（手がけている）共同住宅の一部をご紹介します。</p>
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <!-- Work Item 1 -->
+                <a href="work-detail.html" class="block bg-white rounded-lg shadow-md overflow-hidden hover:shadow-2xl transition duration-300">
+                    <img src="work01.png" alt="山科区御陵共同住宅" class="w-full h-48 object-cover">
+                    <div class="p-6">
+                        <h3 class="text-xl font-bold mb-2">山科区御陵共同住宅</h3>
+                        <p class="text-gray-600 mb-2">京都府京都市</p>
+                    </div>
+                </a>
+                <!-- Work Item 2 -->
+                <a href="work-detail.html" class="block bg-white rounded-lg shadow-md overflow-hidden hover:shadow-2xl transition duration-300">
+                    <img src="work02.png" alt="東山区泉涌寺共同住宅" class="w-full h-48 object-cover">
+                    <div class="p-6">
+                        <h3 class="text-xl font-bold mb-2">
+                            <span class="bg-orange-100 text-orange-800 text-xs font-semibold px-2.5 py-1 rounded-full mr-2 align-middle">着工中</span>東山区泉涌寺共同住宅
+                        </h3>
+                        <p class="text-gray-600 mb-2">京都府京都市</p>
+                        <p class="text-sm text-gray-500">建蔽率70%の土地に、建蔽率約69%にギリギリに設計。かつ、駐輪場など、外部空間も確保。</p>
+                        <div class="mt-4 flex flex-wrap gap-2">
+                            <span class="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-1 rounded-full">東林町</span>
+                            <span class="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-1 rounded-full">建蔽率ぎりぎり</span>
+                            <span class="bg-indigo-100 text-indigo-800 text-xs font-semibold px-2.5 py-1 rounded-full">木造</span>
+                            <span class="bg-purple-100 text-purple-800 text-xs font-semibold px-2.5 py-1 rounded-full">３階建</span>
+                             <span class="bg-pink-100 text-pink-800 text-xs font-semibold px-2.5 py-1 rounded-full">1LDK15室</span>
+                             <span class="bg-yellow-100 text-yellow-800 text-xs font-semibold px-2.5 py-1 rounded-full">景観条例</span>
+                        </div>
+                    </div>
+                </a>
+                <!-- Work Item 3 -->
+                <a href="work-detail.html" class="block bg-white rounded-lg shadow-md overflow-hidden hover:shadow-2xl transition duration-300">
+                    <img src="work03.png" alt="伏見区深草共同住宅" class="w-full h-48 object-cover">
+                    <div class="p-6">
+                        <h3 class="text-xl font-bold mb-2">
+                            <span class="bg-purple-100 text-purple-800 text-xs font-semibold px-2.5 py-1 rounded-full mr-2 align-middle">申請中</span>伏見区深草共同住宅
+                        </h3>
+                        <p class="text-gray-600 mb-2">京都府京都市</p>
+                        <p class="text-sm text-gray-500">２面道路に挟まれた土地。道路斜線という見えない法律を、天空率を使い、ギリギリまで建物を配置して、最大限土地を使い切る。</p>
+                        <div class="mt-4 flex flex-wrap gap-2">
+                            <span class="bg-indigo-100 text-indigo-800 text-xs font-semibold px-2.5 py-1 rounded-full">木造</span>
+                            <span class="bg-pink-100 text-pink-800 text-xs font-semibold px-2.5 py-1 rounded-full">1K9室</span>
+                            <span class="bg-yellow-100 text-yellow-800 text-xs font-semibold px-2.5 py-1 rounded-full">天空率</span>
+                            <span class="bg-purple-100 text-purple-800 text-xs font-semibold px-2.5 py-1 rounded-full">3階建</span>
+                        </div>
+                    </div>
+                </a>
+                <!-- Work Item 4 -->
+                <a href="work-detail.html" class="block bg-white rounded-lg shadow-md overflow-hidden hover:shadow-2xl transition duration-300">
+                    <img src="work04.png" alt="山科区四宮共同住宅" class="w-full h-48 object-cover">
+                    <div class="p-6">
+                        <h3 class="text-xl font-bold mb-2">
+                             <span class="bg-purple-100 text-purple-800 text-xs font-semibold px-2.5 py-1 rounded-full mr-2 align-middle">申請中</span>山科区四宮共同住宅
+                        </h3>
+                        <p class="text-gray-600 mb-2">京都府京都市</p>
+                        <p class="text-sm text-gray-500">不整形な狭小地に、不整形地に合わせるように、斜め壁を使い、土地をギリギリに使い切る。</p>
+                        <div class="mt-4 flex flex-wrap gap-2">
+                            <span class="bg-red-100 text-red-800 text-xs font-semibold px-2.5 py-1 rounded-full">不整形</span>
+                            <span class="bg-pink-100 text-pink-800 text-xs font-semibold px-2.5 py-1 rounded-full">1K,1DK</span>
+                            <span class="bg-purple-100 text-purple-800 text-xs font-semibold px-2.5 py-1 rounded-full">３階建</span>
+                            <span class="bg-indigo-100 text-indigo-800 text-xs font-semibold px-2.5 py-1 rounded-full">木造</span>
+                        </div>
+                    </div>
+                </a>
+                <!-- Work Item 5 -->
+                <a href="work-detail.html" class="block bg-white rounded-lg shadow-md overflow-hidden hover:shadow-2xl transition duration-300">
+                    <img src="work05.png" alt="北区紫野共同住宅" class="w-full h-48 object-cover">
+                    <div class="p-6">
+                        <h3 class="text-xl font-bold mb-2">
+                            <span class="bg-purple-100 text-purple-800 text-xs font-semibold px-2.5 py-1 rounded-full mr-2 align-middle">申請中</span>北区紫野共同住宅
+                        </h3>
+                        <p class="text-gray-600 mb-2">京都府京都市</p>
+                        <p class="text-sm text-gray-500">円形のように屈曲した角地に、円形のように屈曲した建物を計画し、土地を使い切る。</p>
+                        <div class="mt-4 flex flex-wrap gap-2">
+                            <span class="bg-red-100 text-red-800 text-xs font-semibold px-2.5 py-1 rounded-full">不整形</span>
+                            <span class="bg-pink-100 text-pink-800 text-xs font-semibold px-2.5 py-1 rounded-full">1LDK</span>
+                             <span class="bg-purple-100 text-purple-800 text-xs font-semibold px-2.5 py-1 rounded-full">３階建</span>
+                            <span class="bg-indigo-100 text-indigo-800 text-xs font-semibold px-2.5 py-1 rounded-full">木造</span>
+                             <span class="bg-gray-100 text-gray-800 text-xs font-semibold px-2.5 py-1 rounded-full">ロフト</span>
+                             <span class="bg-yellow-100 text-yellow-800 text-xs font-semibold px-2.5 py-1 rounded-full">景観条例</span>
+                        </div>
+                    </div>
+                </a>
+                <!-- Work Item 6 -->
+                 <a href="work-detail.html" class="block bg-white rounded-lg shadow-md overflow-hidden hover:shadow-2xl transition duration-300">
+                    <img src="work06.png" alt="伏見区淀共同住宅" class="w-full h-48 object-cover">
+                    <div class="p-6">
+                        <h3 class="text-xl font-bold mb-2">
+                            <span class="bg-purple-100 text-purple-800 text-xs font-semibold px-2.5 py-1 rounded-full mr-2 align-middle">申請中</span>伏見区淀共同住宅
+                        </h3>
+                        <p class="text-gray-600 mb-2">京都府京都市</p>
+                        <p class="text-sm text-gray-500">２室×３階のコンパクト共同住宅。100㎡程度の土地で、6室の共同住宅を実現。</p>
+                         <div class="mt-4 flex flex-wrap gap-2">
+                           <span class="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-1 rounded-full">土地100㎡</span>
+                           <span class="bg-purple-100 text-purple-800 text-xs font-semibold px-2.5 py-1 rounded-full">3階建</span>
+                           <span class="bg-pink-100 text-pink-800 text-xs font-semibold px-2.5 py-1 rounded-full">1LDK6室</span>
+                        </div>
+                    </div>
+                </a>
+                 <!-- Work Item 7 -->
+                 <a href="work-detail.html" class="block bg-white rounded-lg shadow-md overflow-hidden hover:shadow-2xl transition duration-300">
+                    <img src="work07.png" alt="西京区桂共同住宅" class="w-full h-48 object-cover">
+                    <div class="p-6">
+                        <h3 class="text-xl font-bold mb-2">西京区桂共同住宅</h3>
+                        <p class="text-gray-600 mb-2">京都府京都市</p>
+                        <p class="text-sm text-gray-500">ぞうさんのような形の超不整形地、その超不整形地に合わせるかのようにギリギリに設計、施工。</p>
+                        <div class="mt-4 flex flex-wrap gap-2">
+                             <span class="bg-indigo-100 text-indigo-800 text-xs font-semibold px-2.5 py-1 rounded-full">木造</span>
+                             <span class="bg-red-100 text-red-800 text-xs font-semibold px-2.5 py-1 rounded-full">不整形</span>
+                             <span class="bg-purple-100 text-purple-800 text-xs font-semibold px-2.5 py-1 rounded-full">３階建</span>
+                             <span class="bg-pink-100 text-pink-800 text-xs font-semibold px-2.5 py-1 rounded-full">1DK,1LDK 11室</span>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer id="contact" class="bg-gray-800 text-white">
+        <div class="container mx-auto px-6 py-10">
+            <h3 class="text-2xl font-bold mb-6 text-center">お問い合わせ</h3>
+            
+            <!-- Chat Form -->
+            <div class="max-w-2xl mx-auto bg-white rounded-lg shadow-lg">
+                <div id="chat-window" class="p-4 h-80 overflow-y-auto">
+                    <!-- Bot initial message -->
+                    <div class="flex items-start gap-2.5 mb-4">
+                        <img class="w-8 h-8 rounded-full" src="https://placehold.co/40x40/FF5722/FFFFFF?text=K" alt="Kosuga Icon">
+                        <div class="flex flex-col gap-1 w-full max-w-[320px]">
+                            <div class="flex items-center space-x-2 rtl:space-x-reverse">
+                                <span class="text-sm font-semibold text-gray-900">小菅工務店</span>
+                            </div>
+                            <div class="flex flex-col leading-1.5 p-4 border-gray-200 chat-bubble-bot">
+                                <p class="text-sm font-normal">こんにちは！共同住宅の建築に関するご相談、お見積りなど、お気軽にお問い合わせください。</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-4 border-t border-gray-200">
+                    <form id="chat-form" class="flex items-center gap-2">
+                        <label for="file-input" class="cursor-pointer">
+                            <svg class="w-6 h-6 text-gray-500 hover:text-blue-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 18">
+                                <path fill="currentColor" d="M13 5.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0ZM7.565 7.423 4.5 14h11.518l-2.516-3.71L11 13.05l-1.984-1.318A.5.5 0 0 0 8.41 12H6.5a.5.5 0 0 0-.5.5v2a.5.5 0 0 0 .5.5h.5a.5.5 0 0 0 .5-.5v-2a.5.5 0 0 0-.5-.5H6.5Z"/>
+                                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 1H2a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1Z"/>
+                                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0Z"/>
+                            </svg>
+                        </label>
+                        <input type="file" id="file-input" class="hidden">
+                        <input type="text" id="chat-input" class="w-full p-2 border border-gray-300 rounded-lg text-black" placeholder="メッセージを入力...">
+                        <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">送信</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="mt-8 text-center">
+                 <p class="text-lg font-bold mb-2">株式会社小菅工務店</p>
+                 <p>〒XXX-XXXX 京都府京都市伏見区羽東師</p>
+                 <p>TEL: 075-XXX-XXXX</p>
+                <p class="mt-4">&copy; 2024 Kosuga Construction Co., Ltd. All Rights Reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        const chatForm = document.getElementById('chat-form');
+        const chatInput = document.getElementById('chat-input');
+        const chatWindow = document.getElementById('chat-window');
+        const fileInput = document.getElementById('file-input');
+
+        let chatStep = 0;
+        const inquiryData = {};
+        const questions = [
+            '早速ですが、お名前を教えていただけますか？',
+            'ありがとうございます。次に、ご連絡先（メールアドレスまたは電話番号）をお願いします。',
+            '承知いたしました。最後にお問い合わせ内容を具体的にお聞かせください。（例：○○の土地での建築を検討中、など）',
+            'お問い合わせいただき、誠にありがとうございました。内容を確認の上、担当者より改めてご連絡いたします。'
+        ];
+
+        chatForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const userInput = chatInput.value.trim();
+            if (userInput === '') return;
+
+            // Display user message
+            displayMessage(userInput, 'user');
+            
+            // Store data and ask next question
+            switch(chatStep) {
+                case 0:
+                    inquiryData.firstMessage = userInput;
+                    break;
+                case 1:
+                    inquiryData.name = userInput;
+                    break;
+                case 2:
+                    inquiryData.contact = userInput;
+                    break;
+                case 3:
+                    inquiryData.details = userInput;
+                    break;
+            }
+
+            chatInput.value = '';
+            
+            // Bot response
+            setTimeout(() => {
+                if (chatStep < questions.length) {
+                    displayMessage(questions[chatStep], 'bot');
+                    if (chatStep === questions.length - 1) {
+                         chatInput.disabled = true; // Disable input after final message
+                         fileInput.disabled = true;
+                    }
+                    chatStep++;
+                }
+            }, 1000); // 1 second delay for bot response
+        });
+        
+        fileInput.addEventListener('change', function(e) {
+            if (e.target.files.length > 0) {
+                const fileName = e.target.files[0].name;
+                const message = `ファイル「${fileName}」を選択しました。`;
+                displayMessage(message, 'user');
+            }
+        });
+
+        function displayMessage(message, sender) {
+            let messageHtml = '';
+            if (sender === 'user') {
+                messageHtml = `
+                    <div class="flex items-start justify-end gap-2.5 mb-4">
+                        <div class="flex flex-col gap-1 w-full max-w-[320px]">
+                            <div class="flex items-center space-x-2 rtl:space-x-reverse justify-end">
+                                <span class="text-sm font-semibold text-gray-900">あなた</span>
+                            </div>
+                            <div class="flex flex-col leading-1.5 p-4 border-gray-200 chat-bubble-user">
+                                <p class="text-sm font-normal">${message}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                 messageHtml = `
+                    <div class="flex items-start gap-2.5 mb-4">
+                        <img class="w-8 h-8 rounded-full" src="https://placehold.co/40x40/FF5722/FFFFFF?text=K" alt="Kosuga Icon">
+                        <div class="flex flex-col gap-1 w-full max-w-[320px]">
+                            <div class="flex items-center space-x-2 rtl:space-x-reverse">
+                                <span class="text-sm font-semibold text-gray-900">小菅工務店</span>
+                            </div>
+                            <div class="flex flex-col leading-1.5 p-4 border-gray-200 chat-bubble-bot">
+                                <p class="text-sm font-normal">${message}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            chatWindow.innerHTML += messageHtml;
+            chatWindow.scrollTop = chatWindow.scrollHeight; // Scroll to bottom
+        }
+
+        // Trigger first bot question after initial message
+        setTimeout(() => {
+            if (chatStep === 0) {
+                 displayMessage(questions[chatStep], 'bot');
+                 chatStep++;
+            }
+        }, 2000);
+    </script>
+</body>
+</html>
+

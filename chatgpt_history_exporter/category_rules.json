@@ -1,0 +1,142 @@
+{
+  "programming": {
+    "label": "開発",
+    "keywords": [
+      "python",
+      "javascript",
+      "typescript",
+      "react",
+      "next.js",
+      "node.js",
+      "sql",
+      "api",
+      "bug",
+      "debug",
+      "docker",
+      "git",
+      "コード",
+      "実装",
+      "関数",
+      "例外",
+      "エラー",
+      "アルゴリズム"
+    ]
+  },
+  "data_ai": {
+    "label": "AI・データ",
+    "keywords": [
+      "machine learning",
+      "llm",
+      "gpt",
+      "prompt",
+      "rag",
+      "embedding",
+      "pandas",
+      "numpy",
+      "analysis",
+      "analytics",
+      "データ分析",
+      "機械学習",
+      "生成ai",
+      "プロンプト"
+    ]
+  },
+  "writing_translation": {
+    "label": "文章作成",
+    "keywords": [
+      "translate",
+      "translation",
+      "rewrite",
+      "email",
+      "proposal",
+      "blog",
+      "article",
+      "copywriting",
+      "要約",
+      "翻訳",
+      "添削",
+      "メール",
+      "記事",
+      "提案書",
+      "履歴書"
+    ]
+  },
+  "research_learning": {
+    "label": "調査",
+    "keywords": [
+      "compare",
+      "explain",
+      "what is",
+      "learn",
+      "study",
+      "tutorial",
+      "research",
+      "違い",
+      "比較",
+      "解説",
+      "教えて",
+      "学習",
+      "調べて"
+    ]
+  },
+  "business_productivity": {
+    "label": "業務",
+    "keywords": [
+      "sales",
+      "marketing",
+      "strategy",
+      "roadmap",
+      "kpi",
+      "meeting",
+      "business",
+      "project",
+      "営業",
+      "マーケティング",
+      "戦略",
+      "会議",
+      "議事録",
+      "タスク",
+      "業務改善"
+    ]
+  },
+  "creative_design": {
+    "label": "デザイン",
+    "keywords": [
+      "design",
+      "logo",
+      "illustration",
+      "image",
+      "photoshop",
+      "figma",
+      "banner",
+      "ポスター",
+      "ロゴ",
+      "デザイン",
+      "画像",
+      "イラスト",
+      "配色"
+    ]
+  },
+  "lifestyle_admin": {
+    "label": "生活",
+    "keywords": [
+      "travel",
+      "health",
+      "diet",
+      "recipe",
+      "tax",
+      "resume",
+      "life",
+      "旅行",
+      "健康",
+      "家計",
+      "レシピ",
+      "税金",
+      "手続き"
+    ]
+  },
+  "other": {
+    "label": "その他",
+    "keywords": []
+  }
+}
