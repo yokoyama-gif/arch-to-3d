@@ -1,0 +1,22 @@
+{
+  "name": "research-automation",
+  "version": "1.0.0",
+  "description": "Gemini Deep Research + NotebookLM + Slides 自動化オペレーター",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/main.js",
+    "dev": "tsx src/main.ts",
+    "setup-auth": "tsx src/setup-auth.ts",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "playwright": "^1.44.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.4.0",
+    "rimraf": "^5.0.0"
+  }
+}
