@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -ExecutionPolicy Bypass -File \"C:/Users/admin/Desktop/claud/diskusage.ps1\")",
+      "WebFetch(domain:pymupdf.readthedocs.io)",
+      "Bash(/tmp/gh/bin/gh.exe --version)",
+      "Bash(/tmp/gh/bin/gh.exe auth status)",
+      "Bash(unzip -o -q /tmp/gh.zip -d /tmp/gh)",
+      "Bash(GH=/tmp/gh/bin/gh.exe)",
+      "Bash($GH auth login --hostname github.com --git-protocol https --web)",
+      "Bash(cmd.exe /c \"node --version\")",
+      "Bash(cmd.exe /c \"npm --version\")",
+      "Bash(pip install -r requirements.txt)",
+      "Bash(winget install --id OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements)",
+      "Bash(export PATH=\"/c/Program Files/nodejs:$PATH\")",
+      "Bash(node --version)",
+      "Bash(npm --version)",
+      "Bash(npm install)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(python \"C:/Users/admin/Desktop/gen.py\")",
+      "Bash(powershell -Command \"Get-PSDrive -PSProvider FileSystem | Format-Table Name, Used, Free, @{N=''Total\\(GB\\)'';E={[math]::Round\\(\\($_Used+$_Free\\)/1GB,2\\)}}, @{N=''Used\\(GB\\)'';E={[math]::Round\\($_Used/1GB,2\\)}}, @{N=''Free\\(GB\\)'';E={[math]::Round\\($_Free/1GB,2\\)}} -AutoSize\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File /tmp/disk.ps1)",
+      "Bash(/tmp/del1.ps1:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File /tmp/del1.ps1)",
+      "Bash(/tmp/del2.ps1:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File /tmp/del2.ps1)",
+      "Bash(/tmp/del3.ps1:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File /tmp/del3.ps1)",
+      "Bash(ls /c/Users/admin/Desktop/*.zip /c/Users/admin/Desktop/*.json)",
+      "Bash(find /c/Users/admin/Desktop -maxdepth 1 -name *.zip)",
+      "Read(//c/Users/admin/Downloads/**)",
+      "Bash(find /c/Users/admin/Downloads -maxdepth 1 -iname *chatgpt* -o -iname *openai*)",
+      "Bash(gh pr:*)",
+      "Bash(gh auth:*)"
+    ]
+  }
+}
