@@ -1,0 +1,125 @@
+:root {
+  color-scheme: dark;
+  --bg-1: #071119;
+  --bg-2: #162636;
+  --frame: #d1b36f;
+  --frame-dark: #6f5a2a;
+  --ink: #f6eed8;
+  --accent: #f14a43;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at top, rgba(64, 111, 132, 0.35), transparent 35%),
+    linear-gradient(180deg, var(--bg-2), var(--bg-1) 65%);
+  color: var(--ink);
+  font-family: "Trebuchet MS", "Verdana", sans-serif;
+}
+
+.shell {
+  width: min(92vw, 860px);
+  display: grid;
+  gap: 1rem;
+  justify-items: center;
+  padding: 1.25rem 1rem 2rem;
+}
+
+.title-block {
+  text-align: center;
+}
+
+.title-block h1 {
+  margin: 0;
+  font-size: clamp(2.5rem, 6vw, 4.5rem);
+  line-height: 0.9;
+  letter-spacing: 0.14em;
+  text-indent: 0.14em;
+  color: #fff1bf;
+  text-shadow:
+    0 3px 0 #8e3f2f,
+    0 6px 0 #402313;
+}
+
+.kicker {
+  margin: 0 0 0.45rem;
+  letter-spacing: 0.4em;
+  text-indent: 0.4em;
+  font-size: 0.72rem;
+  color: #8fd6ff;
+  text-transform: uppercase;
+}
+
+.cabinet {
+  position: relative;
+  padding: 1rem;
+  border: 6px solid var(--frame);
+  background:
+    linear-gradient(135deg, rgba(255, 242, 189, 0.14), transparent 25%),
+    linear-gradient(180deg, #4a3513, var(--frame-dark));
+  box-shadow:
+    0 16px 50px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 3px rgba(255, 244, 214, 0.24);
+}
+
+.cabinet::before {
+  content: "";
+  position: absolute;
+  inset: 0.65rem;
+  border: 2px solid rgba(255, 244, 214, 0.25);
+  pointer-events: none;
+}
+
+canvas {
+  display: block;
+  width: min(84vw, 768px);
+  aspect-ratio: 256 / 240;
+  background: #05070e;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  box-shadow:
+    inset 0 0 0 3px #041018,
+    inset 0 0 40px rgba(0, 0, 0, 0.55);
+}
+
+.panel {
+  width: min(84vw, 768px);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem 1rem;
+  padding: 0.85rem 1rem;
+  border: 2px solid rgba(255, 241, 191, 0.2);
+  background: rgba(4, 10, 16, 0.7);
+  font-size: 0.92rem;
+  letter-spacing: 0.05em;
+}
+
+.panel p {
+  margin: 0;
+}
+
+.panel strong {
+  color: #ffd46b;
+}
+
+@media (max-width: 600px) {
+  .shell {
+    padding-inline: 0.5rem;
+  }
+
+  .cabinet {
+    padding: 0.65rem;
+  }
+
+  .panel {
+    font-size: 0.8rem;
+  }
+}

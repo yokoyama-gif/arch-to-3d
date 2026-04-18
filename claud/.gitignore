@@ -7,6 +7,9 @@ arch-to-3d/frontend/package-lock.json
 # Claude Code
 .claude/
 
+# Scraped images (too large for git)
+kmew_images/
+
 # OS / editor
 desktop.ini
 *.lnk

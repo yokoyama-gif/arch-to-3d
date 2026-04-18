@@ -1,0 +1,182 @@
+[
+  {
+    "id": "conv-dev-001",
+    "title": "PythonでAPIのエラー原因を調査",
+    "create_time": 1767000000,
+    "update_time": 1767001800,
+    "current_node": "n3",
+    "mapping": {
+      "n1": {
+        "id": "n1",
+        "parent": null,
+        "children": ["n2"],
+        "message": {
+          "id": "m1",
+          "author": { "role": "user" },
+          "create_time": 1767000000,
+          "content": {
+            "content_type": "text",
+            "parts": [
+              "Pythonで外部APIを叩くと500エラーになります。原因の切り分け手順とdebug方法を教えてください。"
+            ]
+          },
+          "metadata": {}
+        }
+      },
+      "n2": {
+        "id": "n2",
+        "parent": "n1",
+        "children": ["n3"],
+        "message": {
+          "id": "m2",
+          "author": { "role": "assistant" },
+          "create_time": 1767000600,
+          "content": {
+            "content_type": "text",
+            "parts": [
+              "まずHTTPステータス、レスポンス本文、ヘッダー、タイムアウト設定を確認してください。次にログを増やし、再現条件を絞り込みます。"
+            ]
+          },
+          "metadata": { "model_slug": "gpt-5" }
+        }
+      },
+      "n3": {
+        "id": "n3",
+        "parent": "n2",
+        "children": [],
+        "message": {
+          "id": "m3",
+          "author": { "role": "user" },
+          "create_time": 1767001800,
+          "content": {
+            "content_type": "text",
+            "parts": [
+              "APIキーの扱いとretry実装も含めて、サンプルコードがほしいです。"
+            ]
+          },
+          "metadata": {}
+        }
+      }
+    }
+  },
+  {
+    "id": "conv-writing-001",
+    "title": "営業メールの添削",
+    "create_time": 1767086400,
+    "update_time": 1767087600,
+    "current_node": "w3",
+    "mapping": {
+      "w1": {
+        "id": "w1",
+        "parent": null,
+        "children": ["w2"],
+        "message": {
+          "id": "wm1",
+          "author": { "role": "user" },
+          "create_time": 1767086400,
+          "content": {
+            "content_type": "text",
+            "parts": [
+              "新規顧客向けの営業メールを丁寧な日本語に添削してください。件名案も3つください。"
+            ]
+          },
+          "metadata": {}
+        }
+      },
+      "w2": {
+        "id": "w2",
+        "parent": "w1",
+        "children": ["w3"],
+        "message": {
+          "id": "wm2",
+          "author": { "role": "assistant" },
+          "create_time": 1767087000,
+          "content": {
+            "content_type": "text",
+            "parts": [
+              "承知しました。営業メール本文を、読みやすさと信頼感を重視した表現に整えます。"
+            ]
+          },
+          "metadata": { "model_slug": "gpt-4.1" }
+        }
+      },
+      "w3": {
+        "id": "w3",
+        "parent": "w2",
+        "children": [],
+        "message": {
+          "id": "wm3",
+          "author": { "role": "user" },
+          "create_time": 1767087600,
+          "content": {
+            "content_type": "text",
+            "parts": [
+              "提案書送付後のフォローアップ文面として自然にしたいです。"
+            ]
+          },
+          "metadata": {}
+        }
+      }
+    }
+  },
+  {
+    "id": "conv-research-001",
+    "title": "RAGとfine-tuningの違いを比較",
+    "create_time": 1767172800,
+    "update_time": 1767174300,
+    "current_node": "r3",
+    "mapping": {
+      "r1": {
+        "id": "r1",
+        "parent": null,
+        "children": ["r2"],
+        "message": {
+          "id": "rm1",
+          "author": { "role": "user" },
+          "create_time": 1767172800,
+          "content": {
+            "content_type": "text",
+            "parts": [
+              "RAGとfine-tuningの違いを比較して、どちらを選ぶべきか解説してください。"
+            ]
+          },
+          "metadata": {}
+        }
+      },
+      "r2": {
+        "id": "r2",
+        "parent": "r1",
+        "children": ["r3"],
+        "message": {
+          "id": "rm2",
+          "author": { "role": "assistant" },
+          "create_time": 1767173400,
+          "content": {
+            "content_type": "text",
+            "parts": [
+              "RAGは外部知識の参照に強く、fine-tuningは応答スタイルや挙動の固定化に向いています。"
+            ]
+          },
+          "metadata": { "model_slug": "gpt-5" }
+        }
+      },
+      "r3": {
+        "id": "r3",
+        "parent": "r2",
+        "children": [],
+        "message": {
+          "id": "rm3",
+          "author": { "role": "user" },
+          "create_time": 1767174300,
+          "content": {
+            "content_type": "text",
+            "parts": [
+              "コスト、運用性、精度の観点で比較表にしてください。"
+            ]
+          },
+          "metadata": {}
+        }
+      }
+    }
+  }
+]

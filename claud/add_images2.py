@@ -1,0 +1,124 @@
+"""Download KMEW product images and embed in column B of each judgment sheet."""
+import openpyxl
+from openpyxl.drawing.image import Image as XLImage
+from PIL import Image as PILImage
+import urllib.request, os, io, sys, re
+
+sys.stdout.reconfigure(encoding='utf-8')
+
+XLSX = 'C:/Users/admin/Downloads/kyoto_siding_checker.xlsx'
+CACHE = 'C:/Users/admin/Desktop/claud/kmew_img_cache'
+os.makedirs(CACHE, exist_ok=True)
+
+THUMB_PX = 60
+
+def try_download(hinban):
+    """Try to download image for given hinban, return raw bytes path or None."""
+    raw_path = os.path.join(CACHE, f'{hinban}_raw.jpg')
+    fail_path = os.path.join(CACHE, f'{hinban}_FAIL')
+    if os.path.exists(fail_path):
+        return None
+    if os.path.exists(raw_path) and os.path.getsize(raw_path) > 100:
+        return raw_path
+    for size in [200, 72]:
+        url = f'https://www.kmew.co.jp/image_kmew/gaiheki/{size}/{hinban}_{size}.jpg'
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=15) as r:
+                data = r.read()
+            if len(data) > 500:
+                with open(raw_path, 'wb') as f:
+                    f.write(data)
+                return raw_path
+        except Exception:
+            continue
+    # Mark as failed
+    open(fail_path, 'w').close()
+    return None
+
+def make_thumbnail(raw_path, hinban):
+    """Resize to thumbnail PNG, return path."""
+    thumb_path = os.path.join(CACHE, f'{hinban}_thumb.png')
+    if os.path.exists(thumb_path) and os.path.getsize(thumb_path) > 100:
+        return thumb_path
+    try:
+        img = PILImage.open(raw_path).convert('RGB')
+        img.thumbnail((THUMB_PX, THUMB_PX), PILImage.LANCZOS)
+        img.save(thumb_path, 'PNG')
+        return thumb_path
+    except Exception as e:
+        print(f'    thumbnail fail {hinban}: {e}')
+        return None
+
+def get_image_for_hinbans(hinban_str):
+    """Given a hinban string (may contain /), try each variant and return thumb path."""
+    # Clean whitespace/tabs/newlines from hinban string
+    cleaned = re.sub(r'\s+', ' ', str(hinban_str)).strip()
+    parts = [h.strip() for h in re.split(r'[/,、 ]', cleaned) if h.strip() and len(h.strip()) > 2]
+    # Build candidate list with suffix variants
+    candidates = []
+    for h in parts:
+        candidates.append(h)
+        # If ends with A, also try K and U (common KMEW variants)
+        if h.endswith('A'):
+            candidates.append(h[:-1] + 'K')
+            candidates.append(h[:-1] + 'U')
+    for h in candidates:
+        raw = try_download(h)
+        if raw:
+            thumb = make_thumbnail(raw, h)
+            if thumb:
+                return thumb
+    return None
+
+wb = openpyxl.load_workbook(XLSX)
+
+# Judgment sheets only (not ABC, not 地区基準一覧, not 使い方, not 目次)
+JUDGMENT_SHEETS = [s for s in wb.sheetnames
+                   if not s.startswith('ABC') and s not in ('地区基準一覧', '使い方', '目次')]
+
+print(f'Processing {len(JUDGMENT_SHEETS)} judgment sheets...')
+
+total_added = 0
+total_missing = 0
+total_rows = 0
+
+for sheet_name in JUDGMENT_SHEETS:
+    ws = wb[sheet_name]
+    added = 0
+    missing = 0
+    missing_list = []
+
+    # Set column B width for images
+    ws.column_dimensions['B'].width = 10
+
+    for r in range(6, ws.max_row + 1):
+        hinban_val = ws.cell(r, 5).value  # Column E = 品番
+        if not hinban_val:
+            continue
+        total_rows += 1
+
+        thumb = get_image_for_hinbans(str(hinban_val))
+        if thumb:
+            ws.row_dimensions[r].height = 48  # ~64px
+            xl_img = XLImage(thumb)
+            xl_img.width = 56
+            xl_img.height = 56
+            xl_img.anchor = f'B{r}'
+            ws.add_image(xl_img)
+            added += 1
+        else:
+            missing += 1
+            if len(missing_list) < 3:
+                missing_list.append(str(hinban_val)[:20])
+
+    suffix = ''
+    if missing_list:
+        suffix = f'  (例: {", ".join(missing_list)})'
+    print(f'  {sheet_name}: +{added} img, -{missing} miss{suffix}')
+    total_added += added
+    total_missing += missing
+
+print(f'\nSaving...')
+wb.save(XLSX)
+print(f'Done! Total: {total_added} images added, {total_missing} missing out of {total_rows} rows')
