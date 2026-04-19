@@ -71,7 +71,8 @@
       "Bash(python -X utf8 C:/Users/admin/Desktop/claud/add_images_all.py)",
       "Skill(schedule)",
       "Skill(schedule:*)",
-      "mcp__Claude_in_Chrome__tabs_context_mcp"
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "Bash(gh auth *)"
     ]
   }
 }
