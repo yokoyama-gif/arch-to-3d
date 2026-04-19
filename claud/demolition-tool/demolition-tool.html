@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>解体面積計算ツール</title>
+<style>
+:root{
+  --primary:#1b3a5c;--accent:#e67e22;--green:#27ae60;
+  --red:#e74c3c;--bg:#eef1f5;--card:#fff;--border:#d8dde5;
+  --muted:#7f8c9a;--text:#2c3e50;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI','Hiragino Sans',sans-serif;background:var(--bg);color:var(--text);font-size:14px}
+
+header{background:var(--primary);color:#fff;padding:12px 20px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+header h1{font-size:17px;font-weight:700}
+.badge{font-size:11px;background:var(--accent);padding:2px 8px;border-radius:4px}
+
+.wrap{display:grid;grid-template-columns:300px 1fr;gap:14px;max-width:1400px;margin:0 auto;padding:16px}
+@media(max-width:860px){.wrap{grid-template-columns:1fr}}
+
+.card{background:var(--card);border-radius:10px;box-shadow:0 1px 5px rgba(0,0,0,.08);margin-bottom:12px;overflow:hidden}
+.ch{background:var(--primary);color:#fff;padding:9px 14px;font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px}
+.cb{padding:13px}
+
+.fg{margin-bottom:11px}
+label{display:block;font-size:12px;font-weight:700;margin-bottom:4px}
+.hint{font-weight:normal;color:var(--muted);margin-left:3px}
+input[type=number],input[type=text],select{width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;transition:border-color .15s}
+input:focus,select:focus{outline:none;border-color:var(--primary)}
+
+.dz{border:2px dashed var(--border);border-radius:8px;padding:16px;text-align:center;cursor:pointer;background:#fafbfc;transition:all .2s;position:relative}
+.dz:hover,.dz.over{border-color:var(--accent);background:#fff8f0}
+.dz input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.dz-icon{font-size:30px;margin-bottom:5px}
+.dz-txt{font-size:12px;color:var(--muted)}
+.dz-txt strong{color:var(--accent)}
+
+#thumb-wrap{display:none;margin-top:8px;text-align:center}
+#thumb{max-width:100%;max-height:130px;border-radius:5px;border:1px solid var(--border)}
+
+.btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:10px;border:none;border-radius:7px;font-size:14px;font-weight:700;cursor:pointer;transition:all .15s}
+.btn-accent{background:var(--accent);color:#fff}.btn-accent:hover{background:#c0660e}
+.btn-primary{background:var(--primary);color:#fff}.btn-primary:hover{background:#0d2a45}
+.btn-sm{padding:5px 11px;border-radius:5px;font-size:12px;font-weight:600;border:none;cursor:pointer}
+.btn-outline{background:#fff;border:1.5px solid var(--border);color:var(--text);padding:6px 11px;border-radius:5px;font-size:12px;cursor:pointer;font-weight:600;transition:all .15s}
+.btn-outline:hover{border-color:var(--primary);color:var(--primary)}
+.btn-outline.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+.btn-danger{background:var(--red);color:#fff}.btn-danger:hover{background:#c0392b}
+
+.steps{display:flex;gap:0;margin-bottom:13px}
+.step{flex:1;text-align:center;padding:7px 2px;font-size:11px;font-weight:700;background:#e0e3e8;color:var(--muted);border-right:2px solid #fff}
+.step:first-child{border-radius:5px 0 0 5px}.step:last-child{border-radius:0 5px 5px 0;border-right:none}
+.step.cur{background:var(--accent);color:#fff}.step.done{background:var(--green);color:#fff}
+
+.scale-box{background:#fff8f0;border:1px solid #ffd9b0;border-radius:7px;padding:10px 12px;margin-bottom:10px}
+.scale-box .row{display:flex;gap:8px;align-items:center;margin-top:6px}
+.scale-box .row input{flex:1}
+.scale-box .unit{font-size:12px;color:var(--muted);white-space:nowrap}
+.scale-status{font-size:13px;font-weight:800;padding:4px 0;color:var(--muted)}
+.scale-status.ok{color:var(--green)}
+
+.floor-selector{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.fl-btn{padding:6px 14px;border-radius:20px;font-size:12px;font-weight:700;border:2px solid var(--border);background:#fff;color:var(--muted);cursor:pointer;transition:all .15s}
+.fl-btn:hover{border-color:var(--primary);color:var(--primary)}
+.fl-btn.sel{color:#fff;border-color:transparent}
+
+.cv-wrap{position:relative;background:#111;border-radius:9px;overflow:hidden;min-height:300px;display:flex;align-items:center;justify-content:center;}
+.cv-ph{color:#556;font-size:13px;text-align:center;line-height:2.3}
+#cv{display:none;cursor:crosshair}
+.cv-mode-bar{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;padding:4px 14px;border-radius:20px;font-size:12px;pointer-events:none;white-space:nowrap;display:none}
+.zoom-bar{position:absolute;top:8px;right:8px;display:none;flex-direction:column;gap:3px;align-items:center}
+.zoom-bar button{width:30px;height:30px;border:none;border-radius:5px;background:rgba(0,0,0,.6);color:#fff;font-size:16px;cursor:pointer;line-height:1;transition:background .15s}
+.zoom-bar button:hover{background:rgba(255,255,255,.25)}
+.zoom-level{background:rgba(0,0,0,.6);color:#fff;font-size:11px;font-weight:700;padding:3px 6px;border-radius:4px;white-space:nowrap;text-align:center}
+
+.toolbar{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+
+/* tool mode highlight */
+.tool-group{display:flex;gap:4px;background:#f0f2f5;border-radius:7px;padding:3px}
+.tool-group .btn-outline{border-radius:5px}
+
+.poly-list-wrap{margin-top:10px}
+.poly-list{list-style:none}
+.poly-item{display:flex;align-items:center;gap:7px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;margin-bottom:5px;background:#fafbfc}
+.poly-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0}
+.poly-name{flex:1;font-size:12px;font-weight:700}
+.poly-area{font-size:12px;color:var(--muted);min-width:60px;text-align:right}
+.poly-del{background:var(--red);color:#fff;border:none;border-radius:4px;padding:2px 7px;font-size:11px;cursor:pointer;flex-shrink:0}
+
+.sum-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:13px}
+.sum-box{border:1px solid var(--border);border-radius:8px;padding:11px;text-align:center}
+.sum-box .val{font-size:21px;font-weight:800;color:var(--primary)}
+.sum-box .sub{font-size:11px;color:var(--muted)}
+.sum-box .lbl{font-size:12px;margin-top:1px}
+.sum-box.hl{border-color:var(--accent)}.sum-box.hl .val{color:var(--accent)}
+
+.ftable{width:100%;border-collapse:collapse}
+.ftable th{padding:8px 10px;font-size:12px;text-align:left;color:#fff}
+.ftable td{padding:8px 10px;border-bottom:1px solid var(--border);font-size:13px}
+.ftable tr:nth-child(even) td{background:#f8f9fa}
+.ftable tr.total-row td{background:#eaf2ff;font-weight:700;border-top:2px solid var(--primary)}
+.fl-tag{display:inline-block;padding:2px 9px;border-radius:11px;font-size:11px;font-weight:700;color:#fff}
+
+.alert{padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:9px;line-height:1.65}
+.info{background:#e8f4fd;border-left:4px solid #3498db;color:#1a5276}
+.warn{background:#fef9e7;border-left:4px solid #f39c12;color:#7d6608}
+.ok{background:#eafaf1;border-left:4px solid var(--green);color:#1e8449}
+.divider{height:1px;background:var(--border);margin:11px 0}
+
+@media print{
+  header,.wrap>:first-child,.toolbar,.cv-wrap,.scale-box,.steps,.info,.btn,.btn-outline,.btn-accent,.btn-primary,.tool-group{display:none!important}
+  .wrap{display:block}.card{box-shadow:none;border:1px solid #ccc}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <span style="font-size:24px">🏗️</span>
+  <h1>解体面積計算ツール</h1>
+  <span class="badge">建設業向け</span>
+</header>
+
+<div class="wrap">
+
+  <!-- ═══ 左パネル ═══ -->
+  <div>
+    <div class="steps">
+      <div class="step cur" id="s1">①画像</div>
+      <div class="step" id="s2">②スケール</div>
+      <div class="step" id="s3">③トレース</div>
+      <div class="step" id="s4">④計算</div>
+    </div>
+
+    <!-- 画像 -->
+    <div class="card">
+      <div class="ch">📷 画像アップロード</div>
+      <div class="cb">
+        <div class="alert info">GoogleマップのスクリーンショットをD&amp;Dで読み込んでください。スケールバーが写っていると正確に計算できます。</div>
+        <div class="dz" id="dz">
+          <input type="file" id="file-in" accept="image/*">
+          <div class="dz-icon">📁</div>
+          <div class="dz-txt"><strong>クリックまたはドロップ</strong>で選択</div>
+        </div>
+        <div id="thumb-wrap">
+          <img id="thumb" alt="">
+          <br><button class="btn-sm btn-danger" style="margin-top:6px" onclick="removeImg()">✕ 削除</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- スケール -->
+    <div class="card">
+      <div class="ch">📏 スケール設定</div>
+      <div class="cb">
+        <div class="scale-box">
+          <label style="color:#c0660e;font-size:12px">右下スケールバーの両端を2クリック → 実距離を入力</label>
+          <div class="row">
+            <input type="number" id="scale-real" placeholder="例: 5" min="0.1" step="0.1" value="5">
+            <select id="scale-unit" style="width:auto;min-width:55px;padding:7px 6px">
+              <option value="1">m</option>
+              <option value="0.01">cm</option>
+            </select>
+          </div>
+          <button class="btn-outline" id="ruler-btn" onclick="toggleRuler()" style="width:100%;margin-top:7px">
+            📐 定規モードON（スケールバー測定）
+          </button>
+          <div id="ruler-hint" style="font-size:11px;color:var(--muted);margin-top:4px;display:none">
+            スケールバーの<strong>左端 → 右端</strong>の順にクリック
+          </div>
+        </div>
+        <div class="fg">
+          <label>または px/m を直接入力</label>
+          <input type="number" id="ppm" placeholder="例: 10.2" min="0.1" step="0.01">
+        </div>
+        <div class="scale-status" id="scale-disp">未設定</div>
+      </div>
+    </div>
+
+    <!-- 階層 -->
+    <div class="card">
+      <div class="ch">🏢 階層別トレース</div>
+      <div class="cb">
+        <div class="alert warn" style="font-size:11px">階ボタンを選択してからキャンバスでトレースしてください。</div>
+        <label style="margin-bottom:7px">トレースする階</label>
+        <div class="floor-selector" id="floor-sel"></div>
+        <button class="btn-outline" onclick="addFloor()" style="width:auto;padding:6px 14px;font-size:12px">＋ 階を追加</button>
+        <div class="divider"></div>
+        <div id="poly-list-wrap" style="display:none">
+          <label style="margin-bottom:6px">トレース済み輪郭</label>
+          <ul class="poly-list" id="poly-list"></ul>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-accent" onclick="calcAll()">📊 面積を計算する</button>
+    <button class="btn btn-primary" onclick="clearAll()" style="margin-top:8px;font-size:13px;padding:8px">🗑 全クリア</button>
+  </div>
+
+  <!-- ═══ 右パネル ═══ -->
+  <div>
+    <div class="card">
+      <div class="ch" id="cv-title">✏️ 輪郭トレース</div>
+      <div class="cb" style="padding-bottom:10px">
+        <div class="cv-wrap" id="cv-wrap">
+          <div class="cv-ph" id="cv-ph">← 画像をアップロードしてください</div>
+          <canvas id="cv"></canvas>
+          <div class="cv-mode-bar" id="mode-bar"></div>
+          <!-- ズームコントロール -->
+          <div class="zoom-bar" id="zoom-bar">
+            <button onclick="zoomBtn(2)"   title="拡大">＋</button>
+            <button onclick="zoomBtn(0.5)" title="縮小">－</button>
+            <button onclick="zoomFit()"    title="全体表示">⊞</button>
+            <button onclick="zoomBtn(1,'reset')" title="等倍">1:1</button>
+            <div class="zoom-level" id="zoom-level">100%</div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:5px">
+          🔍 <strong>ホイール</strong>でズーム &nbsp;|&nbsp; <strong>Space+ドラッグ</strong> または <strong>中ボタンドラッグ</strong>でパン &nbsp;|&nbsp; ズームボタンは右上
+        </div>
+
+        <div class="toolbar">
+          <!-- 描画モード -->
+          <div class="tool-group">
+            <button class="btn-outline on" id="btn-draw"  onclick="setTool('draw')" title="点を打って多角形をトレース">🖊 点トレース</button>
+            <button class="btn-outline"    id="btn-rect"  onclick="setTool('rect')" title="ドラッグで四角形を作成">⬜ 四角形</button>
+            <button class="btn-outline"    id="btn-ruler-cv" onclick="setTool('ruler')" title="2点クリックでスケール測定">📐 定規</button>
+          </div>
+          <!-- 編集 -->
+          <button class="btn-outline" onclick="undo()">↩ 1点戻す</button>
+          <button class="btn-outline" onclick="closePoly()">✅ 完成</button>
+          <button class="btn-outline" onclick="cancelCurrent()">✕ 中止</button>
+        </div>
+
+        <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.7">
+          <strong>点トレース:</strong> クリックで頂点を追加 / 最初の点に近づくと自動で閉じる &nbsp;|&nbsp;
+          <strong>四角形:</strong> ドラッグして矩形を作成 &nbsp;|&nbsp;
+          <strong>線分:</strong> 各辺の長さをm表示（スケール設定時）
+        </div>
+      </div>
+    </div>
+
+    <!-- 結果 -->
+    <div class="card" id="result-card" style="display:none">
+      <div class="ch">📊 計算結果</div>
+      <div class="cb" id="result-body"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ══ 定数 ══
+const FLOOR_COLORS=['#e67e22','#3498db','#e74c3c','#2ecc71','#9b59b6','#1abc9c','#f39c12','#e91e63','#00bcd4','#8bc34a'];
+
+// ══ 状態 ══
+let imgEl=null, imgScale=1;
+let ppm=0;
+let tool='draw'; // draw | rect | ruler
+let curFloor='1F';
+let floors=['1F','2F'];
+let polys=[];
+let curPts=[];
+let rulerPts=[];
+let hov=null;
+let rectDragging=false, rectStart=null, rectEnd=null;
+// ズーム・パン
+let zoom=1, panX=0, panY=0;
+let panning=false, panLast=null;
+let spaceDown=false;
+
+// ══ ファイル ══
+const dz=document.getElementById('dz');
+const finp=document.getElementById('file-in');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('over')});
+dz.addEventListener('dragleave',()=>dz.classList.remove('over'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');if(e.dataTransfer.files[0])loadFile(e.dataTransfer.files[0])});
+finp.addEventListener('change',e=>{if(e.target.files[0])loadFile(e.target.files[0])});
+
+function loadFile(file){
+  if(!file.type.startsWith('image/')){alert('画像ファイルを選択してください');return}
+  const r=new FileReader();
+  r.onload=e=>{
+    const im=new Image();
+    im.onload=()=>{imgEl=im;document.getElementById('thumb').src=e.target.result;document.getElementById('thumb-wrap').style.display='block';initCanvas();goStep(2)};
+    im.src=e.target.result;
+  };
+  r.readAsDataURL(file);
+}
+
+function removeImg(){
+  imgEl=null;finp.value='';
+  document.getElementById('thumb-wrap').style.display='none';
+  clearAll();cv.style.display='none';
+  document.getElementById('cv-ph').style.display='flex';
+  goStep(1);
+}
+
+// ══ キャンバス ══
+const cv=document.getElementById('cv');
+const ctx=cv.getContext('2d');
+
+function initCanvas(){
+  const wrap=document.getElementById('cv-wrap');
+  const maxW=wrap.clientWidth-4;
+  // キャンバスサイズ = 画像をコンテナ幅に合わせた表示サイズ
+  imgScale=Math.min(1,maxW/imgEl.width);
+  cv.width=Math.round(imgEl.width*imgScale);
+  cv.height=Math.round(imgEl.height*imgScale);
+  document.getElementById('cv-ph').style.display='none';
+  cv.style.display='block';
+  // ズーム初期化
+  zoom=1;panX=0;panY=0;
+  document.getElementById('zoom-bar').style.display='flex';
+  updateZoomLevel();
+  polys=[];curPts=[];rulerPts=[];
+  updatePolyList();redraw();
+}
+
+// スクリーン座標 → ワールド座標（ズーム・パン考慮）
+function cvXY(e){
+  const r=cv.getBoundingClientRect();
+  const sx=(e.clientX-r.left)*(cv.width/r.width);
+  const sy=(e.clientY-r.top)*(cv.height/r.height);
+  return{x:(sx-panX)/zoom, y:(sy-panY)/zoom};
+}
+// スクリーン座標（ズーム未考慮の生canvas座標）
+function cvSXY(e){
+  const r=cv.getBoundingClientRect();
+  return{x:(e.clientX-r.left)*(cv.width/r.width), y:(e.clientY-r.top)*(cv.height/r.height)};
+}
+
+function dist2(a,b){return(a.x-b.x)**2+(a.y-b.y)**2}
+function distPx(a,b){return Math.sqrt(dist2(a,b))}
+function midPt(a,b){return{x:(a.x+b.x)/2,y:(a.y+b.y)/2}}
+function pxToM(px){return ppm>0?(px/ppm).toFixed(2)+'m':null}
+
+// ══ ズーム・パン関数 ══
+function doZoom(factor, sx, sy){
+  const nz=Math.max(0.3,Math.min(20,zoom*factor));
+  panX=sx-(sx-panX)*(nz/zoom);
+  panY=sy-(sy-panY)*(nz/zoom);
+  zoom=nz;
+  updateZoomLevel();redraw();
+}
+function zoomBtn(factor, mode){
+  if(mode==='reset'){zoom=1;panX=0;panY=0;updateZoomLevel();redraw();return}
+  const cx=cv.width/2, cy=cv.height/2;
+  doZoom(factor,cx,cy);
+}
+function zoomFit(){zoom=1;panX=0;panY=0;updateZoomLevel();redraw();}
+function updateZoomLevel(){
+  const el=document.getElementById('zoom-level');
+  if(el)el.textContent=Math.round(zoom*100)+'%';
+}
+
+// ══ マウスイベント ══
+cv.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const s=cvSXY(e);
+  const factor=e.deltaY<0?1.15:1/1.15;
+  doZoom(factor,s.x,s.y);
+},{passive:false});
+
+cv.addEventListener('mousedown',e=>{
+  // 中ボタン or スペース+左ボタン = パン
+  if(e.button===1||(e.button===0&&spaceDown)){
+    e.preventDefault();
+    panning=true;panLast=cvSXY(e);
+    cv.style.cursor='grab';return;
+  }
+  if(tool==='rect'&&e.button===0){
+    rectDragging=true;rectStart=cvXY(e);rectEnd=null;
+  }
+});
+
+cv.addEventListener('mousemove',e=>{
+  if(panning&&panLast){
+    const s=cvSXY(e);
+    panX+=s.x-panLast.x;panY+=s.y-panLast.y;
+    panLast=s;
+    updateZoomLevel();redraw();return;
+  }
+  hov=cvXY(e);
+  if(tool==='rect'&&rectDragging)rectEnd=hov;
+  redraw();
+});
+
+cv.addEventListener('mouseup',e=>{
+  if(panning){panning=false;panLast=null;cv.style.cursor=spaceDown?'grab':'crosshair';return;}
+  if(tool==='rect'&&rectDragging&&e.button===0){
+    rectDragging=false;
+    const p=cvXY(e);
+    if(rectStart&&distPx(rectStart,p)>5/zoom){rectEnd=p;finishRect();}
+    else{rectStart=null;rectEnd=null;redraw();}
+  }
+});
+
+cv.addEventListener('mouseleave',()=>{panning=false;hov=null;redraw()});
+
+// スペースキーでパンモード切替
+document.addEventListener('keydown',e=>{if(e.code==='Space'&&imgEl){e.preventDefault();spaceDown=true;cv.style.cursor='grab';}});
+document.addEventListener('keyup',e=>{if(e.code==='Space'){spaceDown=false;cv.style.cursor='crosshair';}});
+
+cv.addEventListener('click',e=>{
+  if(panning||spaceDown||e.button!==0)return;
+  const p=cvXY(e);
+  if(tool==='ruler'){
+    rulerPts.push(p);
+    if(rulerPts.length===2)finishRuler();
+    redraw();return;
+  }
+  if(tool==='rect')return;
+  // スナップ閾値をズームに合わせて調整（画面上常に約12px）
+  const snapR=12/zoom;
+  if(curPts.length>2&&dist2(p,curPts[0])<snapR*snapR){closePoly();return}
+  curPts.push(p);
+  goStep(3);redraw();
+});
+
+// ══ 四角形完成 ══
+function finishRect(){
+  if(!rectStart||!rectEnd)return;
+  const x1=Math.min(rectStart.x,rectEnd.x),y1=Math.min(rectStart.y,rectEnd.y);
+  const x2=Math.max(rectStart.x,rectEnd.x),y2=Math.max(rectStart.y,rectEnd.y);
+  const pts=[{x:x1,y:y1},{x:x2,y:y1},{x:x2,y:y2},{x:x1,y:y2}];
+  commitPoly(pts);
+  rectStart=null;rectEnd=null;
+  redraw();
+}
+
+// ══ 描画（ズーム対応）══
+// ワールド→スクリーン座標変換
+function w2s(p){return{x:p.x*zoom+panX, y:p.y*zoom+panY}}
+// 画面固定サイズ用スケール係数（線幅・文字はズームに関わらず一定px）
+function S(){return 1/zoom}
+
+function redraw(){
+  if(!imgEl)return;
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,cv.width,cv.height);
+  // ズーム・パントランスフォーム適用
+  ctx.setTransform(zoom,0,0,zoom,panX,panY);
+
+  // 画像描画
+  ctx.drawImage(imgEl,0,0,cv.width,cv.height);
+
+  // 完成ポリゴン
+  polys.forEach(p=>drawClosedPoly(p.pts,p.color,p.label));
+
+  // 四角形ドラッグプレビュー
+  if(tool==='rect'&&rectDragging&&rectStart&&hov){
+    const x1=Math.min(rectStart.x,hov.x),y1=Math.min(rectStart.y,hov.y);
+    const x2=Math.max(rectStart.x,hov.x),y2=Math.max(rectStart.y,hov.y);
+    const col=floorColor(curFloor);
+    ctx.save();
+    ctx.strokeStyle=col;ctx.fillStyle=col+'30';
+    ctx.lineWidth=2*S();ctx.setLineDash([6*S(),3*S()]);
+    ctx.strokeRect(x1,y1,x2-x1,y2-y1);ctx.fillRect(x1,y1,x2-x1,y2-y1);
+    ctx.setLineDash([]);
+    drawSegmentLabels([{x:x1,y:y1},{x:x2,y:y1},{x:x2,y:y2},{x:x1,y:y2}],true,col);
+    ctx.restore();
+  }
+
+  // 点トレース中
+  if(curPts.length>0&&tool==='draw'){
+    const col=floorColor(curFloor);
+    ctx.save();
+    ctx.strokeStyle=col;ctx.lineWidth=2*S();
+    ctx.beginPath();ctx.moveTo(curPts[0].x,curPts[0].y);
+    curPts.slice(1).forEach(pt=>ctx.lineTo(pt.x,pt.y));
+    if(hov){ctx.setLineDash([5*S(),3*S()]);ctx.lineTo(hov.x,hov.y);}
+    ctx.stroke();ctx.setLineDash([]);
+    for(let i=0;i<curPts.length-1;i++) drawOneSegLabel(curPts[i],curPts[i+1],col);
+    if(hov) drawOneSegLabel(curPts[curPts.length-1],hov,col,true);
+    curPts.forEach((pt,i)=>{
+      ctx.fillStyle=i===0?'#e74c3c':col;
+      ctx.beginPath();ctx.arc(pt.x,pt.y,(i===0?6:4)*S(),0,Math.PI*2);ctx.fill();
+    });
+    // スナップ円（判定はワールド座標で12/zoom = 画面上常に12px）
+    const snapW=12/zoom;
+    if(hov&&curPts.length>2&&dist2(hov,curPts[0])<snapW*snapW){
+      ctx.strokeStyle='#e74c3c';ctx.lineWidth=2*S();
+      ctx.beginPath();ctx.arc(curPts[0].x,curPts[0].y,12*S(),0,Math.PI*2);ctx.stroke();
+      ctx.fillStyle='rgba(231,76,60,.15)';ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // 定規
+  if(rulerPts.length>0){
+    ctx.save();
+    ctx.strokeStyle='#00bcd4';ctx.lineWidth=2*S();ctx.setLineDash([6*S(),3*S()]);
+    ctx.beginPath();ctx.moveTo(rulerPts[0].x,rulerPts[0].y);
+    const ep=rulerPts.length>1?rulerPts[1]:hov;
+    if(ep)ctx.lineTo(ep.x,ep.y);
+    ctx.stroke();ctx.setLineDash([]);
+    rulerPts.forEach(pt=>{ctx.fillStyle='#00bcd4';ctx.beginPath();ctx.arc(pt.x,pt.y,5*S(),0,Math.PI*2);ctx.fill()});
+    if(ep&&rulerPts.length===1){
+      const d=distPx(rulerPts[0],ep);
+      drawTag(`${d.toFixed(1)} px`,ep.x+10*S(),ep.y,'#00bcd4');
+    }
+    ctx.restore();
+  }
+
+  // トランスフォームをリセット
+  ctx.setTransform(1,0,0,1,0,0);
+}
+
+function drawClosedPoly(pts,col,label){
+  if(pts.length<2)return;
+  ctx.save();
+  ctx.strokeStyle=col;ctx.fillStyle=col+'38';ctx.lineWidth=2.5*S();
+  ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);
+  pts.slice(1).forEach(pt=>ctx.lineTo(pt.x,pt.y));
+  ctx.closePath();ctx.fill();ctx.stroke();
+  drawSegmentLabels(pts,true,col);
+  pts.forEach((pt,i)=>{
+    ctx.fillStyle=i===0?'#fff':col;ctx.strokeStyle=col;ctx.lineWidth=1.5*S();
+    ctx.beginPath();ctx.arc(pt.x,pt.y,4*S(),0,Math.PI*2);ctx.fill();ctx.stroke();
+  });
+  // 中央ラベル
+  const cx=pts.reduce((s,pt)=>s+pt.x,0)/pts.length;
+  const cy=pts.reduce((s,pt)=>s+pt.y,0)/pts.length;
+  const fs=Math.round(12*S());
+  ctx.font=`bold ${fs}px sans-serif`;
+  const lw=ctx.measureText(label).width+14*S();
+  const lh=18*S();
+  ctx.fillStyle='rgba(0,0,0,.65)';ctx.fillRect(cx-lw/2,cy-lh/2,lw,lh);
+  ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(label,cx,cy);
+  ctx.restore();
+}
+
+function drawSegmentLabels(pts,closed,col){
+  const n=pts.length,limit=closed?n:n-1;
+  for(let i=0;i<limit;i++) drawOneSegLabel(pts[i],pts[(i+1)%n],col);
+}
+
+function drawOneSegLabel(a,b,col,dashed){
+  const m=pxToM(distPx(a,b));
+  if(!m)return;
+  const mid=midPt(a,b);
+  let rot=Math.atan2(b.y-a.y,b.x-a.x);
+  if(rot>Math.PI/2||rot<-Math.PI/2)rot+=Math.PI;
+  ctx.save();
+  ctx.translate(mid.x,mid.y);ctx.rotate(rot);
+  const fs=Math.round(11*S());
+  ctx.font=(dashed?'italic ':'')+'bold '+fs+'px sans-serif';
+  const tw=ctx.measureText(m).width;
+  const pad=4*S(),h=14*S();
+  ctx.fillStyle='rgba(0,0,0,.75)';
+  ctx.fillRect(-tw/2-pad,-h,tw+pad*2,h);
+  ctx.fillStyle=dashed?'#ccc':'#fff';
+  ctx.textAlign='center';ctx.textBaseline='bottom';
+  ctx.fillText(m,0,0);
+  ctx.restore();
+}
+
+function drawTag(txt,x,y,bg){
+  const fs=Math.round(11*S());
+  ctx.save();
+  ctx.font=fs+'px sans-serif';
+  const tw=ctx.measureText(txt).width;
+  const h=16*S();
+  ctx.fillStyle=bg||'rgba(0,0,0,.65)';
+  ctx.fillRect(x,y-h/2,tw+8*S(),h);
+  ctx.fillStyle='#fff';ctx.textAlign='left';ctx.textBaseline='middle';
+  ctx.fillText(txt,x+4*S(),y);
+  ctx.restore();
+}
+
+// ══ ポリゴン完成 ══
+function commitPoly(pts){
+  const col=floorColor(curFloor);
+  const idx=polys.filter(p=>p.floor===curFloor).length+1;
+  const label=idx>1?`${curFloor}-${idx}`:curFloor;
+  const area=shoelace(pts);
+  polys.push({floor:curFloor,color:col,pts:[...pts],label,area_px2:area});
+  updatePolyList();goStep(4);
+}
+
+function closePoly(){
+  if(curPts.length<3){alert('3点以上必要です');return}
+  commitPoly(curPts);curPts=[];redraw();
+}
+function cancelCurrent(){curPts=[];rectStart=null;rectEnd=null;rectDragging=false;redraw()}
+function undo(){if(curPts.length>0){curPts.pop();redraw()}}
+
+function deletePoly(i){polys.splice(i,1);updatePolyList();redraw();document.getElementById('result-card').style.display='none'}
+function clearAll(){polys=[];curPts=[];rulerPts=[];rectStart=null;rectEnd=null;rectDragging=false;hov=null;updatePolyList();if(imgEl)redraw();document.getElementById('result-card').style.display='none'}
+
+function shoelace(pts){
+  let a=0,n=pts.length;
+  for(let i=0;i<n;i++){const j=(i+1)%n;a+=pts[i].x*pts[j].y-pts[j].x*pts[i].y}
+  return Math.abs(a)/2;
+}
+
+// ══ ツール切替 ══
+function setTool(t){
+  tool=t;
+  rectDragging=false;rectStart=null;rectEnd=null;
+  document.querySelectorAll('.tool-group .btn-outline').forEach(b=>b.classList.remove('on'));
+  document.getElementById('btn-'+t).classList.add('on');
+  const cursors={draw:'crosshair',rect:'crosshair',ruler:'crosshair'};
+  cv.style.cursor=cursors[t]||'crosshair';
+  const bars={
+    draw:`🖊 点トレースモード — クリックで頂点を追加、最初の点に近づくと完成`,
+    rect:`⬜ 四角形モード — ドラッグして矩形を描画`,
+    ruler:`📐 定規モード — スケールバーの両端を2クリック`
+  };
+  const mb=document.getElementById('mode-bar');mb.textContent=bars[t];mb.style.display='block';
+  if(t==='ruler'){rulerPts=[];document.getElementById('ruler-hint').style.display='block';}
+  else document.getElementById('ruler-hint').style.display='none';
+  redraw();
+}
+
+function toggleRuler(){
+  if(tool==='ruler'){setTool('draw');document.getElementById('ruler-btn').classList.remove('on')}
+  else{setTool('ruler');document.getElementById('ruler-btn').classList.add('on')}
+}
+
+function finishRuler(){
+  const d=distPx(rulerPts[0],rulerPts[1]);
+  const rv=parseFloat(document.getElementById('scale-real').value)||5;
+  const um=parseFloat(document.getElementById('scale-unit').value)||1;
+  const realM=rv*um;
+  ppm=d/realM;
+  document.getElementById('ppm').value=ppm.toFixed(4);
+  updateScaleDisp();
+  alert(`スケール設定完了！\n${d.toFixed(1)} px = ${realM} m → ${ppm.toFixed(3)} px/m`);
+  rulerPts=[];setTool('draw');
+  document.getElementById('ruler-btn').classList.remove('on');
+  goStep(2,true);redraw();
+}
+
+document.getElementById('ppm').addEventListener('input',()=>{ppm=parseFloat(document.getElementById('ppm').value)||0;updateScaleDisp();updatePolyList()});
+
+function updateScaleDisp(){
+  const el=document.getElementById('scale-disp');
+  if(ppm>0){el.textContent=`✓ ${ppm.toFixed(3)} px/m（1px ≈ ${(1/ppm*100).toFixed(1)} cm）`;el.className='scale-status ok'}
+  else{el.textContent='未設定';el.className='scale-status'}
+}
+
+// ══ 階層管理 ══
+function floorColor(f){const i=floors.indexOf(f);return FLOOR_COLORS[i>=0?i%FLOOR_COLORS.length:0]}
+
+function renderFloorSelector(){
+  document.getElementById('floor-sel').innerHTML=floors.map(f=>{
+    const col=floorColor(f);
+    const sel=curFloor===f;
+    return `<button class="fl-btn${sel?' sel':''}"
+      style="${sel?`background:${col};border-color:${col}`:`border-color:${col};color:${col}`}"
+      onclick="selectFloor('${f}')">${f}</button>`;
+  }).join('');
+}
+
+function selectFloor(f){curFloor=f;renderFloorSelector();document.getElementById('cv-title').textContent=`✏️ ${f} の輪郭をトレース`;goStep(3)}
+
+function addFloor(){
+  const above=floors.filter(f=>!f.startsWith('B')).map(f=>parseInt(f)).filter(n=>!isNaN(n));
+  const max=above.length?Math.max(...above):0;
+  const nf=`${max+1}F`;
+  if(floors.includes(nf)){alert(`${nf}は既に存在します`);return}
+  floors.push(nf);renderFloorSelector();
+}
+
+renderFloorSelector();selectFloor('1F');
+
+// ══ ポリゴンリスト ══
+function updatePolyList(){
+  const wrap=document.getElementById('poly-list-wrap'),ul=document.getElementById('poly-list');
+  if(polys.length===0){wrap.style.display='none';return}
+  wrap.style.display='block';
+  ul.innerHTML=polys.map((p,i)=>{
+    const aM2=ppm>0?(p.area_px2/ppm**2).toFixed(2):'?';
+    return `<li class="poly-item">
+      <div class="poly-dot" style="background:${p.color}"></div>
+      <div class="poly-name">${p.label}</div>
+      <div class="poly-area">${aM2} ㎡</div>
+      <button class="poly-del" onclick="deletePoly(${i})">削除</button>
+    </li>`;
+  }).join('');
+}
+
+// ══ 計算 ══
+function calcAll(){
+  if(polys.length===0){alert('輪郭を少なくとも1つトレースしてください');return}
+  const byFloor={};
+  floors.forEach(f=>{byFloor[f]={px2:0,m2:null,polys:[]}});
+  polys.forEach(p=>{
+    if(!byFloor[p.floor])byFloor[p.floor]={px2:0,m2:null,polys:[]};
+    byFloor[p.floor].px2+=p.area_px2;
+    byFloor[p.floor].polys.push(p);
+  });
+  if(ppm>0)Object.values(byFloor).forEach(v=>{v.m2=v.px2/ppm**2});
+  const usedFloors=floors.filter(f=>byFloor[f]&&byFloor[f].px2>0);
+  const footprintM2=byFloor['1F']&&ppm>0?byFloor['1F'].m2:null;
+  const totalM2=ppm>0?usedFloors.reduce((s,f)=>s+(byFloor[f].m2||0),0):null;
+  renderResult({byFloor,usedFloors,footprintM2,totalM2});
+  goStep(4,true);
+}
+
+function renderResult({byFloor,usedFloors,footprintM2,totalM2}){
+  const fmt=(v,d=2)=>v!=null?v.toFixed(d):'—';
+  const tsubo=v=>v!=null?(v/3.3058).toFixed(1):'—';
+  let warn=ppm<=0?`<div class="alert warn">スケール未設定のためピクセル²表示です。</div>`:'';
+
+  const sumHtml=`<div class="sum-grid">
+    <div class="sum-box hl"><div class="val">${fmt(footprintM2,1)}</div><div class="sub">㎡ / ${tsubo(footprintM2)} 坪</div><div class="lbl">建築面積（1F）</div></div>
+    <div class="sum-box hl"><div class="val">${fmt(totalM2,1)}</div><div class="sub">㎡ / ${tsubo(totalM2)} 坪</div><div class="lbl">延床面積</div></div>
+    <div class="sum-box"><div class="val">${usedFloors.length}</div><div class="sub">階</div><div class="lbl">トレース階数</div></div>
+  </div>`;
+
+  // 辺の長さサマリを各ポリゴンで計算
+  const rowsHtml=usedFloors.map(f=>{
+    const v=byFloor[f];const col=floorColor(f);
+    const areaVal=ppm>0?`${v.m2.toFixed(2)} ㎡`:v.px2.toFixed(0)+' px²';
+    // 各ポリゴンの辺長リスト
+    const segInfo=v.polys.map(p=>{
+      const segs=[];const n=p.pts.length;
+      for(let i=0;i<n;i++){const j=(i+1)%n;const m=pxToM(distPx(p.pts[i],p.pts[j]));if(m)segs.push(m)}
+      return segs.length?`<span style="font-size:11px;color:var(--muted)">[${segs.join(' × ')}]</span>`:'';
+    }).join(' ');
+    return `<tr>
+      <td><span class="fl-tag" style="background:${col}">${f}</span></td>
+      <td><strong>${areaVal}</strong></td>
+      <td>${tsubo(v.m2)} 坪</td>
+      <td>${segInfo||v.polys.length+' 輪郭'}</td>
+    </tr>`;
+  }).join('');
+
+  const totalRow=`<tr class="total-row">
+    <td><strong>合計（延床）</strong></td>
+    <td><strong>${totalM2!=null?totalM2.toFixed(2)+' ㎡':'—'}</strong></td>
+    <td><strong>${tsubo(totalM2)} 坪</strong></td><td>—</td>
+  </tr>`;
+
+  document.getElementById('result-body').innerHTML=`
+    ${warn}${sumHtml}
+    <table class="ftable" style="margin-bottom:12px">
+      <thead><tr style="background:var(--primary)"><th>階</th><th>面積</th><th>坪数</th><th>辺の長さ</th></tr></thead>
+      <tbody>${rowsHtml}${totalRow}</tbody>
+    </table>
+    <div class="alert ok" style="font-size:12px">✅ スケール: ${ppm>0?ppm.toFixed(3)+' px/m':'未設定'} ｜ ${new Date().toLocaleString('ja-JP')}</div>
+    <button class="btn btn-primary" onclick="window.print()" style="margin-top:10px;padding:9px;font-size:13px">🖨️ 印刷 / PDF</button>`;
+  document.getElementById('result-card').style.display='block';
+  document.getElementById('result-card').scrollIntoView({behavior:'smooth'});
+}
+
+function pxToM(px){return ppm>0?(px/ppm).toFixed(2)+'m':null}
+
+// ══ ステップ ══
+function goStep(n,done){
+  for(let i=1;i<=4;i++){
+    const el=document.getElementById(`s${i}`);
+    if(i<n)el.className='step done';
+    else if(i===n)el.className=done?'step done':'step cur';
+    else el.className='step';
+  }
+}
+</script>
+</body>
+</html>
