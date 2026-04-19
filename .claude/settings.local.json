@@ -34,7 +34,8 @@
       "Bash(gh auth:*)",
       "Bash(git push *)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(curl -s \"https://api.github.com/repos/yokoyama-gif/arch-to-3d/pulls?head=yokoyama-gif:claude/gifted-engelbart&state=all\")"
     ]
   }
 }
