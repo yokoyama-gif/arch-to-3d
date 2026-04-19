@@ -31,7 +31,10 @@
       "Bash(npx tsc:*)",
       "Bash(npx vite:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(gh pr *)",
+      "Bash(gh auth *)",
+      "Bash(git add *)"
     ]
   }
 }
