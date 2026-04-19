@@ -31,7 +31,10 @@
       "Read(//c/Users/admin/Downloads/**)",
       "Bash(find /c/Users/admin/Downloads -maxdepth 1 -iname *chatgpt* -o -iname *openai*)",
       "Bash(gh pr:*)",
-      "Bash(gh auth:*)"
+      "Bash(gh auth:*)",
+      "Bash(git push *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }
