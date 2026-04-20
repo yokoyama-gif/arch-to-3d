@@ -7,6 +7,10 @@ export interface FileData {
   data: ArrayBuffer
 }
 
+export interface ImageFileData extends FileData {
+  type: 'image/png' | 'image/jpeg'
+}
+
 const api = {
   openFiles: (): Promise<FileData[]> => ipcRenderer.invoke('dialog:openFiles'),
 
@@ -17,7 +21,15 @@ const api = {
     ipcRenderer.invoke('dialog:saveFile', defaultName),
 
   writeFile: (filePath: string, data: ArrayBuffer): Promise<void> =>
-    ipcRenderer.invoke('file:write', filePath, data)
+    ipcRenderer.invoke('file:write', filePath, data),
+
+  selectFolder: (): Promise<string | null> =>
+    ipcRenderer.invoke('dialog:selectFolder'),
+
+  writeToPath: (filePath: string, data: ArrayBuffer): Promise<void> =>
+    ipcRenderer.invoke('file:writeToPath', filePath, data),
+
+  openImages: (): Promise<ImageFileData[]> => ipcRenderer.invoke('dialog:openImages')
 }
 
 if (process.contextIsolated) {

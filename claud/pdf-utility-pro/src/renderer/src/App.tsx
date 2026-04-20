@@ -20,6 +20,12 @@ import { ThumbnailGrid } from './components/ThumbnailGrid'
 import { StatusBar } from './components/StatusBar'
 import { ZoomModal } from './components/ZoomModal'
 import { HelpModal } from './components/HelpModal'
+import { ConvertModal, type ConvertConfig } from './components/ConvertModal'
+import {
+  exportPagesAsImages,
+  extractTextFromPages,
+  imagesToPDF
+} from './features/pdf/pdfConverter'
 import { renderPageThumbnail, evictDocumentCache } from './features/pdf/pdfRenderer'
 import { getPageCount, buildPDF, buildSelectedPDF } from './features/pdf/pdfProcessor'
 import type { PageItem, SourceFile, FileData } from './types'
@@ -49,6 +55,8 @@ export default function App() {
   const [zoomOpen, setZoomOpen] = useState(false)
   // ヘルプモーダル
   const [helpOpen, setHelpOpen] = useState(false)
+  // 変換モーダル
+  const [convertOpen, setConvertOpen] = useState(false)
   // サムネイル生成キューの中断フラグ
   const thumbAbortRef = useRef<{ cancelled: boolean }>({ cancelled: false })
 
@@ -190,29 +198,86 @@ export default function App() {
     e.dataTransfer.dropEffect = 'copy'
   }, [])
 
+  // 画像ファイル(File) → PDF 取り込み
+  const importImagesAsPDF = useCallback(
+    async (files: File[]) => {
+      setIsLoading(true)
+      setStatusMsg('画像をPDFに変換しています…')
+      try {
+        const imageData = await Promise.all(
+          files.map(async (f) => ({
+            path: f.name,
+            name: f.name,
+            data: await f.arrayBuffer(),
+            type: (f.type === 'image/png' ? 'image/png' : 'image/jpeg') as 'image/png' | 'image/jpeg'
+          }))
+        )
+        const pdfBytes = await imagesToPDF(imageData)
+        const baseName = files.length === 1 ? files[0].name.replace(/\.[^.]+$/, '') : '画像'
+        await loadFiles([
+          { path: baseName + '.pdf', name: baseName + '.pdf', data: pdfBytes.buffer as ArrayBuffer }
+        ])
+        setStatusMsg(`${files.length}枚の画像を1つのPDFとして追加しました`)
+      } catch (err) {
+        console.error(err)
+        setStatusMsg('エラー: 画像のPDF変換に失敗しました')
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [loadFiles]
+  )
+
   const handleDrop = useCallback(
     async (e: React.DragEvent) => {
       e.preventDefault()
       e.stopPropagation()
 
-      const pdfPaths = Array.from(e.dataTransfer.files)
-        .filter((f) => f.name.toLowerCase().endsWith('.pdf'))
-        .map((f) => f.path)
+      const files = Array.from(e.dataTransfer.files)
+      const pdfPaths = files.filter((f) => f.name.toLowerCase().endsWith('.pdf')).map((f) => f.path)
+      const imageFiles = files.filter((f) => /\.(png|jpe?g)$/i.test(f.name))
 
-      if (pdfPaths.length === 0) {
-        setStatusMsg('PDFファイルのみ追加できます')
+      if (pdfPaths.length === 0 && imageFiles.length === 0) {
+        setStatusMsg('PDFまたは画像ファイル（PNG/JPEG）のみ追加できます')
         return
       }
 
       try {
-        const list = await window.electronAPI.readFiles(pdfPaths)
-        await loadFiles(list)
+        if (pdfPaths.length > 0) {
+          const list = await window.electronAPI.readFiles(pdfPaths)
+          await loadFiles(list)
+        }
+        if (imageFiles.length > 0) {
+          await importImagesAsPDF(imageFiles)
+        }
       } catch (err) {
         setStatusMsg('エラー: ドラッグ＆ドロップの読み込みに失敗しました')
       }
     },
-    [loadFiles]
+    [loadFiles, importImagesAsPDF]
   )
+
+  // 画像ファイルをダイアログから追加
+  const handleAddImages = useCallback(async () => {
+    try {
+      const list = await window.electronAPI.openImages()
+      if (list.length === 0) return
+      setIsLoading(true)
+      setStatusMsg('画像をPDFに変換しています…')
+      const pdfBytes = await imagesToPDF(list)
+      const baseName =
+        list.length === 1 ? list[0].name.replace(/\.[^.]+$/, '') : '画像'
+      await loadFiles([
+        { path: baseName + '.pdf', name: baseName + '.pdf', data: pdfBytes.buffer as ArrayBuffer }
+      ])
+      setStatusMsg(`${list.length}枚の画像を1つのPDFとして追加しました`)
+    } catch (err) {
+      console.error(err)
+      setStatusMsg('エラー: 画像の読み込み／変換に失敗しました')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [loadFiles])
 
   // ───────────────────────
   // ページ選択
@@ -394,6 +459,56 @@ export default function App() {
   }, [selectedIds, pages, sourceFiles])
 
   // ───────────────────────
+  // 他形式に変換
+  // ───────────────────────
+  const runConvert = useCallback(
+    async (cfg: ConvertConfig) => {
+      setConvertOpen(false)
+      const targetPages =
+        cfg.target === 'selected' ? pages.filter((p) => selectedIds.has(p.id)) : pages
+      if (targetPages.length === 0) {
+        setStatusMsg('変換するページがありません')
+        return
+      }
+
+      setIsLoading(true)
+      try {
+        if (cfg.kind === 'image') {
+          const folder = await window.electronAPI.selectFolder()
+          if (!folder) { setIsLoading(false); return }
+          setStatusMsg('画像を出力しています…')
+          const result = await exportPagesAsImages(
+            targetPages,
+            sourceFiles,
+            folder,
+            { format: cfg.format, scale: cfg.scale, jpegQuality: cfg.jpegQuality },
+            (done, total, name) => setStatusMsg(`出力中 (${done}/${total}): ${name}`)
+          )
+          setStatusMsg(
+            `${result.saved}ファイルを ${folder} に保存しました` +
+              (result.failed.length > 0 ? `（失敗: ${result.failed.length}）` : '')
+          )
+        } else {
+          // text
+          const filePath = await window.electronAPI.saveFile('抽出テキスト.txt')
+          if (!filePath) { setIsLoading(false); return }
+          setStatusMsg('テキストを抽出しています…')
+          const text = await extractTextFromPages(targetPages, sourceFiles)
+          const buf = new TextEncoder().encode(text)
+          await window.electronAPI.writeToPath(filePath, buf.buffer as ArrayBuffer)
+          setStatusMsg(`テキスト抽出完了: ${filePath.split(/[\\/]/).pop()}`)
+        }
+      } catch (err) {
+        console.error(err)
+        setStatusMsg('エラー: 変換に失敗しました')
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [pages, selectedIds, sourceFiles]
+  )
+
+  // ───────────────────────
   // 拡大モーダル
   // ───────────────────────
   const openZoom = useCallback(() => {
@@ -489,6 +604,8 @@ export default function App() {
         onUndo={undo}
         onZoom={openZoom}
         onHelp={() => setHelpOpen(true)}
+        onConvert={() => setConvertOpen(true)}
+        onAddImages={handleAddImages}
       />
 
       <div className="main-area">
@@ -541,6 +658,16 @@ export default function App() {
       )}
 
       {helpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}
+
+      {convertOpen && (
+        <ConvertModal
+          hasSelection={selectedIds.size > 0}
+          totalPages={pages.length}
+          selectedCount={selectedIds.size}
+          onClose={() => setConvertOpen(false)}
+          onSubmit={runConvert}
+        />
+      )}
     </div>
   )
 }

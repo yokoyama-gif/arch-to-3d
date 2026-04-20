@@ -18,6 +18,8 @@ interface ToolbarProps {
   onUndo: () => void
   onZoom: () => void
   onHelp: () => void
+  onConvert: () => void
+  onAddImages: () => void
 }
 
 interface BtnProps {
@@ -59,7 +61,9 @@ export function Toolbar({
   onClearSelection,
   onUndo,
   onZoom,
-  onHelp
+  onHelp,
+  onConvert,
+  onAddImages
 }: ToolbarProps) {
   const busy = isLoading
 
@@ -68,6 +72,7 @@ export function Toolbar({
       <span className="toolbar-title">PDF Utility Pro</span>
 
       <Btn icon="📁" label="ファイル追加" onClick={onAddFiles} disabled={busy} variant="primary" />
+      <Btn icon="🖼️" label="画像→PDF" onClick={onAddImages} disabled={busy} />
 
       <div className="toolbar-sep" />
 
@@ -94,6 +99,7 @@ export function Toolbar({
 
       <Btn icon="💾" label="全体を保存" onClick={onSaveAll} disabled={!hasPages || busy} variant="success" />
       <Btn icon="📤" label="選択ページを保存" onClick={onSaveSelected} disabled={!hasSelected || busy} variant="warning" />
+      <Btn icon="🔄" label="他形式に変換" onClick={onConvert} disabled={!hasPages || busy} />
 
       <div style={{ flex: 1 }} />
 

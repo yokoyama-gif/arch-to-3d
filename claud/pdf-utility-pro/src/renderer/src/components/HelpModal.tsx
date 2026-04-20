@@ -66,6 +66,17 @@ export function HelpModal({ onClose }: HelpModalProps) {
         </div>
 
         <div className="help-section">
+          <div className="help-section-title">🔄 他形式への変換・取り込み</div>
+          <table className="help-table">
+            <tbody>
+              <tr><td>🔄 <strong>他形式に変換</strong></td><td>PDF→画像（PNG/JPEG）／PDF→テキスト（.txt）に変換して保存</td></tr>
+              <tr><td>🖼️ <strong>画像→PDF</strong></td><td>PNG/JPEG 画像を選択して1つのPDFに変換して取り込み</td></tr>
+              <tr><td>ドラッグ＆ドロップ</td><td>PDF・PNG・JPEG を混在させてドロップ可能（画像は自動でPDF化）</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="help-section">
           <div className="help-section-title">💡 ワークフローのヒント</div>
           <table className="help-table">
             <tbody>

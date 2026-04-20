@@ -21,6 +21,10 @@ export interface FileData {
   data: ArrayBuffer
 }
 
+export interface ImageFileData extends FileData {
+  type: 'image/png' | 'image/jpeg'
+}
+
 // preload で公開する API の型
 declare global {
   interface Window {
@@ -29,6 +33,9 @@ declare global {
       readFiles: (filePaths: string[]) => Promise<FileData[]>
       saveFile: (defaultName: string) => Promise<string | null>
       writeFile: (filePath: string, data: ArrayBuffer) => Promise<void>
+      selectFolder: () => Promise<string | null>
+      writeToPath: (filePath: string, data: ArrayBuffer) => Promise<void>
+      openImages: () => Promise<ImageFileData[]>
     }
   }
 }

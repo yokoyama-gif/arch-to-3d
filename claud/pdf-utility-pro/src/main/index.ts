@@ -94,6 +94,45 @@ app.whenReady().then(() => {
     await writeFile(filePath, Buffer.from(data))
   })
 
+  // 保存先フォルダ選択（PDF→画像の一括出力用）
+  ipcMain.handle('dialog:selectFolder', async () => {
+    const result = await dialog.showOpenDialog({
+      title: '出力フォルダを選択',
+      properties: ['openDirectory', 'createDirectory']
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    return result.filePaths[0]
+  })
+
+  // 指定パスへバイナリ書き込み（フォルダ配下のファイル作成用）
+  ipcMain.handle('file:writeToPath', async (_event, filePath: string, data: ArrayBuffer) => {
+    await writeFile(filePath, Buffer.from(data))
+  })
+
+  // 画像ファイルを開いて読む（image → PDF 変換用）
+  ipcMain.handle('dialog:openImages', async () => {
+    const result = await dialog.showOpenDialog({
+      title: '画像ファイルを選択',
+      filters: [{ name: '画像ファイル', extensions: ['png', 'jpg', 'jpeg'] }],
+      properties: ['openFile', 'multiSelections']
+    })
+    if (result.canceled || result.filePaths.length === 0) return []
+
+    const files = await Promise.all(
+      result.filePaths.map(async (filePath) => {
+        const buf = await readFile(filePath)
+        const ext = filePath.split('.').pop()?.toLowerCase() ?? ''
+        return {
+          path: filePath,
+          name: filePath.split(/[\\/]/).pop() ?? filePath,
+          data: buf.buffer as ArrayBuffer,
+          type: ext === 'png' ? 'image/png' : 'image/jpeg'
+        }
+      })
+    )
+    return files
+  })
+
   createWindow()
 
   app.on('activate', () => {
