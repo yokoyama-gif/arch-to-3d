@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Multi-AI Hub</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <div id="app">
+
+    <!-- Header -->
+    <header>
+      <h1>🧠 Multi-AI Hub</h1>
+      <button id="btn-settings" class="icon-btn" title="設定">⚙️</button>
+    </header>
+
+    <!-- AI Service Toggles -->
+    <section id="services-section">
+      <div id="services-grid">
+        <!-- Populated by JS -->
+      </div>
+    </section>
+
+    <!-- Response Cards -->
+    <section id="responses-section">
+      <div id="responses-grid">
+        <!-- Populated by JS -->
+      </div>
+    </section>
+
+    <!-- Prompt Input Area -->
+    <footer id="input-area">
+      <div id="input-wrapper">
+        <textarea
+          id="prompt-input"
+          placeholder="すべてのAIに送るプロンプトを入力... (Ctrl+Enter で送信)"
+          rows="3"
+        ></textarea>
+        <div id="input-controls">
+          <span id="char-count">0</span>
+          <button id="btn-clear-prompt" class="icon-btn" title="クリア">✕</button>
+          <button id="btn-send">
+            <span id="btn-send-icon">▶</span>
+            <span id="btn-send-label">送信</span>
+          </button>
+        </div>
+      </div>
+    </footer>
+
+  </div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>
