@@ -14,3 +14,9 @@ kmew_images/
 desktop.ini
 *.lnk
 ~$*
+
+# PDF Utility Pro build artifacts
+pdf-utility-pro/node_modules/
+pdf-utility-pro/out/
+pdf-utility-pro/dist/
+pdf-utility-pro/package-lock.json
