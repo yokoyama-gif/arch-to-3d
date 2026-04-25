@@ -87,6 +87,20 @@
   .info-msg { font-size: 12px; color: #666; padding: 8px 0 0; text-align: center; }
   .success { color: #4caf50 !important; }
   .warn { color: #ff9800 !important; }
+
+  /* AI detection */
+  .ai-section { background: linear-gradient(135deg,rgba(0,188,212,0.08),rgba(0,150,136,0.08)); border: 1px solid rgba(0,188,212,0.25); border-radius: 8px; padding: 12px; margin-bottom: 0; }
+  .ai-badge { display: inline-block; background: #00bcd4; color: #000; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 3px; margin-bottom: 8px; letter-spacing: 1px; }
+  .btn-ai { background: linear-gradient(135deg,#00bcd4,#0097a7); color: #fff; border: none; }
+  .btn-ai:hover:not(:disabled) { background: linear-gradient(135deg,#0097a7,#00838f); }
+  .btn-ai:disabled { opacity: 0.4; cursor: not-allowed; }
+  .ai-actions { display: flex; gap: 6px; margin-top: 8px; }
+  .ai-actions .btn { margin-bottom: 0; }
+  .apikey-wrap { position: relative; }
+  .apikey-wrap input { padding-right: 36px; font-family: monospace; font-size: 12px; }
+  .apikey-toggle { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #888; cursor: pointer; font-size: 14px; }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -121,9 +135,29 @@
       </div>
     </div>
 
+    <!-- AI Detection -->
+    <div class="section">
+      <div class="section-title">2. AI 境界予測</div>
+      <div class="ai-section">
+        <div class="ai-badge">✦ AI</div>
+        <p style="font-size:11px;color:#aaa;margin-bottom:10px;">画像を解析して敷地境界の候補ラインを自動描画します。</p>
+        <label>Anthropic API キー</label>
+        <div class="apikey-wrap">
+          <input type="password" id="apiKeyInput" placeholder="sk-ant-..." autocomplete="off">
+          <button class="apikey-toggle" id="apiKeyToggle" title="表示/非表示">👁</button>
+        </div>
+        <button class="btn btn-ai" id="btnAiDetect" disabled style="margin-top:8px;">🤖 境界を予測する</button>
+        <div id="aiActions" class="ai-actions" style="display:none;">
+          <button class="btn btn-secondary" id="btnAiAccept" style="flex:1;">✅ 採用</button>
+          <button class="btn btn-danger"    id="btnAiReject" style="flex:1;">✕ 却下</button>
+        </div>
+        <p class="info-msg" id="aiMsg"></p>
+      </div>
+    </div>
+
     <!-- Trace controls -->
     <div class="section">
-      <div class="section-title">2. 敷地境界をトレース</div>
+      <div class="section-title">3. 敷地境界をトレース</div>
       <div style="display:flex;gap:6px;margin-bottom:8px;">
         <button class="btn btn-secondary" id="btnUndo" disabled>↩ 元に戻す</button>
         <button class="btn btn-secondary" id="btnClose" disabled>⬡ 閉じる</button>
@@ -145,7 +179,7 @@
 
     <!-- Area input -->
     <div class="section">
-      <div class="section-title">3. 実面積を入力</div>
+      <div class="section-title">4. 実面積を入力</div>
       <label>敷地面積</label>
       <div class="input-unit">
         <input type="number" id="realArea" placeholder="例: 250.50" min="0.01" step="0.01">
@@ -156,7 +190,7 @@
 
     <!-- Scale input -->
     <div class="section">
-      <div class="section-title">4. 縮尺を選択</div>
+      <div class="section-title">5. 縮尺を選択</div>
       <div class="scale-select">
         <div class="scale-btn active" data-scale="50">1/50</div>
         <div class="scale-btn" data-scale="100">1/100</div>
@@ -192,7 +226,7 @@
 
     <!-- Export -->
     <div class="section">
-      <div class="section-title">5. DXF出力</div>
+      <div class="section-title">6. DXF出力</div>
       <button class="btn btn-primary" id="btnExport" disabled>⬇ DXFファイルを出力</button>
       <p class="info-msg" id="exportMsg"></p>
     </div>
@@ -235,6 +269,9 @@ const state = {
   mode: 'trace',       // 'trace' | 'pan'
   panStart: null,
   hovering: null,      // {x,y} mouse in image coords
+  // AI suggestion
+  aiPoints: [],        // [{x,y}] in image coords — AI predicted boundary
+  aiVisible: false,
 };
 
 // ─── DOM ─────────────────────────────────────────────────────────────────────
@@ -338,6 +375,54 @@ function render() {
       ctx.setLineDash([]);
       ctx.stroke();
     }
+  }
+
+  // ── AI suggestion overlay ────────────────────────────────────────────────
+  if (state.aiVisible && state.aiPoints.length >= 2) {
+    ctx.save();
+    // Filled area
+    ctx.beginPath();
+    const ai0 = imgToScreen(state.aiPoints[0].x, state.aiPoints[0].y);
+    ctx.moveTo(ai0.x, ai0.y);
+    for (let i = 1; i < state.aiPoints.length; i++) {
+      const aip = imgToScreen(state.aiPoints[i].x, state.aiPoints[i].y);
+      ctx.lineTo(aip.x, aip.y);
+    }
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(0,188,212,0.12)';
+    ctx.fill();
+    // Dashed border
+    ctx.beginPath();
+    ctx.moveTo(ai0.x, ai0.y);
+    for (let i = 1; i < state.aiPoints.length; i++) {
+      const aip = imgToScreen(state.aiPoints[i].x, state.aiPoints[i].y);
+      ctx.lineTo(aip.x, aip.y);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = '#00e5ff';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([8, 5]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Vertices
+    state.aiPoints.forEach((p, i) => {
+      const ps = imgToScreen(p.x, p.y);
+      ctx.beginPath();
+      ctx.arc(ps.x, ps.y, 5, 0, Math.PI * 2);
+      ctx.fillStyle = '#00e5ff';
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    });
+    // Label
+    const labelPos = imgToScreen(state.aiPoints[0].x, state.aiPoints[0].y);
+    ctx.font = 'bold 12px Arial';
+    ctx.fillStyle = '#00e5ff';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('AI予測', labelPos.x + 8, labelPos.y - 4);
+    ctx.restore();
   }
 
   // Vertices
@@ -677,7 +762,11 @@ fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fi
 async function loadFile(file) {
   state.points = [];
   state.closed = false;
+  state.aiPoints = [];
+  state.aiVisible = false;
   noImageHint.style.display = 'none';
+  document.getElementById('aiActions').style.display = 'none';
+  document.getElementById('aiMsg').textContent = '';
 
   if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
     await loadPDF(file);
@@ -687,6 +776,7 @@ async function loadFile(file) {
   fitImage();
   render();
   updateUI();
+  updateAiButton();
   setStatus(`読み込み完了: ${file.name} &nbsp;|&nbsp; <span>✏️ クリックで頂点を追加</span>`);
 }
 
@@ -899,6 +989,157 @@ document.getElementById('btnExport').addEventListener('click', () => {
   const msg = document.getElementById('exportMsg');
   msg.textContent = `✅ 出力完了: 敷地境界_1-${scaleDenom}.dxf`;
   msg.className = 'info-msg success';
+});
+
+// ─── AI boundary detection ────────────────────────────────────────────────────
+
+function updateAiButton() {
+  const key = document.getElementById('apiKeyInput').value.trim();
+  document.getElementById('btnAiDetect').disabled = !(state.image && key.startsWith('sk-'));
+}
+
+// API key input / toggle
+document.getElementById('apiKeyInput').addEventListener('input', () => {
+  updateAiButton();
+  localStorage.setItem('anthropic_api_key', document.getElementById('apiKeyInput').value.trim());
+});
+document.getElementById('apiKeyToggle').addEventListener('click', () => {
+  const inp = document.getElementById('apiKeyInput');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+});
+
+// Restore saved key
+(function () {
+  const saved = localStorage.getItem('anthropic_api_key');
+  if (saved) { document.getElementById('apiKeyInput').value = saved; updateAiButton(); }
+})();
+
+// Convert current image to JPEG base64 (max 1024px long edge for API efficiency)
+function getImageBase64() {
+  const MAX = 1024;
+  const ratio = Math.min(MAX / state.imgW, MAX / state.imgH, 1);
+  const w = Math.round(state.imgW * ratio);
+  const h = Math.round(state.imgH * ratio);
+  const tmp = document.createElement('canvas');
+  tmp.width = w; tmp.height = h;
+  tmp.getContext('2d').drawImage(state.image, 0, 0, w, h);
+  return tmp.toDataURL('image/jpeg', 0.85).split(',')[1]; // base64 only
+}
+
+document.getElementById('btnAiDetect').addEventListener('click', async () => {
+  const apiKey = document.getElementById('apiKeyInput').value.trim();
+  const btn = document.getElementById('btnAiDetect');
+  const aiMsg = document.getElementById('aiMsg');
+
+  btn.innerHTML = '<span class="spinner"></span>解析中…';
+  btn.disabled = true;
+  aiMsg.textContent = '';
+  state.aiVisible = false;
+  document.getElementById('aiActions').style.display = 'none';
+  render();
+
+  try {
+    const b64 = getImageBase64();
+    const prompt = `この画像を分析してください。画像は建築の敷地図、地図、航空写真、または公図のいずれかです。
+「敷地境界線」（その土地の外周ライン）と思われる多角形の頂点座標を特定してください。
+
+以下のJSON形式のみで返答してください（説明文・コードブロック不要）:
+{"points":[{"x":0.12,"y":0.34},{"x":0.56,"y":0.12},...]}
+
+ルール:
+- 座標は画像左上を(0,0)、右下を(1.0,1.0)とした正規化座標（0〜1の小数）
+- 頂点は時計回りまたは反時計回りの順に並べる
+- 3〜20頂点程度で境界を表現
+- 道路・隣地との境界ラインに沿って配置
+- 不明な場合は画像内で最も目立つ多角形領域を返す`;
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-4-5',
+        max_tokens: 512,
+        messages: [{
+          role: 'user',
+          content: [{
+            type: 'image',
+            source: { type: 'base64', media_type: 'image/jpeg', data: b64 }
+          }, {
+            type: 'text',
+            text: prompt
+          }]
+        }]
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error?.message || `HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+    const text = data.content?.[0]?.text || '';
+
+    // Extract JSON from response
+    const match = text.match(/\{[\s\S]*"points"[\s\S]*\}/);
+    if (!match) throw new Error('JSONが見つかりませんでした: ' + text.slice(0, 100));
+
+    const parsed = JSON.parse(match[0]);
+    if (!Array.isArray(parsed.points) || parsed.points.length < 3) {
+      throw new Error('有効な頂点データがありません');
+    }
+
+    // Normalize → image pixel coords
+    state.aiPoints = parsed.points.map(p => ({
+      x: Math.max(0, Math.min(1, p.x)) * state.imgW,
+      y: Math.max(0, Math.min(1, p.y)) * state.imgH,
+    }));
+    state.aiVisible = true;
+    render();
+
+    document.getElementById('aiActions').style.display = 'flex';
+    aiMsg.className = 'info-msg success';
+    aiMsg.textContent = `✅ ${state.aiPoints.length}頂点を検出しました`;
+    setStatus(`🤖 AI予測完了（${state.aiPoints.length}頂点）&nbsp;|&nbsp; <span>採用 or 却下を選択してください</span>`);
+
+  } catch (e) {
+    aiMsg.className = 'info-msg warn';
+    aiMsg.textContent = '❌ ' + e.message;
+  } finally {
+    btn.innerHTML = '🤖 境界を予測する';
+    btn.disabled = false;
+    updateAiButton();
+  }
+});
+
+// Accept AI suggestion → copy to trace points and close
+document.getElementById('btnAiAccept').addEventListener('click', () => {
+  if (!state.aiPoints.length) return;
+  state.points = state.aiPoints.map(p => ({ ...p }));
+  state.closed = true;
+  state.aiVisible = false;
+  state.aiPoints = [];
+  document.getElementById('aiActions').style.display = 'none';
+  document.getElementById('aiMsg').textContent = '';
+  updateUI();
+  render();
+  const px = shoelaceArea(state.points);
+  setStatus(`✅ AI予測を採用（${state.points.length}頂点 / ピクセル面積 ${Math.round(px).toLocaleString()} px²）&nbsp;|&nbsp; <span>実面積を入力してください</span>`);
+});
+
+// Reject AI suggestion
+document.getElementById('btnAiReject').addEventListener('click', () => {
+  state.aiVisible = false;
+  state.aiPoints = [];
+  document.getElementById('aiActions').style.display = 'none';
+  document.getElementById('aiMsg').textContent = '';
+  render();
+  setStatus('<span>✏️ クリックで頂点を追加してください</span>');
 });
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
