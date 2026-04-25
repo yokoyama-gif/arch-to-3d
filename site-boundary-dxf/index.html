@@ -512,72 +512,152 @@ function generateDXF() {
     y: p.y * 1000 / scaleDenom
   }));
 
-  const lines = [];
-  // Header
-  lines.push('0\nSECTION\n2\nHEADER');
-  lines.push('9\n$ACADVER\n1\nAC1015');
-  lines.push('9\n$INSUNITS\n70\n4'); // 4 = millimeters
-  lines.push('0\nENDSEC');
+  // Auto-increment handle generator
+  let handleCounter = 1;
+  const nextHandle = () => (handleCounter++).toString(16).toUpperCase();
 
-  // Tables (minimal)
-  lines.push('0\nSECTION\n2\nTABLES');
-  lines.push('0\nTABLE\n2\nLAYER\n70\n1');
-  lines.push('0\nLAYER\n2\n敷地境界\n70\n0\n62\n1\n6\nContinuous');
-  lines.push('0\nENDTABLE');
-  lines.push('0\nENDSEC');
+  const L = []; // line accumulator
+  const add = (...args) => args.forEach(v => L.push(String(v)));
 
-  // Entities
-  lines.push('0\nSECTION\n2\nENTITIES');
+  // ── HEADER ──────────────────────────────────────────────────────────────────
+  add('0','SECTION','2','HEADER');
+  add('9','$ACADVER','1','AC1015');
+  add('9','$INSUNITS','70','4'); // 4 = millimeters
+  add('9','$LWDISPLAY','290','1');
+  add('0','ENDSEC');
 
-  // LWPOLYLINE (closed)
-  lines.push('0\nLWPOLYLINE');
-  lines.push('5\n1');          // handle
-  lines.push('100\nAcDbEntity');
-  lines.push('8\n敷地境界');    // layer
-  lines.push('100\nAcDbPolyline');
-  lines.push(`90\n${dxfPts.length}`); // vertex count
-  lines.push('70\n1');         // closed flag
-  lines.push('43\n0.0');       // constant width
+  // ── TABLES ──────────────────────────────────────────────────────────────────
+  add('0','SECTION','2','TABLES');
+
+  // LTYPE table (required by AC1015)
+  add('0','TABLE','2','LTYPE','5',nextHandle(),'100','AcDbSymbolTable','70','1');
+  add('0','LTYPE','5',nextHandle(),'100','AcDbSymbolTableRecord','100','AcDbLinetypeTableRecord',
+      '2','Continuous','70','0','3','Solid line','72','65','73','0','40','0.0');
+  add('0','ENDTAB');
+
+  // LAYER table — 2 layers: 敷地境界 (color 1=red) and 寸法 (color 3=green)
+  add('0','TABLE','2','LAYER','5',nextHandle(),'100','AcDbSymbolTable','70','2');
+  add('0','LAYER','5',nextHandle(),'100','AcDbSymbolTableRecord','100','AcDbLayerTableRecord',
+      '2','敷地境界','70','0','62','1','6','Continuous');
+  add('0','LAYER','5',nextHandle(),'100','AcDbSymbolTableRecord','100','AcDbLayerTableRecord',
+      '2','寸法','70','0','62','3','6','Continuous');
+  add('0','ENDTAB');
+
+  // STYLE table (required for TEXT entities)
+  add('0','TABLE','2','STYLE','5',nextHandle(),'100','AcDbSymbolTable','70','1');
+  add('0','STYLE','5',nextHandle(),'100','AcDbSymbolTableRecord','100','AcDbTextStyleTableRecord',
+      '2','Standard','70','0','40','0.0','41','1.0','50','0.0','71','0','42','2.5',
+      '3','','4','');
+  add('0','ENDTAB');
+
+  // VPORT table (required by AC1015)
+  add('0','TABLE','2','VPORT','5',nextHandle(),'100','AcDbSymbolTable','70','0');
+  add('0','ENDTAB');
+
+  // VIEW table
+  add('0','TABLE','2','VIEW','5',nextHandle(),'100','AcDbSymbolTable','70','0');
+  add('0','ENDTAB');
+
+  // UCS table
+  add('0','TABLE','2','UCS','5',nextHandle(),'100','AcDbSymbolTable','70','0');
+  add('0','ENDTAB');
+
+  // APPID table
+  add('0','TABLE','2','APPID','5',nextHandle(),'100','AcDbSymbolTable','70','1');
+  add('0','APPID','5',nextHandle(),'100','AcDbSymbolTableRecord','100','AcDbRegAppTableRecord',
+      '2','ACAD','70','0');
+  add('0','ENDTAB');
+
+  // DIMSTYLE table
+  add('0','TABLE','2','DIMSTYLE','5',nextHandle(),'100','AcDbSymbolTable','70','0');
+  add('0','ENDTAB');
+
+  // BLOCK_RECORD table
+  add('0','TABLE','2','BLOCK_RECORD','5',nextHandle(),'100','AcDbSymbolTable','70','0');
+  add('0','BLOCK_RECORD','5',nextHandle(),'100','AcDbSymbolTableRecord','100','AcDbBlockTableRecord','2','*Model_Space');
+  add('0','BLOCK_RECORD','5',nextHandle(),'100','AcDbSymbolTableRecord','100','AcDbBlockTableRecord','2','*Paper_Space');
+  add('0','ENDTAB');
+
+  add('0','ENDSEC');
+
+  // ── BLOCKS (required by AC1015) ─────────────────────────────────────────────
+  add('0','SECTION','2','BLOCKS');
+  add('0','BLOCK','5',nextHandle(),'100','AcDbEntity','8','0',
+      '100','AcDbBlockBegin','2','*Model_Space','70','0',
+      '10','0.0','20','0.0','30','0.0','3','*Model_Space','1','');
+  add('0','ENDBLK','5',nextHandle(),'100','AcDbEntity','8','0','100','AcDbBlockEnd');
+  add('0','BLOCK','5',nextHandle(),'100','AcDbEntity','8','0',
+      '100','AcDbBlockBegin','2','*Paper_Space','70','0',
+      '10','0.0','20','0.0','30','0.0','3','*Paper_Space','1','');
+  add('0','ENDBLK','5',nextHandle(),'100','AcDbEntity','8','0','100','AcDbBlockEnd');
+  add('0','ENDSEC');
+
+  // ── ENTITIES ────────────────────────────────────────────────────────────────
+  add('0','SECTION','2','ENTITIES');
+
+  // LWPOLYLINE (closed polygon)
+  add('0','LWPOLYLINE');
+  add('5',nextHandle());
+  add('100','AcDbEntity');
+  add('8','敷地境界');       // layer
+  add('100','AcDbPolyline');
+  add('90',String(dxfPts.length)); // vertex count
+  add('70','1');             // closed flag
+  add('43','0.0');           // constant width
 
   dxfPts.forEach(p => {
-    lines.push(`10\n${p.x.toFixed(6)}`);
-    lines.push(`20\n${p.y.toFixed(6)}`);
+    add('10', p.x.toFixed(6));
+    add('20', p.y.toFixed(6));
   });
 
-  // Add dimension annotations as TEXT entities
+  // TEXT entities for dimension annotations
   for (let i = 0; i < pts.length; i++) {
     const j = (i + 1) % pts.length;
     const len = getSideLength(i);
     if (len === null) continue;
-    // Midpoint in DXF coords
+
     const mx = (dxfPts[i].x + dxfPts[j].x) / 2;
     const my = (dxfPts[i].y + dxfPts[j].y) / 2;
     const txt = len.toFixed(3) + 'm';
 
-    // Offset slightly perpendicular
-    const dx = dxfPts[j].x - dxfPts[i].x;
-    const dy = dxfPts[j].y - dxfPts[i].y;
-    const len2 = Math.hypot(dx, dy);
-    const nx = len2 > 0 ? -dy / len2 * 3 : 0;
-    const ny = len2 > 0 ? dx / len2 * 3 : 3;
+    // Perpendicular offset for text placement
+    const ddx = dxfPts[j].x - dxfPts[i].x;
+    const ddy = dxfPts[j].y - dxfPts[i].y;
+    const segLen = Math.hypot(ddx, ddy);
+    const nx = segLen > 0 ? -ddy / segLen * 3 : 0;
+    const ny = segLen > 0 ?  ddx / segLen * 3 : 3;
+    const tx = mx + nx, ty = my + ny;
 
-    lines.push('0\nTEXT');
-    lines.push('8\n寸法');
-    lines.push(`10\n${(mx + nx).toFixed(6)}`);
-    lines.push(`20\n${(my + ny).toFixed(6)}`);
-    lines.push('30\n0.0');
-    lines.push('40\n2.5'); // text height in DXF units (mm)
-    lines.push(`1\n${txt}`);
-    lines.push('72\n1'); // center alignment
-    lines.push(`11\n${(mx + nx).toFixed(6)}`);
-    lines.push(`21\n${(my + ny).toFixed(6)}`);
-    lines.push('31\n0.0');
+    add('0','TEXT');
+    add('5',nextHandle());
+    add('100','AcDbEntity');
+    add('8','寸法');
+    add('100','AcDbText');
+    add('10', tx.toFixed(6));  // insertion point X
+    add('20', ty.toFixed(6));  // insertion point Y
+    add('30','0.0');
+    add('40','2.5');            // text height (mm)
+    add('1', txt);
+    add('72','1');              // horizontal center alignment
+    add('11', tx.toFixed(6));  // alignment point X
+    add('21', ty.toFixed(6));  // alignment point Y
+    add('31','0.0');
+    add('100','AcDbText');      // second AcDbText subclass marker required
   }
 
-  lines.push('0\nENDSEC');
-  lines.push('0\nEOF');
+  add('0','ENDSEC');
 
-  return lines.join('\n');
+  // ── OBJECTS (required by AC1015) ─────────────────────────────────────────────
+  add('0','SECTION','2','OBJECTS');
+  add('0','DICTIONARY');
+  add('5',nextHandle());
+  add('100','AcDbDictionary');
+  add('281','1');
+  add('0','ENDSEC');
+
+  add('0','EOF');
+
+  return L.join('\r\n'); // CRLF line endings for maximum CAD compatibility
 }
 
 // ─── Event: File upload ───────────────────────────────────────────────────────
