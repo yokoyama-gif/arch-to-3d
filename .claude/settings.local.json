@@ -34,7 +34,9 @@
       "Bash(powershell -Command 'Restart-Service bthserv; Get-Service bthserv | Select-Object Name,Status')",
       "Bash(powershell -Command 'Get-Service bthserv | Select-Object Name,Status,StartType')",
       "Bash(powershell -Command 'Get-ItemProperty -Path \"\"HKCU:\\\\Control Panel\\\\Bluetooth\"\" -Name \"\"Notification Area Icon\"\"')",
-      "Bash(powershell -Command 'Start-Process \"\"ms-settings:bluetooth\"\"')"
+      "Bash(powershell -Command 'Start-Process \"\"ms-settings:bluetooth\"\"')",
+      "Bash(git push *)",
+      "Bash(gh pr create --title 'feat: 敷地境界トレーサー → DXF出力ツールを追加' --body ' *)"
     ]
   }
 }
