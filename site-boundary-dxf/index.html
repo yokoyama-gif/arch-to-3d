@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>敷地境界トレーサー → DXF出力</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #1a1a2e; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+  header { background: #16213e; padding: 10px 20px; display: flex; align-items: center; gap: 16px; border-bottom: 1px solid #0f3460; flex-shrink: 0; }
+  header h1 { font-size: 16px; font-weight: 600; color: #e94560; white-space: nowrap; }
+
+  .main { display: flex; flex: 1; overflow: hidden; }
+
+  /* Sidebar */
+  .sidebar { width: 300px; background: #16213e; border-right: 1px solid #0f3460; display: flex; flex-direction: column; overflow-y: auto; flex-shrink: 0; }
+  .section { padding: 14px 16px; border-bottom: 1px solid #0f3460; }
+  .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #888; margin-bottom: 10px; }
+
+  .upload-zone { border: 2px dashed #0f3460; border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.2s; }
+  .upload-zone:hover, .upload-zone.dragover { border-color: #e94560; background: rgba(233,69,96,0.05); }
+  .upload-zone input { display: none; }
+  .upload-zone .icon { font-size: 28px; margin-bottom: 6px; }
+  .upload-zone p { font-size: 12px; color: #888; }
+  .upload-zone .hint { font-size: 11px; color: #555; margin-top: 4px; }
+
+  label { display: block; font-size: 12px; color: #aaa; margin-bottom: 4px; }
+  input[type="number"], input[type="text"] {
+    width: 100%; background: #0f3460; border: 1px solid #1a4a8a; border-radius: 4px;
+    padding: 7px 10px; color: #e0e0e0; font-size: 14px; outline: none;
+  }
+  input[type="number"]:focus, input[type="text"]:focus { border-color: #e94560; }
+  .input-unit { display: flex; align-items: center; gap: 8px; }
+  .input-unit input { flex: 1; }
+  .input-unit span { font-size: 13px; color: #888; white-space: nowrap; }
+
+  .scale-select { display: flex; gap: 6px; }
+  .scale-btn { flex: 1; padding: 7px; background: #0f3460; border: 1px solid #1a4a8a; border-radius: 4px; color: #aaa; font-size: 13px; cursor: pointer; text-align: center; transition: all 0.2s; }
+  .scale-btn.active { background: #e94560; border-color: #e94560; color: #fff; }
+  .custom-scale { margin-top: 8px; display: none; }
+  .custom-scale.visible { display: block; }
+
+  .btn { display: block; width: 100%; padding: 9px; border-radius: 6px; border: none; font-size: 13px; cursor: pointer; font-weight: 600; transition: all 0.2s; margin-bottom: 6px; }
+  .btn:last-child { margin-bottom: 0; }
+  .btn-primary { background: #e94560; color: #fff; }
+  .btn-primary:hover:not(:disabled) { background: #c73652; }
+  .btn-secondary { background: #0f3460; color: #e0e0e0; border: 1px solid #1a4a8a; }
+  .btn-secondary:hover:not(:disabled) { background: #1a4a8a; }
+  .btn-danger { background: transparent; color: #e94560; border: 1px solid #e94560; }
+  .btn-danger:hover:not(:disabled) { background: rgba(233,69,96,0.1); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .stats { background: #0f3460; border-radius: 6px; padding: 10px 12px; font-size: 12px; }
+  .stat-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+  .stat-row:last-child { margin-bottom: 0; }
+  .stat-label { color: #888; }
+  .stat-value { color: #e0e0e0; font-weight: 600; }
+  .stat-value.highlight { color: #e94560; }
+
+  .sides-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .sides-table th { color: #888; text-align: left; padding: 4px 6px; border-bottom: 1px solid #0f3460; }
+  .sides-table td { padding: 4px 6px; color: #e0e0e0; border-bottom: 1px solid #0f2040; }
+  .sides-table tr:last-child td { border-bottom: none; }
+
+  .status-bar { padding: 6px 16px; font-size: 12px; color: #888; background: #16213e; border-bottom: 1px solid #0f3460; flex-shrink: 0; }
+  .status-bar span { color: #e94560; }
+
+  /* Canvas area */
+  .canvas-wrap { flex: 1; position: relative; overflow: hidden; background: #0d0d1a; }
+  #canvas { display: block; cursor: crosshair; }
+  .canvas-wrap.pan-mode #canvas { cursor: grab; }
+  .canvas-wrap.pan-mode.panning #canvas { cursor: grabbing; }
+
+  .toolbar { position: absolute; top: 12px; right: 12px; display: flex; flex-direction: column; gap: 6px; }
+  .tool-btn { width: 36px; height: 36px; background: rgba(22,33,62,0.9); border: 1px solid #0f3460; border-radius: 6px; color: #aaa; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+  .tool-btn:hover { background: #16213e; color: #fff; border-color: #e94560; }
+  .tool-btn.active { background: #e94560; color: #fff; border-color: #e94560; }
+
+  .zoom-info { position: absolute; bottom: 12px; left: 12px; background: rgba(22,33,62,0.9); border: 1px solid #0f3460; border-radius: 4px; padding: 4px 10px; font-size: 12px; color: #888; }
+
+  .no-image-hint { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #333; pointer-events: none; }
+  .no-image-hint .big-icon { font-size: 60px; margin-bottom: 12px; }
+  .no-image-hint p { font-size: 14px; }
+
+  .info-msg { font-size: 12px; color: #666; padding: 8px 0 0; text-align: center; }
+  .success { color: #4caf50 !important; }
+  .warn { color: #ff9800 !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>敷地境界トレーサー → DXF出力</h1>
+  <div style="font-size:12px;color:#555;">画像/PDFを読み込み → 敷地境界をクリックでトレース → 面積入力 → 縮尺設定 → DXF出力</div>
+</header>
+
+<div class="status-bar" id="statusBar">ファイルをアップロードしてください</div>
+
+<div class="main">
+  <!-- Sidebar -->
+  <div class="sidebar">
+
+    <!-- Upload -->
+    <div class="section">
+      <div class="section-title">1. ファイル読み込み</div>
+      <div class="upload-zone" id="uploadZone">
+        <input type="file" id="fileInput" accept="image/*,.pdf">
+        <div class="icon">📄</div>
+        <p>クリックまたはドラッグ＆ドロップ</p>
+        <p class="hint">PNG / JPG / PDF 対応</p>
+      </div>
+      <div id="pdfPageCtrl" style="display:none;margin-top:10px;">
+        <label>PDFページ選択</label>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button class="btn btn-secondary" id="prevPage" style="width:32px;padding:4px;">◀</button>
+          <span id="pageInfo" style="font-size:13px;flex:1;text-align:center;"></span>
+          <button class="btn btn-secondary" id="nextPage" style="width:32px;padding:4px;">▶</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trace controls -->
+    <div class="section">
+      <div class="section-title">2. 敷地境界をトレース</div>
+      <div style="display:flex;gap:6px;margin-bottom:8px;">
+        <button class="btn btn-secondary" id="btnUndo" disabled>↩ 元に戻す</button>
+        <button class="btn btn-secondary" id="btnClose" disabled>⬡ 閉じる</button>
+      </div>
+      <button class="btn btn-danger" id="btnClear">✕ クリア</button>
+      <div id="traceStats" style="margin-top:10px;display:none;">
+        <div class="stats">
+          <div class="stat-row">
+            <span class="stat-label">頂点数</span>
+            <span class="stat-value" id="vertexCount">0</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">ピクセル面積</span>
+            <span class="stat-value" id="pixelArea">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Area input -->
+    <div class="section">
+      <div class="section-title">3. 実面積を入力</div>
+      <label>敷地面積</label>
+      <div class="input-unit">
+        <input type="number" id="realArea" placeholder="例: 250.50" min="0.01" step="0.01">
+        <span>㎡</span>
+      </div>
+      <p class="info-msg" id="areaMsg"></p>
+    </div>
+
+    <!-- Scale input -->
+    <div class="section">
+      <div class="section-title">4. 縮尺を選択</div>
+      <div class="scale-select">
+        <div class="scale-btn active" data-scale="50">1/50</div>
+        <div class="scale-btn" data-scale="100">1/100</div>
+        <div class="scale-btn" data-scale="200">1/200</div>
+        <div class="scale-btn" data-scale="custom">カスタム</div>
+      </div>
+      <div class="custom-scale" id="customScaleWrap">
+        <label style="margin-top:8px;">1 ÷</label>
+        <input type="number" id="customScaleVal" placeholder="500" min="1" step="1" value="500">
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div class="section" id="resultsSection" style="display:none;">
+      <div class="section-title">各辺の長さ（実寸）</div>
+      <table class="sides-table">
+        <thead>
+          <tr><th>辺</th><th>長さ (m)</th><th>図面上 (mm)</th></tr>
+        </thead>
+        <tbody id="sidesBody"></tbody>
+      </table>
+      <div class="stats" style="margin-top:10px;">
+        <div class="stat-row">
+          <span class="stat-label">スケール係数</span>
+          <span class="stat-value" id="scaleFactorDisplay">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">計算面積</span>
+          <span class="stat-value highlight" id="calcAreaDisplay">—</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Export -->
+    <div class="section">
+      <div class="section-title">5. DXF出力</div>
+      <button class="btn btn-primary" id="btnExport" disabled>⬇ DXFファイルを出力</button>
+      <p class="info-msg" id="exportMsg"></p>
+    </div>
+
+  </div>
+
+  <!-- Canvas area -->
+  <div class="canvas-wrap" id="canvasWrap">
+    <div class="no-image-hint" id="noImageHint">
+      <div class="big-icon">🗺</div>
+      <p>画像またはPDFをアップロードしてください</p>
+    </div>
+    <canvas id="canvas"></canvas>
+
+    <div class="toolbar">
+      <button class="tool-btn active" id="toolTrace" title="トレースモード">✏️</button>
+      <button class="tool-btn" id="toolPan" title="パン（移動）">🖐</button>
+      <button class="tool-btn" id="toolZoomIn" title="ズームイン">＋</button>
+      <button class="tool-btn" id="toolZoomOut" title="ズームアウト">－</button>
+      <button class="tool-btn" id="toolFit" title="全体表示">⊡</button>
+    </div>
+    <div class="zoom-info" id="zoomInfo">100%</div>
+  </div>
+</div>
+
+<script>
+// PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ─── State ───────────────────────────────────────────────────────────────────
+const state = {
+  image: null,         // HTMLImageElement or ImageBitmap
+  imgW: 0, imgH: 0,
+  pdfDoc: null, pdfPage: 1, pdfPageCount: 0,
+  points: [],          // [{x,y}] in image coords
+  closed: false,
+  // viewport
+  scale: 1, offsetX: 0, offsetY: 0,
+  // interaction
+  mode: 'trace',       // 'trace' | 'pan'
+  panStart: null,
+  hovering: null,      // {x,y} mouse in image coords
+};
+
+// ─── DOM ─────────────────────────────────────────────────────────────────────
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const canvasWrap = document.getElementById('canvasWrap');
+const statusBar = document.getElementById('statusBar');
+const noImageHint = document.getElementById('noImageHint');
+
+function setStatus(msg) { statusBar.innerHTML = msg; }
+
+// ─── Resize canvas to fill wrapper ───────────────────────────────────────────
+function resizeCanvas() {
+  const r = canvasWrap.getBoundingClientRect();
+  canvas.width = r.width;
+  canvas.height = r.height;
+  render();
+}
+new ResizeObserver(resizeCanvas).observe(canvasWrap);
+
+// ─── Coordinate helpers ──────────────────────────────────────────────────────
+function imgToScreen(x, y) {
+  return { x: x * state.scale + state.offsetX, y: y * state.scale + state.offsetY };
+}
+function screenToImg(sx, sy) {
+  return { x: (sx - state.offsetX) / state.scale, y: (sy - state.offsetY) / state.scale };
+}
+function fitImage() {
+  if (!state.imgW) return;
+  const margin = 40;
+  const sw = canvas.width - margin * 2, sh = canvas.height - margin * 2;
+  state.scale = Math.min(sw / state.imgW, sh / state.imgH);
+  state.offsetX = (canvas.width - state.imgW * state.scale) / 2;
+  state.offsetY = (canvas.height - state.imgH * state.scale) / 2;
+  document.getElementById('zoomInfo').textContent = Math.round(state.scale * 100) + '%';
+}
+
+// ─── Render ──────────────────────────────────────────────────────────────────
+function render() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (!state.image) return;
+
+  // Draw image
+  const { x: ix, y: iy } = imgToScreen(0, 0);
+  ctx.drawImage(state.image, ix, iy, state.imgW * state.scale, state.imgH * state.scale);
+
+  if (state.points.length === 0) return;
+
+  // Filled polygon (if closed)
+  if (state.closed && state.points.length >= 3) {
+    ctx.beginPath();
+    const p0 = imgToScreen(state.points[0].x, state.points[0].y);
+    ctx.moveTo(p0.x, p0.y);
+    for (let i = 1; i < state.points.length; i++) {
+      const p = imgToScreen(state.points[i].x, state.points[i].y);
+      ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(233,69,96,0.15)';
+    ctx.fill();
+  }
+
+  // Lines
+  ctx.beginPath();
+  const p0s = imgToScreen(state.points[0].x, state.points[0].y);
+  ctx.moveTo(p0s.x, p0s.y);
+  for (let i = 1; i < state.points.length; i++) {
+    const ps = imgToScreen(state.points[i].x, state.points[i].y);
+    ctx.lineTo(ps.x, ps.y);
+  }
+  if (state.closed) ctx.closePath();
+  ctx.strokeStyle = '#e94560';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([]);
+  ctx.stroke();
+
+  // Preview line to mouse
+  if (!state.closed && state.hovering && state.points.length > 0) {
+    const last = imgToScreen(state.points[state.points.length - 1].x, state.points[state.points.length - 1].y);
+    const hov = imgToScreen(state.hovering.x, state.hovering.y);
+    ctx.beginPath();
+    ctx.moveTo(last.x, last.y);
+    ctx.lineTo(hov.x, hov.y);
+    ctx.strokeStyle = 'rgba(233,69,96,0.5)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Snap-to-first indicator
+  if (!state.closed && state.hovering && state.points.length >= 3) {
+    const first = imgToScreen(state.points[0].x, state.points[0].y);
+    const hov = imgToScreen(state.hovering.x, state.hovering.y);
+    const dist = Math.hypot(hov.x - first.x, hov.y - first.y);
+    if (dist < 16) {
+      ctx.beginPath();
+      ctx.arc(first.x, first.y, 14, 0, Math.PI * 2);
+      ctx.strokeStyle = '#4caf50';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([]);
+      ctx.stroke();
+    }
+  }
+
+  // Vertices
+  state.points.forEach((p, i) => {
+    const ps = imgToScreen(p.x, p.y);
+    ctx.beginPath();
+    ctx.arc(ps.x, ps.y, i === 0 ? 7 : 5, 0, Math.PI * 2);
+    ctx.fillStyle = i === 0 ? '#4caf50' : '#e94560';
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Side length label (if closed and real area set)
+    if (state.closed && i < state.points.length) {
+      const j = (i + 1) % state.points.length;
+      const pj = imgToScreen(state.points[j].x, state.points[j].y);
+      const mx = (ps.x + pj.x) / 2, my = (ps.y + pj.y) / 2;
+      const realLen = getSideLength(i);
+      if (realLen !== null) {
+        ctx.font = '11px Arial';
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const txt = realLen.toFixed(2) + 'm';
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        const tw = ctx.measureText(txt).width;
+        ctx.fillRect(mx - tw / 2 - 3, my - 8, tw + 6, 16);
+        ctx.fillStyle = '#ffe082';
+        ctx.fillText(txt, mx, my);
+      }
+    }
+  });
+}
+
+// ─── Geometry ────────────────────────────────────────────────────────────────
+function shoelaceArea(pts) {
+  let a = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const j = (i + 1) % pts.length;
+    a += pts[i].x * pts[j].y - pts[j].x * pts[i].y;
+  }
+  return Math.abs(a) / 2;
+}
+
+function getScaleMPerPx() {
+  const realArea = parseFloat(document.getElementById('realArea').value);
+  if (!realArea || realArea <= 0 || state.points.length < 3 || !state.closed) return null;
+  const pixArea = shoelaceArea(state.points);
+  if (pixArea <= 0) return null;
+  return Math.sqrt(realArea / pixArea); // meters per pixel
+}
+
+function getSideLength(i) {
+  const mpp = getScaleMPerPx();
+  if (mpp === null) return null;
+  const j = (i + 1) % state.points.length;
+  const dx = state.points[j].x - state.points[i].x;
+  const dy = state.points[j].y - state.points[i].y;
+  return Math.hypot(dx, dy) * mpp;
+}
+
+function getCurrentScale() {
+  const active = document.querySelector('.scale-btn.active');
+  if (!active) return 100;
+  const v = active.dataset.scale;
+  if (v === 'custom') return parseFloat(document.getElementById('customScaleVal').value) || 100;
+  return parseFloat(v);
+}
+
+// ─── UI updates ──────────────────────────────────────────────────────────────
+function updateUI() {
+  const hasImg = !!state.image;
+  const hasPoints = state.points.length > 0;
+  const canClose = state.points.length >= 3 && !state.closed;
+
+  document.getElementById('btnUndo').disabled = !hasPoints || state.closed;
+  document.getElementById('btnClose').disabled = !canClose;
+
+  const traceStats = document.getElementById('traceStats');
+  if (hasPoints) {
+    traceStats.style.display = 'block';
+    document.getElementById('vertexCount').textContent = state.points.length;
+    if (state.closed) {
+      const px = shoelaceArea(state.points);
+      document.getElementById('pixelArea').textContent = Math.round(px) + ' px²';
+    } else {
+      document.getElementById('pixelArea').textContent = '—';
+    }
+  } else {
+    traceStats.style.display = 'none';
+  }
+
+  updateResults();
+}
+
+function updateResults() {
+  const mpp = getScaleMPerPx();
+  const resultsSection = document.getElementById('resultsSection');
+  const btnExport = document.getElementById('btnExport');
+  const areaMsg = document.getElementById('areaMsg');
+
+  if (!state.closed || state.points.length < 3) {
+    resultsSection.style.display = 'none';
+    btnExport.disabled = true;
+    return;
+  }
+
+  const realArea = parseFloat(document.getElementById('realArea').value);
+  if (!realArea || realArea <= 0) {
+    areaMsg.textContent = '実面積を入力してください';
+    areaMsg.className = 'info-msg warn';
+    resultsSection.style.display = 'none';
+    btnExport.disabled = true;
+    return;
+  }
+
+  areaMsg.textContent = '';
+  resultsSection.style.display = 'block';
+  btnExport.disabled = false;
+
+  const scaleDenom = getCurrentScale();
+  const tbody = document.getElementById('sidesBody');
+  tbody.innerHTML = '';
+
+  let totalLen = 0;
+  for (let i = 0; i < state.points.length; i++) {
+    const len = getSideLength(i);
+    if (len === null) continue;
+    totalLen += len;
+    const paperMm = len * 1000 / scaleDenom;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${i + 1}辺</td><td>${len.toFixed(3)}</td><td>${paperMm.toFixed(1)}</td>`;
+    tbody.appendChild(tr);
+  }
+  // Total
+  const tr = document.createElement('tr');
+  tr.style.fontWeight = '600';
+  const totalPaper = totalLen * 1000 / scaleDenom;
+  tr.innerHTML = `<td>合計</td><td>${totalLen.toFixed(3)}</td><td>${totalPaper.toFixed(1)}</td>`;
+  tbody.appendChild(tr);
+
+  document.getElementById('scaleFactorDisplay').textContent = `1/${scaleDenom}`;
+  document.getElementById('calcAreaDisplay').textContent = realArea.toFixed(2) + ' ㎡';
+
+  render();
+}
+
+// ─── DXF generation ──────────────────────────────────────────────────────────
+function generateDXF() {
+  const mpp = getScaleMPerPx();
+  if (!mpp) return null;
+
+  const scaleDenom = getCurrentScale();
+  const pts = state.points;
+
+  // Convert to real coords in meters, flip Y
+  const maxY = Math.max(...pts.map(p => p.y));
+  const realPts = pts.map(p => ({
+    x: p.x * mpp,
+    y: (maxY - p.y) * mpp  // flip Y axis for DXF
+  }));
+
+  // Find bounding box min to shift origin to 0,0
+  const minX = Math.min(...realPts.map(p => p.x));
+  const minY = Math.min(...realPts.map(p => p.y));
+  const shifted = realPts.map(p => ({ x: p.x - minX, y: p.y - minY }));
+
+  // Convert to DXF units (mm) at scale
+  const dxfPts = shifted.map(p => ({
+    x: p.x * 1000 / scaleDenom,
+    y: p.y * 1000 / scaleDenom
+  }));
+
+  const lines = [];
+  // Header
+  lines.push('0\nSECTION\n2\nHEADER');
+  lines.push('9\n$ACADVER\n1\nAC1015');
+  lines.push('9\n$INSUNITS\n70\n4'); // 4 = millimeters
+  lines.push('0\nENDSEC');
+
+  // Tables (minimal)
+  lines.push('0\nSECTION\n2\nTABLES');
+  lines.push('0\nTABLE\n2\nLAYER\n70\n1');
+  lines.push('0\nLAYER\n2\n敷地境界\n70\n0\n62\n1\n6\nContinuous');
+  lines.push('0\nENDTABLE');
+  lines.push('0\nENDSEC');
+
+  // Entities
+  lines.push('0\nSECTION\n2\nENTITIES');
+
+  // LWPOLYLINE (closed)
+  lines.push('0\nLWPOLYLINE');
+  lines.push('5\n1');          // handle
+  lines.push('100\nAcDbEntity');
+  lines.push('8\n敷地境界');    // layer
+  lines.push('100\nAcDbPolyline');
+  lines.push(`90\n${dxfPts.length}`); // vertex count
+  lines.push('70\n1');         // closed flag
+  lines.push('43\n0.0');       // constant width
+
+  dxfPts.forEach(p => {
+    lines.push(`10\n${p.x.toFixed(6)}`);
+    lines.push(`20\n${p.y.toFixed(6)}`);
+  });
+
+  // Add dimension annotations as TEXT entities
+  for (let i = 0; i < pts.length; i++) {
+    const j = (i + 1) % pts.length;
+    const len = getSideLength(i);
+    if (len === null) continue;
+    // Midpoint in DXF coords
+    const mx = (dxfPts[i].x + dxfPts[j].x) / 2;
+    const my = (dxfPts[i].y + dxfPts[j].y) / 2;
+    const txt = len.toFixed(3) + 'm';
+
+    // Offset slightly perpendicular
+    const dx = dxfPts[j].x - dxfPts[i].x;
+    const dy = dxfPts[j].y - dxfPts[i].y;
+    const len2 = Math.hypot(dx, dy);
+    const nx = len2 > 0 ? -dy / len2 * 3 : 0;
+    const ny = len2 > 0 ? dx / len2 * 3 : 3;
+
+    lines.push('0\nTEXT');
+    lines.push('8\n寸法');
+    lines.push(`10\n${(mx + nx).toFixed(6)}`);
+    lines.push(`20\n${(my + ny).toFixed(6)}`);
+    lines.push('30\n0.0');
+    lines.push('40\n2.5'); // text height in DXF units (mm)
+    lines.push(`1\n${txt}`);
+    lines.push('72\n1'); // center alignment
+    lines.push(`11\n${(mx + nx).toFixed(6)}`);
+    lines.push(`21\n${(my + ny).toFixed(6)}`);
+    lines.push('31\n0.0');
+  }
+
+  lines.push('0\nENDSEC');
+  lines.push('0\nEOF');
+
+  return lines.join('\n');
+}
+
+// ─── Event: File upload ───────────────────────────────────────────────────────
+const uploadZone = document.getElementById('uploadZone');
+const fileInput = document.getElementById('fileInput');
+
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('dragover');
+  if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); });
+
+async function loadFile(file) {
+  state.points = [];
+  state.closed = false;
+  noImageHint.style.display = 'none';
+
+  if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+    await loadPDF(file);
+  } else {
+    await loadImage(file);
+  }
+  fitImage();
+  render();
+  updateUI();
+  setStatus(`読み込み完了: ${file.name} &nbsp;|&nbsp; <span>✏️ クリックで頂点を追加</span>`);
+}
+
+async function loadImage(file) {
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      state.image = img;
+      state.imgW = img.naturalWidth;
+      state.imgH = img.naturalHeight;
+      document.getElementById('pdfPageCtrl').style.display = 'none';
+      resolve();
+    };
+    img.src = url;
+  });
+}
+
+async function loadPDF(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  state.pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  state.pdfPageCount = state.pdfDoc.numPages;
+  state.pdfPage = 1;
+  document.getElementById('pdfPageCtrl').style.display = 'block';
+  document.getElementById('pageInfo').textContent = `${state.pdfPage} / ${state.pdfPageCount}`;
+  await renderPDFPage();
+}
+
+async function renderPDFPage() {
+  const page = await state.pdfDoc.getPage(state.pdfPage);
+  const viewport = page.getViewport({ scale: 2.0 });
+  const offscreen = document.createElement('canvas');
+  offscreen.width = viewport.width;
+  offscreen.height = viewport.height;
+  await page.render({ canvasContext: offscreen.getContext('2d'), viewport }).promise;
+  state.image = offscreen;
+  state.imgW = viewport.width;
+  state.imgH = viewport.height;
+  fitImage();
+  render();
+}
+
+document.getElementById('prevPage').addEventListener('click', async () => {
+  if (state.pdfPage > 1) { state.pdfPage--; document.getElementById('pageInfo').textContent = `${state.pdfPage} / ${state.pdfPageCount}`; await renderPDFPage(); }
+});
+document.getElementById('nextPage').addEventListener('click', async () => {
+  if (state.pdfPage < state.pdfPageCount) { state.pdfPage++; document.getElementById('pageInfo').textContent = `${state.pdfPage} / ${state.pdfPageCount}`; await renderPDFPage(); }
+});
+
+// ─── Canvas mouse events ──────────────────────────────────────────────────────
+function getImgCoords(e) {
+  const rect = canvas.getBoundingClientRect();
+  return screenToImg(e.clientX - rect.left, e.clientY - rect.top);
+}
+
+canvas.addEventListener('mousemove', e => {
+  if (!state.image) return;
+  const pos = getImgCoords(e);
+
+  if (state.mode === 'pan' && state.panStart) {
+    const rect = canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+    state.offsetX += sx - state.panStart.sx;
+    state.offsetY += sy - state.panStart.sy;
+    state.panStart = { sx, sy };
+    render();
+    return;
+  }
+
+  if (state.mode === 'trace' && !state.closed) {
+    state.hovering = pos;
+    render();
+  }
+});
+
+canvas.addEventListener('mouseleave', () => { state.hovering = null; render(); });
+
+canvas.addEventListener('click', e => {
+  if (state.mode !== 'trace' || !state.image || state.closed) return;
+  const pos = getImgCoords(e);
+
+  // Snap to first point to close
+  if (state.points.length >= 3) {
+    const first = imgToScreen(state.points[0].x, state.points[0].y);
+    const rect = canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+    if (Math.hypot(sx - first.x, sy - first.y) < 16) {
+      closePolygon();
+      return;
+    }
+  }
+
+  state.points.push(pos);
+  updateUI();
+  render();
+
+  if (state.points.length === 1) {
+    setStatus('<span>✏️ 続けてクリックして頂点を追加</span> &nbsp;|&nbsp; 最初の点（緑）をクリックで閉じる');
+  }
+});
+
+canvas.addEventListener('mousedown', e => {
+  if (state.mode === 'pan') {
+    const rect = canvas.getBoundingClientRect();
+    state.panStart = { sx: e.clientX - rect.left, sy: e.clientY - rect.top };
+    canvasWrap.classList.add('panning');
+  }
+});
+canvas.addEventListener('mouseup', () => { state.panStart = null; canvasWrap.classList.remove('panning'); });
+
+// Zoom with wheel
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  if (!state.image) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  const factor = e.deltaY < 0 ? 1.1 : 0.9;
+  const newScale = Math.max(0.1, Math.min(20, state.scale * factor));
+  state.offsetX = mx - (mx - state.offsetX) * (newScale / state.scale);
+  state.offsetY = my - (my - state.offsetY) * (newScale / state.scale);
+  state.scale = newScale;
+  document.getElementById('zoomInfo').textContent = Math.round(state.scale * 100) + '%';
+  render();
+}, { passive: false });
+
+// ─── Tool buttons ─────────────────────────────────────────────────────────────
+document.getElementById('toolTrace').addEventListener('click', () => {
+  state.mode = 'trace';
+  canvasWrap.classList.remove('pan-mode');
+  document.getElementById('toolTrace').classList.add('active');
+  document.getElementById('toolPan').classList.remove('active');
+});
+document.getElementById('toolPan').addEventListener('click', () => {
+  state.mode = 'pan';
+  canvasWrap.classList.add('pan-mode');
+  document.getElementById('toolPan').classList.add('active');
+  document.getElementById('toolTrace').classList.remove('active');
+});
+document.getElementById('toolZoomIn').addEventListener('click', () => zoomCenter(1.25));
+document.getElementById('toolZoomOut').addEventListener('click', () => zoomCenter(0.8));
+document.getElementById('toolFit').addEventListener('click', () => { fitImage(); render(); });
+
+function zoomCenter(factor) {
+  if (!state.image) return;
+  const cx = canvas.width / 2, cy = canvas.height / 2;
+  const newScale = Math.max(0.1, Math.min(20, state.scale * factor));
+  state.offsetX = cx - (cx - state.offsetX) * (newScale / state.scale);
+  state.offsetY = cy - (cy - state.offsetY) * (newScale / state.scale);
+  state.scale = newScale;
+  document.getElementById('zoomInfo').textContent = Math.round(state.scale * 100) + '%';
+  render();
+}
+
+// ─── Trace controls ───────────────────────────────────────────────────────────
+function closePolygon() {
+  if (state.points.length < 3) return;
+  state.closed = true;
+  state.hovering = null;
+  updateUI();
+  render();
+  const px = shoelaceArea(state.points);
+  setStatus(`✅ 多角形を閉じました（${state.points.length}頂点 / ピクセル面積 ${Math.round(px).toLocaleString()} px²）&nbsp;|&nbsp; <span>実面積を入力してください</span>`);
+}
+
+document.getElementById('btnUndo').addEventListener('click', () => {
+  if (state.closed) return;
+  state.points.pop();
+  updateUI();
+  render();
+});
+
+document.getElementById('btnClose').addEventListener('click', () => closePolygon());
+
+document.getElementById('btnClear').addEventListener('click', () => {
+  state.points = [];
+  state.closed = false;
+  state.hovering = null;
+  updateUI();
+  render();
+  if (state.image) setStatus('<span>✏️ クリックで頂点を追加</span>');
+});
+
+// ─── Scale buttons ────────────────────────────────────────────────────────────
+document.querySelectorAll('.scale-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.scale-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const customWrap = document.getElementById('customScaleWrap');
+    customWrap.classList.toggle('visible', btn.dataset.scale === 'custom');
+    updateResults();
+  });
+});
+document.getElementById('customScaleVal').addEventListener('input', updateResults);
+document.getElementById('realArea').addEventListener('input', updateResults);
+
+// ─── Export DXF ───────────────────────────────────────────────────────────────
+document.getElementById('btnExport').addEventListener('click', () => {
+  const dxf = generateDXF();
+  if (!dxf) { document.getElementById('exportMsg').textContent = 'エラー: データが不足しています'; return; }
+
+  const scaleDenom = getCurrentScale();
+  const blob = new Blob([dxf], { type: 'application/dxf' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `敷地境界_1-${scaleDenom}.dxf`;
+  a.click();
+  URL.revokeObjectURL(url);
+
+  const msg = document.getElementById('exportMsg');
+  msg.textContent = `✅ 出力完了: 敷地境界_1-${scaleDenom}.dxf`;
+  msg.className = 'info-msg success';
+});
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+resizeCanvas();
+</script>
+</body>
+</html>
