@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import type { SlopeResult, PsResult, Fixture } from "../domain/types";
+import { structuralFixtureTypes } from "../domain/types";
 import { fixtureLabels } from "../domain/rules/fixtureDefaults";
 import { pipeTypeLabels } from "../domain/rules/pipeSpecs";
 import { findOverlappingPairs } from "../utils/geometry";
@@ -26,8 +27,14 @@ export function ResultPanel({ fixtures, slopeResults, psResults }: Props) {
   const psList = fixtures.filter((f) => f.type === "ps");
   const hasPsWarning = psList.length === 0;
 
-  // 重なり検出
-  const overlaps = useMemo(() => findOverlappingPairs(fixtures), [fixtures]);
+  // 重なり検出（構造要素は柱・梁・壁との重なりは設備配置上問題ないため除外）
+  const overlaps = useMemo(
+    () =>
+      findOverlappingPairs(
+        fixtures.filter((f) => !structuralFixtureTypes.has(f.type))
+      ),
+    [fixtures]
+  );
 
   return (
     <div style={{ fontSize: 12 }}>

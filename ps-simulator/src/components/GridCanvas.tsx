@@ -1,5 +1,6 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import type { Fixture, FixtureType, PipeRoute } from "../domain/types";
+import { structuralFixtureTypes } from "../domain/types";
 import { fixtureLabels, fixtureColors } from "../domain/rules/fixtureDefaults";
 import { pipeColors, pipeTypeLabels } from "../domain/rules/pipeSpecs";
 import { snapToGrid } from "../utils/geometry";
@@ -240,6 +241,57 @@ export function GridCanvas({
         {/* グリッド */}
         {gridLines}
 
+        {/* 構造・図面参照要素（背面レイヤー） */}
+        {fixtures
+          .filter((f) => structuralFixtureTypes.has(f.type))
+          .map((f) => {
+            const isSelected = f.id === selectedFixtureId;
+            const color = fixtureColors[f.type];
+            const isBeam = f.type === "beam";
+            const isColumn = f.type === "column";
+
+            return (
+              <g
+                key={f.id}
+                data-fixture="true"
+                style={{ cursor: "move" }}
+                onMouseDown={(e) => handleFixtureMouseDown(e, f)}
+              >
+                <rect
+                  x={mmToPx(f.x)}
+                  y={mmToPx(f.y)}
+                  width={mmToPx(f.w)}
+                  height={mmToPx(f.h)}
+                  fill={color === "transparent" ? "none" : color}
+                  stroke={
+                    isSelected
+                      ? "#1976d2"
+                      : isBeam
+                      ? "#666"
+                      : isColumn
+                      ? "#212121"
+                      : "#999"
+                  }
+                  strokeWidth={isSelected ? 2.5 : isBeam ? 1.5 : 1}
+                  strokeDasharray={isBeam ? "6 3" : undefined}
+                  rx={isColumn ? 0 : 1}
+                  opacity={f.type === "wall" ? 0.6 : 1}
+                />
+                <text
+                  x={mmToPx(f.x + f.w / 2)}
+                  y={mmToPx(f.y + f.h / 2)}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  fontSize={isColumn ? 9 : 10}
+                  fill={isColumn ? "#fff" : "#666"}
+                  pointerEvents="none"
+                >
+                  {fixtureLabels[f.type]}
+                </text>
+              </g>
+            );
+          })}
+
         {/* 配管ルート（管種ごとにオフセットして表示） */}
         {pipeRoutes.map((route, i) => {
           const sameFixtureRoutes = pipeRoutes.filter(
@@ -338,8 +390,10 @@ export function GridCanvas({
             });
         })()}
 
-        {/* 設備 */}
-        {fixtures.map((f) => {
+        {/* 設備（構造要素は背面に別途描画済みのため除外） */}
+        {fixtures
+          .filter((f) => !structuralFixtureTypes.has(f.type))
+          .map((f) => {
           const isSelected = f.id === selectedFixtureId;
           const color = fixtureColors[f.type];
           return (

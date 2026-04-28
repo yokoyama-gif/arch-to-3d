@@ -1,4 +1,5 @@
 import type { Fixture, PipeRoute, PipeType, Point } from "./types";
+import { structuralFixtureTypes } from "./types";
 import { fixturePipeMap } from "./rules/pipeSpecs";
 
 /** 設備の中心座標を取得 */
@@ -53,7 +54,10 @@ function buildRoute(
  */
 export function calcPipeRoutes(fixtures: Fixture[]): PipeRoute[] {
   const psList = fixtures.filter((f) => f.type === "ps");
-  const equipment = fixtures.filter((f) => f.type !== "ps");
+  // PS本体・構造系（柱/梁/壁）はルート計算対象外
+  const equipment = fixtures.filter(
+    (f) => f.type !== "ps" && !structuralFixtureTypes.has(f.type)
+  );
   const routes: PipeRoute[] = [];
 
   // 排水系は水平→垂直、給水系は垂直→水平

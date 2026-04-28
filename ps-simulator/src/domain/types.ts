@@ -8,7 +8,24 @@ export type Point = {
 };
 
 /** 設備タイプ */
-export type FixtureType = "toilet" | "ub" | "washbasin" | "washing" | "kitchen" | "ps";
+export type FixtureType =
+  | "toilet"
+  | "ub"
+  | "washbasin"
+  | "washing"
+  | "kitchen"
+  | "ps"
+  // 構造・図面参照要素（配管ルート対象外）
+  | "column"   // 柱
+  | "beam"     // 梁（点線で表示）
+  | "wall";    // 石膏ボード壁
+
+/** 構造・図面参照系の要素種別（配管ルート計算から除外する） */
+export const structuralFixtureTypes: ReadonlySet<FixtureType> = new Set([
+  "column",
+  "beam",
+  "wall",
+]);
 
 /** 配管種別 */
 export type PipeType = "soil" | "waste" | "vent" | "cold" | "hot" | "gas";
