@@ -83,6 +83,11 @@ export type Fixture = {
   h: number;
   rotation: Rotation;
   floor: number;
+  /**
+   * 排水溝の位置オフセット（設備の左上からのmm距離）。
+   * 未指定の場合は fixtureDrainSpec の比率からデフォルト位置で表示される。
+   */
+  drainOffsetMm?: Point;
 };
 
 /** 配管要件 */

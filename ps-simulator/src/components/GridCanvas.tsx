@@ -34,6 +34,8 @@ type Props = {
   onRotateFixture?: (id: string) => void;
   /** リサイズ確定: 位置と寸法を一括更新 */
   onResizeFixtureGeometry?: (id: string, x: number, y: number, w: number, h: number) => void;
+  /** 排水溝の位置を更新（設備左上からのmm） */
+  onSetDrainOffset?: (id: string, offsetX: number, offsetY: number) => void;
 };
 
 export function GridCanvas({
@@ -49,6 +51,7 @@ export function GridCanvas({
   onDeleteFixture,
   onRotateFixture,
   onResizeFixtureGeometry,
+  onSetDrainOffset,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -69,6 +72,8 @@ export function GridCanvas({
     startW: number;
     startH: number;
   } | null>(null);
+  // 排水溝のドラッグ中状態（設備IDのみ保持。位置はマウスから直接計算）
+  const [drainDragging, setDrainDragging] = useState<string | null>(null);
 
   const canvasW = DEFAULT_CANVAS_W;
   const canvasH = DEFAULT_CANVAS_H;
@@ -188,8 +193,29 @@ export function GridCanvas({
     [getMouseMm]
   );
 
+  /** 排水溝mousedown */
+  const handleDrainMouseDown = useCallback(
+    (e: React.MouseEvent, fixtureId: string) => {
+      e.stopPropagation();
+      setDrainDragging(fixtureId);
+    },
+    []
+  );
+
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
+      // 排水溝ドラッグ
+      if (drainDragging && onSetDrainOffset) {
+        const fixture = fixtures.find((f) => f.id === drainDragging);
+        if (fixture) {
+          const pos = getMouseMm(e);
+          // 設備左上からの相対オフセット
+          const offsetX = pos.x - fixture.x;
+          const offsetY = pos.y - fixture.y;
+          onSetDrainOffset(drainDragging, offsetX, offsetY);
+        }
+        return;
+      }
       // リサイズ中の処理を優先
       if (resizing && onResizeFixtureGeometry) {
         const pos = getMouseMm(e);
@@ -229,12 +255,13 @@ export function GridCanvas({
       const newY = snapToGrid(pos.y - dragging.offsetY, gridSizeMm);
       onMoveFixture(dragging.id, newX, newY);
     },
-    [dragging, resizing, getMouseMm, gridSizeMm, onMoveFixture, onResizeFixtureGeometry]
+    [dragging, resizing, drainDragging, fixtures, getMouseMm, gridSizeMm, onMoveFixture, onResizeFixtureGeometry, onSetDrainOffset]
   );
 
   const handleMouseUp = useCallback(() => {
     setDragging(null);
     setResizing(null);
+    setDrainDragging(null);
   }, []);
 
   /**
@@ -527,22 +554,40 @@ export function GridCanvas({
               >
                 {f.w}×{f.h}
               </text>
-              {/* 排水溝（水回り設備のみ） */}
+              {/* 排水溝（水回り設備のみ。ドラッグで位置変更可能） */}
               {(() => {
                 const drain = fixtureDrainSpec[f.type];
                 if (!drain) return null;
-                const cxMm = f.x + f.w * drain.ratioX;
-                const cyMm = f.y + f.h * drain.ratioY;
+                // 個別オフセットがあればそれを使用、なければデフォルト比率
+                const localX = f.drainOffsetMm
+                  ? f.drainOffsetMm.x
+                  : f.w * drain.ratioX;
+                const localY = f.drainOffsetMm
+                  ? f.drainOffsetMm.y
+                  : f.h * drain.ratioY;
+                const cxMm = f.x + localX;
+                const cyMm = f.y + localY;
                 const rPx = mmToPx(drain.diameterMm / 2);
+                const isDragging = drainDragging === f.id;
                 return (
-                  <g pointerEvents="none">
+                  <g>
+                    {/* 当たり判定を広げるための透明な大きい円 */}
+                    <circle
+                      cx={mmToPx(cxMm)}
+                      cy={mmToPx(cyMm)}
+                      r={Math.max(rPx, 8)}
+                      fill="transparent"
+                      style={{ cursor: "move" }}
+                      onMouseDown={(e) => handleDrainMouseDown(e, f.id)}
+                    />
                     <circle
                       cx={mmToPx(cxMm)}
                       cy={mmToPx(cyMm)}
                       r={rPx}
                       fill="rgba(255,255,255,0.6)"
-                      stroke="#1e88e5"
-                      strokeWidth={1.2}
+                      stroke={isDragging ? "#0d47a1" : "#1e88e5"}
+                      strokeWidth={isDragging ? 1.8 : 1.2}
+                      pointerEvents="none"
                     />
                     {/* 排水口を示すクロスマーク */}
                     <line
@@ -552,6 +597,7 @@ export function GridCanvas({
                       y2={mmToPx(cyMm)}
                       stroke="#1e88e5"
                       strokeWidth={0.8}
+                      pointerEvents="none"
                     />
                     <line
                       x1={mmToPx(cxMm)}
@@ -560,6 +606,7 @@ export function GridCanvas({
                       y2={mmToPx(cyMm) + rPx * 0.6}
                       stroke="#1e88e5"
                       strokeWidth={0.8}
+                      pointerEvents="none"
                     />
                   </g>
                 );

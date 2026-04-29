@@ -44,6 +44,8 @@ type SimulatorState = {
   resizeFixture: (id: string, w: number, h: number) => void;
   /** ドラッグハンドルからのリサイズ用: 位置と寸法を一括更新 */
   setFixtureGeometry: (id: string, x: number, y: number, w: number, h: number) => void;
+  /** 排水溝のオフセット位置を更新（設備左上からのmm） */
+  setFixtureDrainOffset: (id: string, offsetX: number, offsetY: number) => void;
   rotateFixture: (id: string) => void;
   deleteFixture: (id: string) => void;
   selectFixture: (id: string | null) => void;
@@ -158,6 +160,19 @@ export const useSimulatorStore = create<SimulatorState>((set, get) => {
         ),
       }));
       get().recalculate();
+    },
+
+    setFixtureDrainOffset: (id, offsetX, offsetY) => {
+      // 設備の境界内にクランプ
+      set((state) => ({
+        fixtures: state.fixtures.map((f) => {
+          if (f.id !== id) return f;
+          const x = Math.max(0, Math.min(f.w, offsetX));
+          const y = Math.max(0, Math.min(f.h, offsetY));
+          return { ...f, drainOffsetMm: { x, y } };
+        }),
+      }));
+      // 排水溝の位置は配管ルート計算には影響しないので recalculate不要
     },
 
     setFixtureGeometry: (id, x, y, w, h) => {

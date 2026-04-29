@@ -176,6 +176,7 @@ export default function App() {
               onDeleteFixture={store.deleteFixture}
               onRotateFixture={store.rotateFixture}
               onResizeFixtureGeometry={store.setFixtureGeometry}
+              onSetDrainOffset={store.setFixtureDrainOffset}
             />
           </div>
 
