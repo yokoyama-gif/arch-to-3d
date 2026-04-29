@@ -10,6 +10,7 @@ import type {
   PlanData,
   Rotation,
 } from "../domain/types";
+import { computeGridSize } from "../domain/types";
 import { defaultBuildingSettings } from "../domain/rules/buildingDefaults";
 import { fixtureDefaults } from "../domain/rules/fixtureDefaults";
 import { calcPipeRoutes } from "../domain/calcPipeRoutes";
@@ -81,9 +82,14 @@ export const useSimulatorStore = create<SimulatorState>((set, get) => {
   return {
     buildingSettings: { ...defaultBuildingSettings },
     setBuildingSettings: (s) => {
-      set((state) => ({
-        buildingSettings: { ...state.buildingSettings, ...s },
-      }));
+      set((state) => {
+        const merged = { ...state.buildingSettings, ...s };
+        // moduleMm または gridDivision が変わった場合、gridSizeMm を再計算
+        if (s.moduleMm !== undefined || s.gridDivision !== undefined) {
+          merged.gridSizeMm = computeGridSize(merged.moduleMm, merged.gridDivision);
+        }
+        return { buildingSettings: merged };
+      });
       get().recalculate();
     },
 

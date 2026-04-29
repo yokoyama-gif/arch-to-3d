@@ -1,4 +1,13 @@
-import type { BuildingSettings, Fixture } from "../domain/types";
+import type {
+  BuildingSettings,
+  Fixture,
+  ModuleMm,
+  GridDivision,
+} from "../domain/types";
+import {
+  MODULE_OPTIONS,
+  GRID_DIVISION_OPTIONS,
+} from "../domain/types";
 import { fixtureLabels } from "../domain/rules/fixtureDefaults";
 import { presets } from "../domain/rules/presets";
 import { NumberInput } from "./NumberInput";
@@ -107,14 +116,42 @@ export function PropertyPanel({
           style={inputStyle}
         />
 
-        <label>グリッド(mm)</label>
-        <NumberInput
-          value={s.gridSizeMm}
-          step={50}
-          min={50}
-          onChange={(v) => onUpdateSettings({ gridSizeMm: v })}
+        <label>モジュール(mm)</label>
+        <select
+          value={s.moduleMm}
+          onChange={(e) =>
+            onUpdateSettings({ moduleMm: Number(e.target.value) as ModuleMm })
+          }
           style={inputStyle}
-        />
+        >
+          {MODULE_OPTIONS.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
+
+        <label>分割数</label>
+        <select
+          value={s.gridDivision}
+          onChange={(e) =>
+            onUpdateSettings({
+              gridDivision: Number(e.target.value) as GridDivision,
+            })
+          }
+          style={inputStyle}
+        >
+          {GRID_DIVISION_OPTIONS.map((d) => (
+            <option key={d} value={d}>
+              1/{d}
+            </option>
+          ))}
+        </select>
+
+        <label>グリッド寸法</label>
+        <div style={{ fontSize: 12, padding: "2px 4px", color: "#555" }}>
+          {s.gridSizeMm} mm（{s.moduleMm} ÷ {s.gridDivision}）
+        </div>
       </div>
 
       {/* 選択設備詳細 */}

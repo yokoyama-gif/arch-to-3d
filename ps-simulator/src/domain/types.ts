@@ -33,6 +33,18 @@ export type PipeType = "soil" | "waste" | "vent" | "cold" | "hot" | "gas";
 /** 判定ステータス */
 export type RouteStatus = "ok" | "warning" | "ng";
 
+/** 木造設計でよく使う基準モジュール (mm) */
+export type ModuleMm = 900 | 910 | 1000;
+
+/** モジュール分割数 */
+export type GridDivision = 2 | 3 | 4 | 6;
+
+/** 選択可能なモジュール一覧 */
+export const MODULE_OPTIONS: ModuleMm[] = [900, 910, 1000];
+
+/** 選択可能な分割数一覧（1/2, 1/3, 1/4, 1/6） */
+export const GRID_DIVISION_OPTIONS: GridDivision[] = [2, 3, 4, 6];
+
 /** 建物設定 */
 export type BuildingSettings = {
   floors: number;
@@ -41,8 +53,25 @@ export type BuildingSettings = {
   structureType: "wood" | "rc" | "steel";
   ceilingPlenumMm: number;
   floorStepAllowanceMm: number;
+  /** 基準モジュール (mm) */
+  moduleMm: ModuleMm;
+  /** モジュール分割数 (2,3,4,6) */
+  gridDivision: GridDivision;
+  /**
+   * 実際のグリッド寸法 (mm)。moduleMm / gridDivision で算出される派生値だが、
+   * 既存のロジックや保存形式との互換のためフィールドとして保持する。
+   */
   gridSizeMm: number;
 };
+
+/** モジュールと分割数からグリッド寸法を計算 */
+export function computeGridSize(
+  moduleMm: ModuleMm,
+  division: GridDivision
+): number {
+  // 1/6分割など割り切れない場合に備えて小数1桁まで丸める
+  return Math.round((moduleMm / division) * 10) / 10;
+}
 
 /** 設備要素 */
 export type Fixture = {

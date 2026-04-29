@@ -1,8 +1,12 @@
-import type { PlanData } from "../domain/types";
+import type { PlanData, ModuleMm, GridDivision } from "../domain/types";
+import { computeGridSize } from "../domain/types";
 
 /**
  * JSONデータがPlanDataの必須フィールドを持っているか検証する。
  * 型レベルではなく実行時の最低限のバリデーション。
+ *
+ * 旧形式（gridSizeMmのみ）の互換性も維持する：
+ * moduleMm / gridDivision が無いJSONを読み込んだ場合、デフォルト値を補完する。
  */
 function validatePlanData(data: unknown): data is PlanData {
   if (data == null || typeof data !== "object") return false;
@@ -16,7 +20,25 @@ function validatePlanData(data: unknown): data is PlanData {
   // buildingSettingsの最低限チェック
   const bs = obj.buildingSettings as Record<string, unknown>;
   if (typeof bs.floors !== "number") return false;
+
+  // gridSizeMm 必須（互換性のため）
   if (typeof bs.gridSizeMm !== "number") return false;
+
+  // moduleMm / gridDivision が無い旧形式の場合は補完
+  if (typeof bs.moduleMm !== "number") {
+    bs.moduleMm = 910 satisfies ModuleMm;
+  }
+  if (typeof bs.gridDivision !== "number") {
+    bs.gridDivision = 2 satisfies GridDivision;
+  }
+  // 整合性: moduleMm / gridDivision から gridSizeMm を再計算（不一致なら上書き）
+  const expected = computeGridSize(
+    bs.moduleMm as ModuleMm,
+    bs.gridDivision as GridDivision
+  );
+  if (Math.abs((bs.gridSizeMm as number) - expected) > 0.5) {
+    bs.gridSizeMm = expected;
+  }
 
   // fixturesの各要素チェック
   for (const f of obj.fixtures as unknown[]) {
