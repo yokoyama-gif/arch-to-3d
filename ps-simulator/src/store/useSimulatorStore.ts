@@ -37,6 +37,8 @@ type SimulatorState = {
   addFixture: (type: FixtureType, x: number, y: number) => void;
   moveFixture: (id: string, x: number, y: number) => void;
   resizeFixture: (id: string, w: number, h: number) => void;
+  /** ドラッグハンドルからのリサイズ用: 位置と寸法を一括更新 */
+  setFixtureGeometry: (id: string, x: number, y: number, w: number, h: number) => void;
   rotateFixture: (id: string) => void;
   deleteFixture: (id: string) => void;
   selectFixture: (id: string | null) => void;
@@ -130,6 +132,26 @@ export const useSimulatorStore = create<SimulatorState>((set, get) => {
         fixtures: state.fixtures.map((f) =>
           f.id === id
             ? { ...f, w: Math.max(50, w), h: Math.max(50, h) }
+            : f
+        ),
+      }));
+      get().recalculate();
+    },
+
+    setFixtureGeometry: (id, x, y, w, h) => {
+      // ドラッグハンドルからのリサイズ。位置と寸法をグリッドにスナップして一括更新。
+      const grid = get().buildingSettings.gridSizeMm;
+      const minSize = 50;
+      set((state) => ({
+        fixtures: state.fixtures.map((f) =>
+          f.id === id
+            ? {
+                ...f,
+                x: snapToGrid(x, grid),
+                y: snapToGrid(y, grid),
+                w: Math.max(minSize, snapToGrid(w, grid)),
+                h: Math.max(minSize, snapToGrid(h, grid)),
+              }
             : f
         ),
       }));

@@ -161,6 +161,7 @@ export default function App() {
               onSelectFixture={store.selectFixture}
               onDeleteFixture={store.deleteFixture}
               onRotateFixture={store.rotateFixture}
+              onResizeFixtureGeometry={store.setFixtureGeometry}
             />
           </div>
 

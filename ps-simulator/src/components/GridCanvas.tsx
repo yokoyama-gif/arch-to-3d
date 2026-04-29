@@ -11,6 +11,9 @@ const MIN_SCALE = 0.05;
 const MAX_SCALE = 0.5;
 const ZOOM_STEP = 0.02;
 
+/** リサイズハンドル位置 */
+type ResizeHandle = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
+
 type Props = {
   fixtures: Fixture[];
   pipeRoutes: PipeRoute[];
@@ -25,6 +28,8 @@ type Props = {
   onSelectFixture: (id: string | null) => void;
   onDeleteFixture?: (id: string) => void;
   onRotateFixture?: (id: string) => void;
+  /** リサイズ確定: 位置と寸法を一括更新 */
+  onResizeFixtureGeometry?: (id: string, x: number, y: number, w: number, h: number) => void;
 };
 
 export function GridCanvas({
@@ -39,6 +44,7 @@ export function GridCanvas({
   onSelectFixture,
   onDeleteFixture,
   onRotateFixture,
+  onResizeFixtureGeometry,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -47,6 +53,17 @@ export function GridCanvas({
     id: string;
     offsetX: number;
     offsetY: number;
+  } | null>(null);
+  // リサイズドラッグ中の状態（開始位置・元の幾何情報・どのハンドル）
+  const [resizing, setResizing] = useState<{
+    id: string;
+    handle: ResizeHandle;
+    startMouseX: number;
+    startMouseY: number;
+    startX: number;
+    startY: number;
+    startW: number;
+    startH: number;
   } | null>(null);
 
   const canvasW = DEFAULT_CANVAS_W;
@@ -148,19 +165,72 @@ export function GridCanvas({
     [getMouseMm, onSelectFixture, placingType]
   );
 
+  /** リサイズハンドルmousedown */
+  const handleResizeMouseDown = useCallback(
+    (e: React.MouseEvent, fixture: Fixture, handle: ResizeHandle) => {
+      e.stopPropagation();
+      const pos = getMouseMm(e);
+      setResizing({
+        id: fixture.id,
+        handle,
+        startMouseX: pos.x,
+        startMouseY: pos.y,
+        startX: fixture.x,
+        startY: fixture.y,
+        startW: fixture.w,
+        startH: fixture.h,
+      });
+    },
+    [getMouseMm]
+  );
+
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
+      // リサイズ中の処理を優先
+      if (resizing && onResizeFixtureGeometry) {
+        const pos = getMouseMm(e);
+        const dx = pos.x - resizing.startMouseX;
+        const dy = pos.y - resizing.startMouseY;
+        let newX = resizing.startX;
+        let newY = resizing.startY;
+        let newW = resizing.startW;
+        let newH = resizing.startH;
+        const minSize = 50;
+
+        // ハンドルに応じてx,y,w,hを計算
+        const h = resizing.handle;
+        if (h === "e" || h === "ne" || h === "se") {
+          newW = Math.max(minSize, resizing.startW + dx);
+        }
+        if (h === "w" || h === "nw" || h === "sw") {
+          // 左方向は xも動く（中央が動かないように右端を保持）
+          const right = resizing.startX + resizing.startW;
+          newX = Math.min(right - minSize, resizing.startX + dx);
+          newW = right - newX;
+        }
+        if (h === "s" || h === "se" || h === "sw") {
+          newH = Math.max(minSize, resizing.startH + dy);
+        }
+        if (h === "n" || h === "ne" || h === "nw") {
+          const bottom = resizing.startY + resizing.startH;
+          newY = Math.min(bottom - minSize, resizing.startY + dy);
+          newH = bottom - newY;
+        }
+        onResizeFixtureGeometry(resizing.id, newX, newY, newW, newH);
+        return;
+      }
       if (!dragging) return;
       const pos = getMouseMm(e);
       const newX = snapToGrid(pos.x - dragging.offsetX, gridSizeMm);
       const newY = snapToGrid(pos.y - dragging.offsetY, gridSizeMm);
       onMoveFixture(dragging.id, newX, newY);
     },
-    [dragging, getMouseMm, gridSizeMm, onMoveFixture]
+    [dragging, resizing, getMouseMm, gridSizeMm, onMoveFixture, onResizeFixtureGeometry]
   );
 
   const handleMouseUp = useCallback(() => {
     setDragging(null);
+    setResizing(null);
   }, []);
 
   /**
@@ -414,8 +484,8 @@ export function GridCanvas({
           const isSelected = f.id === selectedFixtureId;
           const color = fixtureColors[f.type];
           return (
+            <g key={f.id}>
             <g
-              key={f.id}
               data-fixture="true"
               style={{ cursor: "move" }}
               onMouseDown={(e) => handleFixtureMouseDown(e, f)}
@@ -453,6 +523,40 @@ export function GridCanvas({
               >
                 {f.w}×{f.h}
               </text>
+            </g>
+            {/* リサイズハンドル（選択中のみ） */}
+            {isSelected && (() => {
+              const handleSizePx = 8;
+              const handleHalf = handleSizePx / 2;
+              const xPx = mmToPx(f.x);
+              const yPx = mmToPx(f.y);
+              const wPx = mmToPx(f.w);
+              const hPx = mmToPx(f.h);
+              const handles: { key: ResizeHandle; cx: number; cy: number; cursor: string }[] = [
+                { key: "nw", cx: xPx, cy: yPx, cursor: "nwse-resize" },
+                { key: "n",  cx: xPx + wPx / 2, cy: yPx, cursor: "ns-resize" },
+                { key: "ne", cx: xPx + wPx, cy: yPx, cursor: "nesw-resize" },
+                { key: "e",  cx: xPx + wPx, cy: yPx + hPx / 2, cursor: "ew-resize" },
+                { key: "se", cx: xPx + wPx, cy: yPx + hPx, cursor: "nwse-resize" },
+                { key: "s",  cx: xPx + wPx / 2, cy: yPx + hPx, cursor: "ns-resize" },
+                { key: "sw", cx: xPx, cy: yPx + hPx, cursor: "nesw-resize" },
+                { key: "w",  cx: xPx, cy: yPx + hPx / 2, cursor: "ew-resize" },
+              ];
+              return handles.map((h) => (
+                <rect
+                  key={`handle-${h.key}`}
+                  x={h.cx - handleHalf}
+                  y={h.cy - handleHalf}
+                  width={handleSizePx}
+                  height={handleSizePx}
+                  fill="#fff"
+                  stroke="#1976d2"
+                  strokeWidth={1.5}
+                  style={{ cursor: h.cursor }}
+                  onMouseDown={(e) => handleResizeMouseDown(e, f, h.key)}
+                />
+              ));
+            })()}
             </g>
           );
         })}
