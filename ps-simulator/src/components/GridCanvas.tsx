@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect } from "react";
-import type { Fixture, FixtureType, PipeRoute } from "../domain/types";
+import type { Fixture, FixtureType, PipeRoute, PipeDiameters } from "../domain/types";
 import { structuralFixtureTypes } from "../domain/types";
 import {
   fixtureLabels,
@@ -26,6 +26,8 @@ type Props = {
   gridSizeMm: number;
   /** モジュールを何分割するか。gridDivision本ごとに太線を描画する。 */
   gridDivision: number;
+  /** 管種ごとの横管・竪管φ(mm)。線幅と竪管マーカー径に反映 */
+  pipeDiameters: PipeDiameters;
   placingType: FixtureType | null;
   onAddFixture: (type: FixtureType, x: number, y: number) => void;
   onMoveFixture: (id: string, x: number, y: number) => void;
@@ -44,6 +46,7 @@ export function GridCanvas({
   selectedFixtureId,
   gridSizeMm,
   gridDivision,
+  pipeDiameters,
   placingType,
   onAddFixture,
   onMoveFixture,
@@ -470,15 +473,24 @@ export function GridCanvas({
           const riserPoint = route.points[route.points.length - 1];
           const pipeColor = pipeColors[route.pipeType] ?? "#999";
 
+          // 径から線幅と竪管マーカー径を算出（pipeDiametersが未定義でもフォールバック）
+          const diameters = pipeDiameters?.[route.pipeType];
+          const horizDiamMm = diameters?.horizontalMm ?? 50;
+          const riserDiamMm = diameters?.riserMm ?? 50;
+          const horizStrokePx = Math.max(1, mmToPx(horizDiamMm));
+          const riserRadiusPx = Math.max(3, mmToPx(riserDiamMm) / 2);
+
           return (
             <g key={`route-${i}`}>
               <polyline
                 points={pts}
                 fill="none"
                 stroke={pipeColor}
-                strokeWidth={2}
+                strokeWidth={horizStrokePx}
+                strokeLinecap="round"
+                strokeLinejoin="round"
                 strokeDasharray={route.pipeType === "vent" ? "4 2" : undefined}
-                opacity={0.7}
+                opacity={0.55}
               />
               <rect
                 x={labelX - 14}
@@ -504,20 +516,20 @@ export function GridCanvas({
               {/* 排水系のエルボ(横管曲がり)点と PS内竪管マーカー */}
               {isDrainPipe && (
                 <>
-                  {/* エルボ：横管が曲がる位置に小さい塗り円 */}
+                  {/* エルボ：横管曲がり位置を強調(横管径の半分の塗り円) */}
                   <circle
                     cx={mmToPx(elbowPoint.x) + offset}
                     cy={mmToPx(elbowPoint.y) + offset}
-                    r={2.5}
+                    r={Math.max(2, horizStrokePx * 0.5)}
                     fill={pipeColor}
-                    opacity={0.85}
+                    opacity={0.9}
                     pointerEvents="none"
                   />
-                  {/* PS内の竪管：パイプを真上から見た図(白丸+管色枠) */}
+                  {/* PS内の竪管：径φに比例した白丸+管色枠 (パイプを真上から見た図) */}
                   <circle
                     cx={mmToPx(riserPoint.x) + offset}
                     cy={mmToPx(riserPoint.y) + offset}
-                    r={5}
+                    r={riserRadiusPx}
                     fill="#fff"
                     stroke={pipeColor}
                     strokeWidth={1.8}
@@ -527,10 +539,21 @@ export function GridCanvas({
                   <circle
                     cx={mmToPx(riserPoint.x) + offset}
                     cy={mmToPx(riserPoint.y) + offset}
-                    r={1.5}
+                    r={Math.max(1, riserRadiusPx * 0.25)}
                     fill={pipeColor}
                     pointerEvents="none"
                   />
+                  {/* 竪管φラベル（径表示） */}
+                  <text
+                    x={mmToPx(riserPoint.x) + offset + riserRadiusPx + 3}
+                    y={mmToPx(riserPoint.y) + offset + 3}
+                    fontSize={9}
+                    fill={pipeColor}
+                    fontWeight={600}
+                    pointerEvents="none"
+                  >
+                    φ{riserDiamMm}
+                  </text>
                 </>
               )}
             </g>

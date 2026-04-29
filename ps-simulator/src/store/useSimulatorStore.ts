@@ -4,6 +4,8 @@ import type {
   Fixture,
   FixtureType,
   PipeRoute,
+  PipeType,
+  PipeDiameters,
   SlopeResult,
   PsResult,
   PlanSummary,
@@ -13,6 +15,7 @@ import type {
 import { computeGridSize } from "../domain/types";
 import { defaultBuildingSettings } from "../domain/rules/buildingDefaults";
 import { fixtureDefaults } from "../domain/rules/fixtureDefaults";
+import { defaultPipeSpecs } from "../domain/rules/pipeSpecs";
 import { calcPipeRoutes } from "../domain/calcPipeRoutes";
 import { calcSlopeResults } from "../domain/calcSlope";
 import { calcPsSize } from "../domain/calcPsSize";
@@ -51,6 +54,14 @@ type SimulatorState = {
   selectFixture: (id: string | null) => void;
   setFixtures: (fixtures: Fixture[]) => void;
 
+  // 配管径設定 (横管・竪管ごとに編集可能)
+  pipeDiameters: PipeDiameters;
+  setPipeDiameter: (
+    pipeType: PipeType,
+    kind: "horizontal" | "riser",
+    valueMm: number
+  ) => void;
+
   // 計算結果（派生）
   pipeRoutes: PipeRoute[];
   slopeResults: SlopeResult[];
@@ -68,6 +79,19 @@ type SimulatorState = {
   exportPlanData: () => PlanData;
   importPlanData: (data: PlanData) => void;
 };
+
+/**
+ * 各管種のデフォルト径から PipeDiameters を生成。
+ * 横管・竪管とも同径で初期化（必要に応じてユーザーが変更）。
+ */
+function createDefaultPipeDiameters(): PipeDiameters {
+  const result = {} as PipeDiameters;
+  (Object.keys(defaultPipeSpecs) as PipeType[]).forEach((pt) => {
+    const d = defaultPipeSpecs[pt].diameterMm;
+    result[pt] = { horizontalMm: d, riserMm: d };
+  });
+  return result;
+}
 
 // ダミー初期配置
 function createInitialFixtures(): Fixture[] {
@@ -233,6 +257,21 @@ export const useSimulatorStore = create<SimulatorState>((set, get) => {
     setFixtures: (fixtures) => {
       set({ fixtures });
       get().recalculate();
+    },
+
+    pipeDiameters: createDefaultPipeDiameters(),
+    setPipeDiameter: (pipeType, kind, valueMm) => {
+      const sanitized = Math.max(10, Math.min(300, valueMm));
+      set((state) => ({
+        pipeDiameters: {
+          ...state.pipeDiameters,
+          [pipeType]: {
+            ...state.pipeDiameters[pipeType],
+            [kind === "horizontal" ? "horizontalMm" : "riserMm"]: sanitized,
+          },
+        },
+      }));
+      // 径変更は描画のみに影響（ルート/勾配計算は変わらない）。recalculate不要。
     },
 
     pipeRoutes: initialRoutes,

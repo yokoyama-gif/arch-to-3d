@@ -10,6 +10,7 @@ import { ComparisonTable } from "./components/ComparisonTable";
 import { Toolbar } from "./components/Toolbar";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AnchorPicker } from "./components/AnchorPicker";
+import { PipeDiameterPanel } from "./components/PipeDiameterPanel";
 import { fixtureDefaults } from "./domain/rules/fixtureDefaults";
 import type { Anchor } from "./utils/geometry";
 import { applyAnchorOffset } from "./utils/geometry";
@@ -169,6 +170,7 @@ export default function App() {
               selectedFixtureId={store.selectedFixtureId}
               gridSizeMm={store.buildingSettings.gridSizeMm}
               gridDivision={store.buildingSettings.gridDivision}
+              pipeDiameters={store.pipeDiameters}
               placingType={placingType}
               onAddFixture={handleAddFixture}
               onMoveFixture={store.moveFixture}
@@ -205,6 +207,13 @@ export default function App() {
               fixtures={store.fixtures}
               slopeResults={store.slopeResults}
               psResults={store.psResults}
+            />
+
+            <div style={{ margin: "16px 0", borderTop: "1px solid #eee" }} />
+
+            <PipeDiameterPanel
+              pipeDiameters={store.pipeDiameters}
+              onChange={store.setPipeDiameter}
             />
 
             <div style={{ margin: "16px 0", borderTop: "1px solid #eee" }} />

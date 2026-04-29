@@ -113,6 +113,17 @@ export type PipeSpec = {
   clearanceMm: number;
 };
 
+/** 配管径(横管・竪管)のペア */
+export type PipeDiameterPair = {
+  /** 横管(横引き)の外径 mm */
+  horizontalMm: number;
+  /** 竪管(立て管)の外径 mm */
+  riserMm: number;
+};
+
+/** 全管種ごとの径設定 */
+export type PipeDiameters = Record<PipeType, PipeDiameterPair>;
+
 /** 勾配判定結果 */
 export type SlopeResult = {
   fixtureId: string;
