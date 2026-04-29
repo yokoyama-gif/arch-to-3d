@@ -15,7 +15,10 @@ type Props = {
   fixtures: Fixture[];
   pipeRoutes: PipeRoute[];
   selectedFixtureId: string | null;
+  /** 細線の間隔(mm) = moduleMm / gridDivision で算出済み */
   gridSizeMm: number;
+  /** モジュールを何分割するか。gridDivision本ごとに太線を描画する。 */
+  gridDivision: number;
   placingType: FixtureType | null;
   onAddFixture: (type: FixtureType, x: number, y: number) => void;
   onMoveFixture: (id: string, x: number, y: number) => void;
@@ -29,6 +32,7 @@ export function GridCanvas({
   pipeRoutes,
   selectedFixtureId,
   gridSizeMm,
+  gridDivision,
   placingType,
   onAddFixture,
   onMoveFixture,
@@ -159,34 +163,47 @@ export function GridCanvas({
     setDragging(null);
   }, []);
 
-  // グリッド線
+  /**
+   * グリッド線生成
+   * - 太線 (moduleMm) ごと
+   * - 細線 (moduleMm / gridDivision) ごと（gridSizeMm）
+   * インデックスベースで描画して浮動小数誤差を回避する。
+   * iが gridDivision の倍数なら太線（モジュール境界）。
+   */
   const gridLines: JSX.Element[] = [];
-  const majorGrid = gridSizeMm * 10; // 10グリッドごとに太線
-  for (let x = 0; x <= canvasW; x += gridSizeMm) {
-    const isMajor = x % majorGrid === 0;
+  // 描画範囲のモジュール境界数 + 余裕分
+  const maxIxX = Math.ceil(canvasW / gridSizeMm);
+  const maxIxY = Math.ceil(canvasH / gridSizeMm);
+
+  for (let i = 0; i <= maxIxX; i++) {
+    const xMm = i * gridSizeMm;
+    if (xMm > canvasW + gridSizeMm) break;
+    const isMajor = i % gridDivision === 0;
     gridLines.push(
       <line
-        key={`gv-${x}`}
-        x1={mmToPx(x)}
+        key={`gv-${i}`}
+        x1={mmToPx(xMm)}
         y1={0}
-        x2={mmToPx(x)}
+        x2={mmToPx(xMm)}
         y2={svgHeight}
-        stroke={isMajor ? "#bbb" : "#e0e0e0"}
-        strokeWidth={isMajor ? 1 : 0.5}
+        stroke={isMajor ? "#888" : "#e0e0e0"}
+        strokeWidth={isMajor ? 1.2 : 0.5}
       />
     );
   }
-  for (let y = 0; y <= canvasH; y += gridSizeMm) {
-    const isMajor = y % majorGrid === 0;
+  for (let i = 0; i <= maxIxY; i++) {
+    const yMm = i * gridSizeMm;
+    if (yMm > canvasH + gridSizeMm) break;
+    const isMajor = i % gridDivision === 0;
     gridLines.push(
       <line
-        key={`gh-${y}`}
+        key={`gh-${i}`}
         x1={0}
-        y1={mmToPx(y)}
+        y1={mmToPx(yMm)}
         x2={svgWidth}
-        y2={mmToPx(y)}
-        stroke={isMajor ? "#bbb" : "#e0e0e0"}
-        strokeWidth={isMajor ? 1 : 0.5}
+        y2={mmToPx(yMm)}
+        stroke={isMajor ? "#888" : "#e0e0e0"}
+        strokeWidth={isMajor ? 1.2 : 0.5}
       />
     );
   }

@@ -154,6 +154,7 @@ export default function App() {
               pipeRoutes={store.pipeRoutes}
               selectedFixtureId={store.selectedFixtureId}
               gridSizeMm={store.buildingSettings.gridSizeMm}
+              gridDivision={store.buildingSettings.gridDivision}
               placingType={placingType}
               onAddFixture={handleAddFixture}
               onMoveFixture={store.moveFixture}
