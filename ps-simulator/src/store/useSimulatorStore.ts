@@ -172,7 +172,8 @@ export const useSimulatorStore = create<SimulatorState>((set, get) => {
           return { ...f, drainOffsetMm: { x, y } };
         }),
       }));
-      // 排水溝の位置は配管ルート計算には影響しないので recalculate不要
+      // 排水溝位置の変更は排水系配管の起点を変えるので、ルートを再計算する
+      get().recalculate();
     },
 
     setFixtureGeometry: (id, x, y, w, h) => {

@@ -459,12 +459,23 @@ export function GridCanvas({
           const labelX = mmToPx((p0.x + p1.x) / 2) + offset;
           const labelY = mmToPx((p0.y + p1.y) / 2) + offset - 4;
 
+          // 排水系判定
+          const isDrainPipe =
+            route.pipeType === "soil" ||
+            route.pipeType === "waste" ||
+            route.pipeType === "vent";
+          // エルボ点(横管→竪管 or 横管→横管の角)
+          const elbowPoint = route.points[1];
+          // PS内の竪管位置(ルート終端)
+          const riserPoint = route.points[route.points.length - 1];
+          const pipeColor = pipeColors[route.pipeType] ?? "#999";
+
           return (
             <g key={`route-${i}`}>
               <polyline
                 points={pts}
                 fill="none"
-                stroke={pipeColors[route.pipeType] ?? "#999"}
+                stroke={pipeColor}
                 strokeWidth={2}
                 strokeDasharray={route.pipeType === "vent" ? "4 2" : undefined}
                 opacity={0.7}
@@ -490,6 +501,38 @@ export function GridCanvas({
               >
                 {pipeTypeLabels[route.pipeType]}
               </text>
+              {/* 排水系のエルボ(横管曲がり)点と PS内竪管マーカー */}
+              {isDrainPipe && (
+                <>
+                  {/* エルボ：横管が曲がる位置に小さい塗り円 */}
+                  <circle
+                    cx={mmToPx(elbowPoint.x) + offset}
+                    cy={mmToPx(elbowPoint.y) + offset}
+                    r={2.5}
+                    fill={pipeColor}
+                    opacity={0.85}
+                    pointerEvents="none"
+                  />
+                  {/* PS内の竪管：パイプを真上から見た図(白丸+管色枠) */}
+                  <circle
+                    cx={mmToPx(riserPoint.x) + offset}
+                    cy={mmToPx(riserPoint.y) + offset}
+                    r={5}
+                    fill="#fff"
+                    stroke={pipeColor}
+                    strokeWidth={1.8}
+                    pointerEvents="none"
+                  />
+                  {/* 竪管中心の点(管が通っていることを示す) */}
+                  <circle
+                    cx={mmToPx(riserPoint.x) + offset}
+                    cy={mmToPx(riserPoint.y) + offset}
+                    r={1.5}
+                    fill={pipeColor}
+                    pointerEvents="none"
+                  />
+                </>
+              )}
             </g>
           );
         })}
