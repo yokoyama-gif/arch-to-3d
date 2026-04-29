@@ -27,6 +27,26 @@ export const fixtureLabels: Record<FixtureType, string> = {
   wall: "石膏ボード",
 };
 
+/**
+ * 設備内の排水口位置（矩形に対する相対比率 0..1）と排水口直径(mm)。
+ * 該当しない設備（PS・構造系）は undefined。
+ * 値は典型的な実物の位置をベースにした目安。
+ */
+export const fixtureDrainSpec: Partial<
+  Record<FixtureType, { ratioX: number; ratioY: number; diameterMm: number }>
+> = {
+  // 便器の排水口は背面寄り中央
+  toilet: { ratioX: 0.5, ratioY: 0.85, diameterMm: 100 },
+  // UBの排水口は手前側に寄った位置
+  ub: { ratioX: 0.5, ratioY: 0.8, diameterMm: 100 },
+  // 洗面ボウル中央
+  washbasin: { ratioX: 0.5, ratioY: 0.5, diameterMm: 60 },
+  // 洗濯パンは中央
+  washing: { ratioX: 0.5, ratioY: 0.5, diameterMm: 80 },
+  // キッチンシンクは左寄り（一般的なシングルシンク想定）
+  kitchen: { ratioX: 0.3, ratioY: 0.5, diameterMm: 80 },
+};
+
 /** 設備の表示色 */
 export const fixtureColors: Record<FixtureType, string> = {
   toilet: "#c8e6c9",

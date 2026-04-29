@@ -1,7 +1,11 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import type { Fixture, FixtureType, PipeRoute } from "../domain/types";
 import { structuralFixtureTypes } from "../domain/types";
-import { fixtureLabels, fixtureColors } from "../domain/rules/fixtureDefaults";
+import {
+  fixtureLabels,
+  fixtureColors,
+  fixtureDrainSpec,
+} from "../domain/rules/fixtureDefaults";
 import { pipeColors, pipeTypeLabels } from "../domain/rules/pipeSpecs";
 import { snapToGrid } from "../utils/geometry";
 
@@ -523,6 +527,43 @@ export function GridCanvas({
               >
                 {f.w}×{f.h}
               </text>
+              {/* 排水溝（水回り設備のみ） */}
+              {(() => {
+                const drain = fixtureDrainSpec[f.type];
+                if (!drain) return null;
+                const cxMm = f.x + f.w * drain.ratioX;
+                const cyMm = f.y + f.h * drain.ratioY;
+                const rPx = mmToPx(drain.diameterMm / 2);
+                return (
+                  <g pointerEvents="none">
+                    <circle
+                      cx={mmToPx(cxMm)}
+                      cy={mmToPx(cyMm)}
+                      r={rPx}
+                      fill="rgba(255,255,255,0.6)"
+                      stroke="#1e88e5"
+                      strokeWidth={1.2}
+                    />
+                    {/* 排水口を示すクロスマーク */}
+                    <line
+                      x1={mmToPx(cxMm) - rPx * 0.6}
+                      y1={mmToPx(cyMm)}
+                      x2={mmToPx(cxMm) + rPx * 0.6}
+                      y2={mmToPx(cyMm)}
+                      stroke="#1e88e5"
+                      strokeWidth={0.8}
+                    />
+                    <line
+                      x1={mmToPx(cxMm)}
+                      y1={mmToPx(cyMm) - rPx * 0.6}
+                      x2={mmToPx(cxMm)}
+                      y2={mmToPx(cyMm) + rPx * 0.6}
+                      stroke="#1e88e5"
+                      strokeWidth={0.8}
+                    />
+                  </g>
+                );
+              })()}
             </g>
             {/* リサイズハンドル（選択中のみ） */}
             {isSelected && (() => {
