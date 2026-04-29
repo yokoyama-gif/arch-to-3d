@@ -9,11 +9,17 @@ import { ResultPanel } from "./components/ResultPanel";
 import { ComparisonTable } from "./components/ComparisonTable";
 import { Toolbar } from "./components/Toolbar";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { AnchorPicker } from "./components/AnchorPicker";
+import { fixtureDefaults } from "./domain/rules/fixtureDefaults";
+import type { Anchor } from "./utils/geometry";
+import { applyAnchorOffset } from "./utils/geometry";
 import { exportPlanToJson } from "./utils/exportJson";
 import { importPlanFromJson } from "./utils/importJson";
 
 export default function App() {
   const [placingType, setPlacingType] = useState<FixtureType | null>(null);
+  // 柱の配置基準点（中心がデフォルト）
+  const [columnAnchor, setColumnAnchor] = useState<Anchor>("mc");
 
   const store = useSimulatorStore();
 
@@ -44,7 +50,14 @@ export default function App() {
   };
 
   const handleAddFixture = (type: FixtureType, x: number, y: number) => {
-    store.addFixture(type, x, y);
+    // 柱は9点アンカーで補正してから配置
+    if (type === "column") {
+      const def = fixtureDefaults.column;
+      const offset = applyAnchorOffset(x, y, def.w, def.h, columnAnchor);
+      store.addFixture(type, offset.x, offset.y);
+    } else {
+      store.addFixture(type, x, y);
+    }
     if (type !== "ps") {
       setPlacingType(null);
     }
@@ -119,11 +132,21 @@ export default function App() {
               <div
                 style={{
                   marginBottom: 6,
-                  fontSize: 12,
-                  color: "#1976d2",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 4,
                 }}
               >
-                配置モード: グリッドをクリックして設備を配置 / パレットをもう一度クリックで解除
+                <div style={{ fontSize: 12, color: "#1976d2" }}>
+                  配置モード: グリッドをクリックして設備を配置 / パレットをもう一度クリックで解除
+                </div>
+                {placingType === "column" && (
+                  <AnchorPicker
+                    label="柱の配置基準点"
+                    value={columnAnchor}
+                    onChange={setColumnAnchor}
+                  />
+                )}
               </div>
             )}
             <GridCanvas

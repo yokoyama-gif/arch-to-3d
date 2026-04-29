@@ -3,6 +3,48 @@ export function snapToGrid(value: number, gridSize: number): number {
   return Math.round(value / gridSize) * gridSize;
 }
 
+/**
+ * 9点アンカー定義（矩形のどの点を基準点として配置するか）
+ *  - 1文字目: t(top) / m(middle) / b(bottom)
+ *  - 2文字目: l(left) / c(center) / r(right)
+ */
+export type Anchor =
+  | "tl" | "tc" | "tr"
+  | "ml" | "mc" | "mr"
+  | "bl" | "bc" | "br";
+
+/** 全アンカーを配列で取得（UI表示順: 上→中→下、左→中→右） */
+export const ALL_ANCHORS: Anchor[] = [
+  "tl", "tc", "tr",
+  "ml", "mc", "mr",
+  "bl", "bc", "br",
+];
+
+/**
+ * 指定アンカー点を click(x,y) に合わせるよう、左上座標を補正する。
+ * 例えば anchor="mc"（中心）を選んでクリックした場合、
+ * クリック点が矩形の中心になるよう x,y を w/2,h/2 だけずらす。
+ */
+export function applyAnchorOffset(
+  clickX: number,
+  clickY: number,
+  w: number,
+  h: number,
+  anchor: Anchor
+): { x: number; y: number } {
+  const v = anchor.charAt(0); // t/m/b
+  const hAxis = anchor.charAt(1); // l/c/r
+
+  let x = clickX;
+  let y = clickY;
+  if (hAxis === "c") x -= w / 2;
+  else if (hAxis === "r") x -= w;
+  if (v === "m") y -= h / 2;
+  else if (v === "b") y -= h;
+
+  return { x, y };
+}
+
 /** 2つの矩形が重なっているか判定 */
 export function rectsOverlap(
   a: { x: number; y: number; w: number; h: number },
