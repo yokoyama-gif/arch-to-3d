@@ -114,6 +114,28 @@ export function GridCanvas({
           onRotateFixture?.(selectedFixtureId);
         } else if (e.key === "Escape") {
           onSelectFixture(null);
+        } else if (
+          e.key === "ArrowUp" ||
+          e.key === "ArrowDown" ||
+          e.key === "ArrowLeft" ||
+          e.key === "ArrowRight"
+        ) {
+          // 排水溝のある設備が選択中なら、十字キーで排水溝を動かす
+          const f = fixtures.find((ff) => ff.id === selectedFixtureId);
+          if (!f) return;
+          const drain = fixtureDrainSpec[f.type];
+          if (!drain || !onSetDrainOffset) return;
+          e.preventDefault();
+          const step = gridSizeMm; // 1グリッド単位で移動
+          const curX = f.drainOffsetMm ? f.drainOffsetMm.x : f.w * drain.ratioX;
+          const curY = f.drainOffsetMm ? f.drainOffsetMm.y : f.h * drain.ratioY;
+          let nx = curX;
+          let ny = curY;
+          if (e.key === "ArrowUp") ny -= step;
+          if (e.key === "ArrowDown") ny += step;
+          if (e.key === "ArrowLeft") nx -= step;
+          if (e.key === "ArrowRight") nx += step;
+          onSetDrainOffset(selectedFixtureId, nx, ny);
         }
       } else if (e.key === "Escape" && placingType) {
         // 配置モードをキャンセル（親でハンドル）
@@ -121,7 +143,16 @@ export function GridCanvas({
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedFixtureId, placingType, onDeleteFixture, onRotateFixture, onSelectFixture]);
+  }, [
+    selectedFixtureId,
+    placingType,
+    fixtures,
+    gridSizeMm,
+    onDeleteFixture,
+    onRotateFixture,
+    onSelectFixture,
+    onSetDrainOffset,
+  ]);
 
   // --- ズーム（マウスホイール） ---
   useEffect(() => {
@@ -338,7 +369,7 @@ export function GridCanvas({
           100%
         </button>
         <span style={{ color: "#999", fontSize: 11, marginLeft: 8 }}>
-          Ctrl+ホイールでズーム / Del:削除 / R:回転
+          Ctrl+ホイールでズーム / Del:削除 / R:回転 / 十字キー:排水溝移動
         </span>
       </div>
 
