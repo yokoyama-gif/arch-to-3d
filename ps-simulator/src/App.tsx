@@ -13,6 +13,7 @@ import { AnchorPicker } from "./components/AnchorPicker";
 import { fixtureDefaults } from "./domain/rules/fixtureDefaults";
 import type { Anchor } from "./utils/geometry";
 import { applyAnchorOffset } from "./utils/geometry";
+import { snapToGrid } from "./utils/geometry";
 import { exportPlanToJson } from "./utils/exportJson";
 import { importPlanFromJson } from "./utils/importJson";
 
@@ -51,10 +52,23 @@ export default function App() {
 
   const handleAddFixture = (type: FixtureType, x: number, y: number) => {
     // 柱は9点アンカーで補正してから配置
+    // 重要: 「クリック点をスナップ → アンカー補正」の順で行うことで、
+    //       選んだアンカー基準点が正確にグリッド線上に乗る。
+    //       逆順（アンカー補正→左上をスナップ）だと中心がグリッドからずれる。
     if (type === "column") {
       const def = fixtureDefaults.column;
-      const offset = applyAnchorOffset(x, y, def.w, def.h, columnAnchor);
-      store.addFixture(type, offset.x, offset.y);
+      const grid = store.buildingSettings.gridSizeMm;
+      const snappedX = snapToGrid(x, grid);
+      const snappedY = snapToGrid(y, grid);
+      const offset = applyAnchorOffset(
+        snappedX,
+        snappedY,
+        def.w,
+        def.h,
+        columnAnchor
+      );
+      // 補正後の左上はグリッド外でも構わない。snapしないaddFixtureRawで配置。
+      store.addFixtureRaw(type, offset.x, offset.y);
     } else {
       store.addFixture(type, x, y);
     }

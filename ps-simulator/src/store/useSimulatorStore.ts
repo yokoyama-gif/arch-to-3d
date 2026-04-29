@@ -35,6 +35,11 @@ type SimulatorState = {
   fixtures: Fixture[];
   selectedFixtureId: string | null;
   addFixture: (type: FixtureType, x: number, y: number) => void;
+  /**
+   * 配置済み座標で設備を追加する（グリッドスナップしない）。
+   * 9点アンカー配置のように呼び出し側で位置計算済みのケース用。
+   */
+  addFixtureRaw: (type: FixtureType, x: number, y: number, w?: number, h?: number) => void;
   moveFixture: (id: string, x: number, y: number) => void;
   resizeFixture: (id: string, w: number, h: number) => void;
   /** ドラッグハンドルからのリサイズ用: 位置と寸法を一括更新 */
@@ -108,6 +113,23 @@ export const useSimulatorStore = create<SimulatorState>((set, get) => {
         y: snapToGrid(y, grid),
         w: defaults.w,
         h: defaults.h,
+        rotation: 0,
+        floor: 1,
+      };
+      set((state) => ({ fixtures: [...state.fixtures, newFixture] }));
+      get().recalculate();
+    },
+
+    addFixtureRaw: (type, x, y, w, h) => {
+      // スナップせず、指定座標・寸法でそのまま配置する
+      const defaults = fixtureDefaults[type];
+      const newFixture: Fixture = {
+        id: generateId(),
+        type,
+        x,
+        y,
+        w: w ?? defaults.w,
+        h: h ?? defaults.h,
         rotation: 0,
         floor: 1,
       };
