@@ -179,6 +179,9 @@ export default function App() {
               onRotateFixture={store.rotateFixture}
               onResizeFixtureGeometry={store.setFixtureGeometry}
               onSetDrainOffset={store.setFixtureDrainOffset}
+              onSetPipeMidPoint={(id, pipeType, x, y) =>
+                store.setCustomPipeMidPoint(id, pipeType, x, y)
+              }
             />
           </div>
 

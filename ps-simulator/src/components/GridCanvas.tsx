@@ -1,5 +1,11 @@
 import { useRef, useState, useCallback, useEffect } from "react";
-import type { Fixture, FixtureType, PipeRoute, PipeDiameters } from "../domain/types";
+import type {
+  Fixture,
+  FixtureType,
+  PipeRoute,
+  PipeDiameters,
+  PipeType,
+} from "../domain/types";
 import { structuralFixtureTypes } from "../domain/types";
 import {
   fixtureLabels,
@@ -38,6 +44,8 @@ type Props = {
   onResizeFixtureGeometry?: (id: string, x: number, y: number, w: number, h: number) => void;
   /** 排水溝の位置を更新（設備左上からのmm） */
   onSetDrainOffset?: (id: string, offsetX: number, offsetY: number) => void;
+  /** 配管中間点(エルボ)位置の上書き */
+  onSetPipeMidPoint?: (id: string, pipeType: PipeType, x: number, y: number) => void;
 };
 
 export function GridCanvas({
@@ -55,6 +63,7 @@ export function GridCanvas({
   onRotateFixture,
   onResizeFixtureGeometry,
   onSetDrainOffset,
+  onSetPipeMidPoint,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -77,6 +86,11 @@ export function GridCanvas({
   } | null>(null);
   // 排水溝のドラッグ中状態（設備IDのみ保持。位置はマウスから直接計算）
   const [drainDragging, setDrainDragging] = useState<string | null>(null);
+  // エルボ(配管中間点)ドラッグ中状態
+  const [elbowDragging, setElbowDragging] = useState<{
+    fixtureId: string;
+    pipeType: PipeType;
+  } | null>(null);
 
   const canvasW = DEFAULT_CANVAS_W;
   const canvasH = DEFAULT_CANVAS_H;
@@ -236,8 +250,30 @@ export function GridCanvas({
     []
   );
 
+  /** エルボ(配管中間点)mousedown */
+  const handleElbowMouseDown = useCallback(
+    (e: React.MouseEvent, fixtureId: string, pipeType: PipeType) => {
+      e.stopPropagation();
+      setElbowDragging({ fixtureId, pipeType });
+    },
+    []
+  );
+
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
+      // エルボドラッグ
+      if (elbowDragging && onSetPipeMidPoint) {
+        const pos = getMouseMm(e);
+        const snappedX = snapToGrid(pos.x, gridSizeMm);
+        const snappedY = snapToGrid(pos.y, gridSizeMm);
+        onSetPipeMidPoint(
+          elbowDragging.fixtureId,
+          elbowDragging.pipeType,
+          snappedX,
+          snappedY
+        );
+        return;
+      }
       // 排水溝ドラッグ
       if (drainDragging && onSetDrainOffset) {
         const fixture = fixtures.find((f) => f.id === drainDragging);
@@ -289,13 +325,26 @@ export function GridCanvas({
       const newY = snapToGrid(pos.y - dragging.offsetY, gridSizeMm);
       onMoveFixture(dragging.id, newX, newY);
     },
-    [dragging, resizing, drainDragging, fixtures, getMouseMm, gridSizeMm, onMoveFixture, onResizeFixtureGeometry, onSetDrainOffset]
+    [
+      dragging,
+      resizing,
+      drainDragging,
+      elbowDragging,
+      fixtures,
+      getMouseMm,
+      gridSizeMm,
+      onMoveFixture,
+      onResizeFixtureGeometry,
+      onSetDrainOffset,
+      onSetPipeMidPoint,
+    ]
   );
 
   const handleMouseUp = useCallback(() => {
     setDragging(null);
     setResizing(null);
     setDrainDragging(null);
+    setElbowDragging(null);
   }, []);
 
   /**
@@ -444,123 +493,7 @@ export function GridCanvas({
             );
           })}
 
-        {/* 配管ルート（管種ごとにオフセットして表示） */}
-        {pipeRoutes.map((route, i) => {
-          const sameFixtureRoutes = pipeRoutes.filter(
-            (r) => r.fixtureId === route.fixtureId
-          );
-          const indexInGroup = sameFixtureRoutes.indexOf(route);
-          const offset = (indexInGroup - (sameFixtureRoutes.length - 1) / 2) * 3;
-
-          const pts = route.points
-            .map((p) => `${mmToPx(p.x) + offset},${mmToPx(p.y) + offset}`)
-            .join(" ");
-
-          const midIdx = Math.floor(route.points.length / 2);
-          const p0 = route.points[midIdx - 1] ?? route.points[0];
-          const p1 = route.points[midIdx] ?? route.points[0];
-          const labelX = mmToPx((p0.x + p1.x) / 2) + offset;
-          const labelY = mmToPx((p0.y + p1.y) / 2) + offset - 4;
-
-          // 排水系判定
-          const isDrainPipe =
-            route.pipeType === "soil" ||
-            route.pipeType === "waste" ||
-            route.pipeType === "vent";
-          // エルボ点(横管→竪管 or 横管→横管の角)
-          const elbowPoint = route.points[1];
-          // PS内の竪管位置(ルート終端)
-          const riserPoint = route.points[route.points.length - 1];
-          const pipeColor = pipeColors[route.pipeType] ?? "#999";
-
-          // 径から線幅と竪管マーカー径を算出（pipeDiametersが未定義でもフォールバック）
-          const diameters = pipeDiameters?.[route.pipeType];
-          const horizDiamMm = diameters?.horizontalMm ?? 50;
-          const riserDiamMm = diameters?.riserMm ?? 50;
-          const horizStrokePx = Math.max(1, mmToPx(horizDiamMm));
-          const riserRadiusPx = Math.max(3, mmToPx(riserDiamMm) / 2);
-
-          return (
-            <g key={`route-${i}`}>
-              <polyline
-                points={pts}
-                fill="none"
-                stroke={pipeColor}
-                strokeWidth={horizStrokePx}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeDasharray={route.pipeType === "vent" ? "4 2" : undefined}
-                opacity={0.55}
-              />
-              <rect
-                x={labelX - 14}
-                y={labelY - 8}
-                width={28}
-                height={12}
-                rx={2}
-                fill="rgba(255,255,255,0.9)"
-                pointerEvents="none"
-              />
-              <text
-                x={labelX}
-                y={labelY}
-                textAnchor="middle"
-                dominantBaseline="central"
-                fontSize={8}
-                fill={pipeColors[route.pipeType] ?? "#999"}
-                pointerEvents="none"
-                fontWeight={700}
-              >
-                {pipeTypeLabels[route.pipeType]}
-              </text>
-              {/* 排水系のエルボ(横管曲がり)点と PS内竪管マーカー */}
-              {isDrainPipe && (
-                <>
-                  {/* エルボ：横管曲がり位置を強調(横管径の半分の塗り円) */}
-                  <circle
-                    cx={mmToPx(elbowPoint.x) + offset}
-                    cy={mmToPx(elbowPoint.y) + offset}
-                    r={Math.max(2, horizStrokePx * 0.5)}
-                    fill={pipeColor}
-                    opacity={0.9}
-                    pointerEvents="none"
-                  />
-                  {/* PS内の竪管：径φに比例した白丸+管色枠 (パイプを真上から見た図) */}
-                  <circle
-                    cx={mmToPx(riserPoint.x) + offset}
-                    cy={mmToPx(riserPoint.y) + offset}
-                    r={riserRadiusPx}
-                    fill="#fff"
-                    stroke={pipeColor}
-                    strokeWidth={1.8}
-                    pointerEvents="none"
-                  />
-                  {/* 竪管中心の点(管が通っていることを示す) */}
-                  <circle
-                    cx={mmToPx(riserPoint.x) + offset}
-                    cy={mmToPx(riserPoint.y) + offset}
-                    r={Math.max(1, riserRadiusPx * 0.25)}
-                    fill={pipeColor}
-                    pointerEvents="none"
-                  />
-                  {/* 竪管φラベル（径表示） */}
-                  <text
-                    x={mmToPx(riserPoint.x) + offset + riserRadiusPx + 3}
-                    y={mmToPx(riserPoint.y) + offset + 3}
-                    fontSize={9}
-                    fill={pipeColor}
-                    fontWeight={600}
-                    pointerEvents="none"
-                  >
-                    φ{riserDiamMm}
-                  </text>
-                </>
-              )}
-            </g>
-          );
-        })}
-
-        {/* 設備→PS 距離ラベル */}
+        {/* 設備→PS 距離ラベル（設備の上に表示） */}
         {(() => {
           const shown = new Set<string>();
           return pipeRoutes
@@ -651,7 +584,8 @@ export function GridCanvas({
               >
                 {f.w}×{f.h}
               </text>
-              {/* 排水溝（水回り設備のみ。ドラッグで位置変更可能） */}
+            </g>
+            {/* 排水溝（水回り設備のみ。ドラッグで位置変更可能） */}
               {(() => {
                 const drain = fixtureDrainSpec[f.type];
                 if (!drain) return null;
@@ -709,25 +643,173 @@ export function GridCanvas({
                 );
               })()}
             </g>
-            {/* リサイズハンドル（選択中のみ） */}
-            {isSelected && (() => {
-              const handleSizePx = 8;
-              const handleHalf = handleSizePx / 2;
-              const xPx = mmToPx(f.x);
-              const yPx = mmToPx(f.y);
-              const wPx = mmToPx(f.w);
-              const hPx = mmToPx(f.h);
-              const handles: { key: ResizeHandle; cx: number; cy: number; cursor: string }[] = [
-                { key: "nw", cx: xPx, cy: yPx, cursor: "nwse-resize" },
-                { key: "n",  cx: xPx + wPx / 2, cy: yPx, cursor: "ns-resize" },
-                { key: "ne", cx: xPx + wPx, cy: yPx, cursor: "nesw-resize" },
-                { key: "e",  cx: xPx + wPx, cy: yPx + hPx / 2, cursor: "ew-resize" },
-                { key: "se", cx: xPx + wPx, cy: yPx + hPx, cursor: "nwse-resize" },
-                { key: "s",  cx: xPx + wPx / 2, cy: yPx + hPx, cursor: "ns-resize" },
-                { key: "sw", cx: xPx, cy: yPx + hPx, cursor: "nesw-resize" },
-                { key: "w",  cx: xPx, cy: yPx + hPx / 2, cursor: "ew-resize" },
-              ];
-              return handles.map((h) => (
+          );
+        })}
+
+        {/* 配管ルート(設備の上に灰色の横管として描画) */}
+        {pipeRoutes.map((route, i) => {
+          const sameFixtureRoutes = pipeRoutes.filter(
+            (r) => r.fixtureId === route.fixtureId
+          );
+          const indexInGroup = sameFixtureRoutes.indexOf(route);
+          const offset = (indexInGroup - (sameFixtureRoutes.length - 1) / 2) * 3;
+
+          const isDrainPipe =
+            route.pipeType === "soil" ||
+            route.pipeType === "waste" ||
+            route.pipeType === "vent";
+          const elbowPoint = route.points[1];
+          const riserPoint = route.points[route.points.length - 1];
+          const pipeColor = pipeColors[route.pipeType] ?? "#999";
+
+          // 径
+          const diameters = pipeDiameters?.[route.pipeType];
+          const horizDiamMm = diameters?.horizontalMm ?? 50;
+          const riserDiamMm = diameters?.riserMm ?? 50;
+          const horizStrokePx = Math.max(1, mmToPx(horizDiamMm));
+          const riserRadiusPx = Math.max(3, mmToPx(riserDiamMm) / 2);
+
+          // 横管終点を竪管エッジで止める（最終セグメントの方向に沿って短縮）
+          const adjustedPoints = (() => {
+            if (route.points.length < 2) return route.points;
+            const last = route.points[route.points.length - 1];
+            const prev = route.points[route.points.length - 2];
+            const dx = last.x - prev.x;
+            const dy = last.y - prev.y;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            if (len === 0) return route.points;
+            const riserRadiusMm = riserDiamMm / 2;
+            const newLast = {
+              x: last.x - (dx / len) * riserRadiusMm,
+              y: last.y - (dy / len) * riserRadiusMm,
+            };
+            return [...route.points.slice(0, -1), newLast];
+          })();
+
+          const pts = adjustedPoints
+            .map((p) => `${mmToPx(p.x) + offset},${mmToPx(p.y) + offset}`)
+            .join(" ");
+
+          const midIdx = Math.floor(route.points.length / 2);
+          const p0 = route.points[midIdx - 1] ?? route.points[0];
+          const p1 = route.points[midIdx] ?? route.points[0];
+          const labelX = mmToPx((p0.x + p1.x) / 2) + offset;
+          const labelY = mmToPx((p0.y + p1.y) / 2) + offset - 4;
+
+          // 横管色は灰色(管種は竪管マーカー/ラベルで識別)
+          const horizColor = "#777";
+
+          return (
+            <g key={`route-${i}`}>
+              <polyline
+                points={pts}
+                fill="none"
+                stroke={horizColor}
+                strokeWidth={horizStrokePx}
+                strokeLinecap="butt"
+                strokeLinejoin="miter"
+                strokeDasharray={route.pipeType === "vent" ? "4 2" : undefined}
+                opacity={0.85}
+              />
+              {/* 管種ラベル */}
+              <rect
+                x={labelX - 14}
+                y={labelY - 8}
+                width={28}
+                height={12}
+                rx={2}
+                fill="rgba(255,255,255,0.95)"
+                stroke="#ddd"
+                strokeWidth={0.5}
+                pointerEvents="none"
+              />
+              <text
+                x={labelX}
+                y={labelY}
+                textAnchor="middle"
+                dominantBaseline="central"
+                fontSize={8}
+                fill={pipeColor}
+                pointerEvents="none"
+                fontWeight={700}
+              >
+                {pipeTypeLabels[route.pipeType]}
+              </text>
+              {isDrainPipe && (
+                <>
+                  {/* エルボ：横管の曲がり位置(灰色塗り) */}
+                  <circle
+                    cx={mmToPx(elbowPoint.x) + offset}
+                    cy={mmToPx(elbowPoint.y) + offset}
+                    r={Math.max(2, horizStrokePx * 0.5)}
+                    fill={horizColor}
+                    opacity={0.85}
+                    pointerEvents="none"
+                  />
+                  {/* PS内の竪管 */}
+                  <circle
+                    cx={mmToPx(riserPoint.x) + offset}
+                    cy={mmToPx(riserPoint.y) + offset}
+                    r={riserRadiusPx}
+                    fill="#fff"
+                    stroke={pipeColor}
+                    strokeWidth={1.8}
+                    pointerEvents="none"
+                  />
+                  <circle
+                    cx={mmToPx(riserPoint.x) + offset}
+                    cy={mmToPx(riserPoint.y) + offset}
+                    r={Math.max(1, riserRadiusPx * 0.25)}
+                    fill={pipeColor}
+                    pointerEvents="none"
+                  />
+                  <text
+                    x={mmToPx(riserPoint.x) + offset + riserRadiusPx + 3}
+                    y={mmToPx(riserPoint.y) + offset + 3}
+                    fontSize={9}
+                    fill={pipeColor}
+                    fontWeight={600}
+                    pointerEvents="none"
+                  >
+                    φ{riserDiamMm}
+                  </text>
+                </>
+              )}
+            </g>
+          );
+        })}
+
+        {/* 選択中設備のリサイズハンドル & 配管エルボハンドル(最前面) */}
+        {(() => {
+          const sel = fixtures.find((f) => f.id === selectedFixtureId);
+          if (!sel || structuralFixtureTypes.has(sel.type)) return null;
+          const handleSizePx = 8;
+          const handleHalf = handleSizePx / 2;
+          const xPx = mmToPx(sel.x);
+          const yPx = mmToPx(sel.y);
+          const wPx = mmToPx(sel.w);
+          const hPx = mmToPx(sel.h);
+          const handles: { key: ResizeHandle; cx: number; cy: number; cursor: string }[] = [
+            { key: "nw", cx: xPx, cy: yPx, cursor: "nwse-resize" },
+            { key: "n", cx: xPx + wPx / 2, cy: yPx, cursor: "ns-resize" },
+            { key: "ne", cx: xPx + wPx, cy: yPx, cursor: "nesw-resize" },
+            { key: "e", cx: xPx + wPx, cy: yPx + hPx / 2, cursor: "ew-resize" },
+            { key: "se", cx: xPx + wPx, cy: yPx + hPx, cursor: "nwse-resize" },
+            { key: "s", cx: xPx + wPx / 2, cy: yPx + hPx, cursor: "ns-resize" },
+            { key: "sw", cx: xPx, cy: yPx + hPx, cursor: "nesw-resize" },
+            { key: "w", cx: xPx, cy: yPx + hPx / 2, cursor: "ew-resize" },
+          ];
+          // 選択中設備に紐づく配管のエルボ点ハンドル
+          const elbowHandles = pipeRoutes
+            .filter((r) => r.fixtureId === sel.id && r.points.length >= 3)
+            .map((r) => ({
+              pipeType: r.pipeType,
+              point: r.points[1],
+            }));
+
+          return (
+            <g>
+              {handles.map((h) => (
                 <rect
                   key={`handle-${h.key}`}
                   x={h.cx - handleHalf}
@@ -738,13 +820,36 @@ export function GridCanvas({
                   stroke="#1976d2"
                   strokeWidth={1.5}
                   style={{ cursor: h.cursor }}
-                  onMouseDown={(e) => handleResizeMouseDown(e, f, h.key)}
+                  onMouseDown={(e) => handleResizeMouseDown(e, sel, h.key)}
                 />
-              ));
-            })()}
+              ))}
+              {/* 各配管のエルボ点ハンドル(緑色)。横管の曲がりをドラッグで自由変更 */}
+              {elbowHandles.map((eh) => (
+                <g key={`elbow-${eh.pipeType}`}>
+                  <circle
+                    cx={mmToPx(eh.point.x)}
+                    cy={mmToPx(eh.point.y)}
+                    r={6}
+                    fill="#fff"
+                    stroke="#2e7d32"
+                    strokeWidth={2}
+                    style={{ cursor: "move" }}
+                    onMouseDown={(e) =>
+                      handleElbowMouseDown(e, sel.id, eh.pipeType)
+                    }
+                  />
+                  <circle
+                    cx={mmToPx(eh.point.x)}
+                    cy={mmToPx(eh.point.y)}
+                    r={2}
+                    fill="#2e7d32"
+                    pointerEvents="none"
+                  />
+                </g>
+              ))}
             </g>
           );
-        })}
+        })()}
       </svg>
     </div>
   );

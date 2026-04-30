@@ -88,6 +88,12 @@ export type Fixture = {
    * 未指定の場合は fixtureDrainSpec の比率からデフォルト位置で表示される。
    */
   drainOffsetMm?: Point;
+  /**
+   * 配管ルート中間点の上書き（管種ごと）。絶対座標(mm)。
+   * 未指定の場合は自動L字ルートを使う。
+   * ユーザーが横管をドラッグで曲げた場合に保持される。
+   */
+  customPipeMidPoint?: Partial<Record<PipeType, Point>>;
 };
 
 /** 配管要件 */

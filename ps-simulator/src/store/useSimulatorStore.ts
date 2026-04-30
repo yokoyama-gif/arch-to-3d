@@ -49,6 +49,10 @@ type SimulatorState = {
   setFixtureGeometry: (id: string, x: number, y: number, w: number, h: number) => void;
   /** 排水溝のオフセット位置を更新（設備左上からのmm） */
   setFixtureDrainOffset: (id: string, offsetX: number, offsetY: number) => void;
+  /** 配管ルートの中間点(エルボ)位置を上書き（横管を曲げる用） */
+  setCustomPipeMidPoint: (id: string, pipeType: PipeType, x: number, y: number) => void;
+  /** カスタム中間点をクリアして自動L字ルートに戻す */
+  clearCustomPipeMidPoint: (id: string, pipeType: PipeType) => void;
   rotateFixture: (id: string) => void;
   deleteFixture: (id: string) => void;
   selectFixture: (id: string | null) => void;
@@ -182,6 +186,35 @@ export const useSimulatorStore = create<SimulatorState>((set, get) => {
             ? { ...f, w: Math.max(50, w), h: Math.max(50, h) }
             : f
         ),
+      }));
+      get().recalculate();
+    },
+
+    setCustomPipeMidPoint: (id, pipeType, x, y) => {
+      set((state) => ({
+        fixtures: state.fixtures.map((f) => {
+          if (f.id !== id) return f;
+          return {
+            ...f,
+            customPipeMidPoint: {
+              ...(f.customPipeMidPoint ?? {}),
+              [pipeType]: { x, y },
+            },
+          };
+        }),
+      }));
+      get().recalculate();
+    },
+
+    clearCustomPipeMidPoint: (id, pipeType) => {
+      set((state) => ({
+        fixtures: state.fixtures.map((f) => {
+          if (f.id !== id) return f;
+          if (!f.customPipeMidPoint) return f;
+          const next = { ...f.customPipeMidPoint };
+          delete next[pipeType];
+          return { ...f, customPipeMidPoint: next };
+        }),
       }));
       get().recalculate();
     },
