@@ -207,6 +207,25 @@ export default function App() {
                 </button>
               </div>
             )}
+            {/* 平面図も設備も無いときの案内 */}
+            {!store.backgroundImage &&
+              store.fixtures.length === 0 &&
+              !calibrationMode && (
+                <div
+                  style={{
+                    marginBottom: 6,
+                    padding: "8px 12px",
+                    background: "#e3f2fd",
+                    border: "1px dashed #1976d2",
+                    borderRadius: 4,
+                    fontSize: 12,
+                    color: "#0d47a1",
+                  }}
+                >
+                  <strong>STEP 1:</strong> 右の「背景平面図」から PNG/JPG/PDF を読み込み →{" "}
+                  「2点指定で校正」で実距離を入れてグリッドに合わせてから、設備を配置してください。
+                </div>
+              )}
             {placingType && (
               <div
                 style={{
@@ -265,6 +284,18 @@ export default function App() {
               flexShrink: 0,
             }}
           >
+            {/* STEP1: 平面図取込・スケール調整（最上部、最も目立つ） */}
+            <BackgroundPanel
+              backgroundImage={store.backgroundImage}
+              onSet={store.setBackgroundImage}
+              onUpdate={store.updateBackgroundImage}
+              calibrationMode={calibrationMode}
+              onToggleCalibration={() => setCalibrationMode((v) => !v)}
+              gridSizeMm={store.buildingSettings.gridSizeMm}
+            />
+
+            <div style={{ margin: "16px 0", borderTop: "1px solid #eee" }} />
+
             <PropertyPanel
               buildingSettings={store.buildingSettings}
               onUpdateSettings={store.setBuildingSettings}
@@ -287,17 +318,6 @@ export default function App() {
             <PipeDiameterPanel
               pipeDiameters={store.pipeDiameters}
               onChange={store.setPipeDiameter}
-            />
-
-            <div style={{ margin: "16px 0", borderTop: "1px solid #eee" }} />
-
-            <BackgroundPanel
-              backgroundImage={store.backgroundImage}
-              onSet={store.setBackgroundImage}
-              onUpdate={store.updateBackgroundImage}
-              calibrationMode={calibrationMode}
-              onToggleCalibration={() => setCalibrationMode((v) => !v)}
-              gridSizeMm={store.buildingSettings.gridSizeMm}
             />
 
             <div style={{ margin: "16px 0", borderTop: "1px solid #eee" }} />

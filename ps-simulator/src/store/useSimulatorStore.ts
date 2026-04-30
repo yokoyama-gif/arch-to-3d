@@ -103,16 +103,16 @@ function createDefaultPipeDiameters(): PipeDiameters {
   return result;
 }
 
-// ダミー初期配置
+/**
+ * 初期は空のキャンバス。
+ * ユーザーは
+ *  1) 背景平面図をアップロード
+ *  2) 2点指定でスケール校正
+ *  3) その上に設備をパレットから配置
+ * の流れで使う。
+ */
 function createInitialFixtures(): Fixture[] {
-  return [
-    { id: generateId(), type: "ps", x: 0, y: 0, w: 700, h: 500, rotation: 0, floor: 1 },
-    { id: generateId(), type: "toilet", x: 800, y: 0, w: 800, h: 1600, rotation: 0, floor: 1 },
-    { id: generateId(), type: "ub", x: 1700, y: 0, w: 1600, h: 1600, rotation: 0, floor: 1 },
-    { id: generateId(), type: "washbasin", x: 800, y: 1700, w: 750, h: 600, rotation: 0, floor: 1 },
-    { id: generateId(), type: "washing", x: 1600, y: 1700, w: 800, h: 800, rotation: 0, floor: 1 },
-    { id: generateId(), type: "kitchen", x: 0, y: 2500, w: 2100, h: 650, rotation: 0, floor: 1 },
-  ];
+  return [];
 }
 
 export const useSimulatorStore = create<SimulatorState>((set, get) => {
