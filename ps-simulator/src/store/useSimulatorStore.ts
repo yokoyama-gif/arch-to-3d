@@ -11,6 +11,7 @@ import type {
   PlanSummary,
   PlanData,
   Rotation,
+  BackgroundImage,
 } from "../domain/types";
 import { computeGridSize } from "../domain/types";
 import { defaultBuildingSettings } from "../domain/rules/buildingDefaults";
@@ -57,6 +58,11 @@ type SimulatorState = {
   deleteFixture: (id: string) => void;
   selectFixture: (id: string | null) => void;
   setFixtures: (fixtures: Fixture[]) => void;
+
+  // 背景画像（平面図の下絵として表示）
+  backgroundImage: BackgroundImage | null;
+  setBackgroundImage: (img: BackgroundImage | null) => void;
+  updateBackgroundImage: (patch: Partial<BackgroundImage>) => void;
 
   // 配管径設定 (横管・竪管ごとに編集可能)
   pipeDiameters: PipeDiameters;
@@ -291,6 +297,15 @@ export const useSimulatorStore = create<SimulatorState>((set, get) => {
       set({ fixtures });
       get().recalculate();
     },
+
+    backgroundImage: null,
+    setBackgroundImage: (img) => set({ backgroundImage: img }),
+    updateBackgroundImage: (patch) =>
+      set((state) => ({
+        backgroundImage: state.backgroundImage
+          ? { ...state.backgroundImage, ...patch }
+          : null,
+      })),
 
     pipeDiameters: createDefaultPipeDiameters(),
     setPipeDiameter: (pipeType, kind, valueMm) => {

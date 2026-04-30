@@ -119,6 +119,22 @@ export type PipeSpec = {
   clearanceMm: number;
 };
 
+/** 背景画像（PDF読込結果も含む）の設定 */
+export type BackgroundImage = {
+  /** dataURL (image/png 等) */
+  dataUrl: string;
+  /** 表示時の左上位置 (mm) */
+  x: number;
+  /** 表示時の左上位置 (mm) */
+  y: number;
+  /** 表示幅 (mm)。元画像のピクセル数 × 任意の縮尺 */
+  widthMm: number;
+  /** 表示高さ (mm) */
+  heightMm: number;
+  /** 不透明度 0..1 */
+  opacity: number;
+};
+
 /** 配管径(横管・竪管)のペア */
 export type PipeDiameterPair = {
   /** 横管(横引き)の外径 mm */

@@ -11,6 +11,7 @@ import { Toolbar } from "./components/Toolbar";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AnchorPicker } from "./components/AnchorPicker";
 import { PipeDiameterPanel } from "./components/PipeDiameterPanel";
+import { BackgroundPanel } from "./components/BackgroundPanel";
 import { fixtureDefaults } from "./domain/rules/fixtureDefaults";
 import type { Anchor } from "./utils/geometry";
 import { applyAnchorOffset } from "./utils/geometry";
@@ -171,6 +172,7 @@ export default function App() {
               gridSizeMm={store.buildingSettings.gridSizeMm}
               gridDivision={store.buildingSettings.gridDivision}
               pipeDiameters={store.pipeDiameters}
+              backgroundImage={store.backgroundImage}
               placingType={placingType}
               onAddFixture={handleAddFixture}
               onMoveFixture={store.moveFixture}
@@ -217,6 +219,14 @@ export default function App() {
             <PipeDiameterPanel
               pipeDiameters={store.pipeDiameters}
               onChange={store.setPipeDiameter}
+            />
+
+            <div style={{ margin: "16px 0", borderTop: "1px solid #eee" }} />
+
+            <BackgroundPanel
+              backgroundImage={store.backgroundImage}
+              onSet={store.setBackgroundImage}
+              onUpdate={store.updateBackgroundImage}
             />
 
             <div style={{ margin: "16px 0", borderTop: "1px solid #eee" }} />

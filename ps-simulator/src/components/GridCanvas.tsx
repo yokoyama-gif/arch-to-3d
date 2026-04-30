@@ -5,6 +5,7 @@ import type {
   PipeRoute,
   PipeDiameters,
   PipeType,
+  BackgroundImage,
 } from "../domain/types";
 import { structuralFixtureTypes } from "../domain/types";
 import {
@@ -34,6 +35,8 @@ type Props = {
   gridDivision: number;
   /** 管種ごとの横管・竪管φ(mm)。線幅と竪管マーカー径に反映 */
   pipeDiameters: PipeDiameters;
+  /** 背景平面図（読み込み済みの場合グリッド背面に描画） */
+  backgroundImage?: BackgroundImage | null;
   placingType: FixtureType | null;
   onAddFixture: (type: FixtureType, x: number, y: number) => void;
   onMoveFixture: (id: string, x: number, y: number) => void;
@@ -55,6 +58,7 @@ export function GridCanvas({
   gridSizeMm,
   gridDivision,
   pipeDiameters,
+  backgroundImage,
   placingType,
   onAddFixture,
   onMoveFixture,
@@ -439,6 +443,20 @@ export function GridCanvas({
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       >
+        {/* 背景平面図(グリッドの後ろに表示) */}
+        {backgroundImage && (
+          <image
+            href={backgroundImage.dataUrl}
+            x={mmToPx(backgroundImage.x)}
+            y={mmToPx(backgroundImage.y)}
+            width={mmToPx(backgroundImage.widthMm)}
+            height={mmToPx(backgroundImage.heightMm)}
+            opacity={backgroundImage.opacity}
+            preserveAspectRatio="none"
+            pointerEvents="none"
+          />
+        )}
+
         {/* グリッド */}
         {gridLines}
 
