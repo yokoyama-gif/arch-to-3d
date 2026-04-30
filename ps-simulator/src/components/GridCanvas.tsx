@@ -16,11 +16,13 @@ import {
 import { pipeColors, pipeTypeLabels } from "../domain/rules/pipeSpecs";
 import { snapToGrid } from "../utils/geometry";
 
-const DEFAULT_CANVAS_W = 8000; // mm
-const DEFAULT_CANVAS_H = 6000; // mm
-const MIN_SCALE = 0.05;
+// A3@1/100 (420×297mm) → 実寸 42000×29700 mm が余裕で入るサイズ
+const DEFAULT_CANVAS_W = 50000; // mm（≒A3横@1/100 + 余白）
+const DEFAULT_CANVAS_H = 35000; // mm
+const MIN_SCALE = 0.005;
 const MAX_SCALE = 0.5;
-const ZOOM_STEP = 0.02;
+const DEFAULT_SCALE = 0.04; // 約 50000×0.04=2000px で収まる
+const ZOOM_STEP = 0.005;
 
 /** リサイズハンドル位置 */
 type ResizeHandle = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
@@ -88,7 +90,7 @@ export function GridCanvas({
   void _onScaleBackground;
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(0.14);
+  const [scale, setScale] = useState(DEFAULT_SCALE);
   const [dragging, setDragging] = useState<{
     id: string;
     offsetX: number;
@@ -484,8 +486,8 @@ export function GridCanvas({
         >
           -
         </button>
-        <span style={{ minWidth: 50, textAlign: "center" }}>
-          {Math.round(scale * 100)}%
+        <span style={{ minWidth: 70, textAlign: "center" }}>
+          {(scale * 100).toFixed(1)}%
         </span>
         <button
           onClick={() => setScale((s) => Math.min(MAX_SCALE, s + ZOOM_STEP * 2))}
@@ -495,14 +497,21 @@ export function GridCanvas({
           +
         </button>
         <button
+          onClick={() => setScale(DEFAULT_SCALE)}
+          style={{ padding: "2px 8px", cursor: "pointer", fontSize: 11 }}
+          title="標準ズーム(全体表示)"
+        >
+          標準
+        </button>
+        <button
           onClick={() => setScale(0.14)}
           style={{ padding: "2px 8px", cursor: "pointer", fontSize: 11 }}
-          title="リセット"
+          title="設備配置時に使いやすいズーム"
         >
-          100%
+          詳細
         </button>
         <span style={{ color: "#999", fontSize: 11, marginLeft: 8 }}>
-          Ctrl+ホイールでズーム / Del:削除 / R:回転 / 十字キー:排水溝移動
+          範囲 {DEFAULT_CANVAS_W / 1000}×{DEFAULT_CANVAS_H / 1000}m / Ctrl+ホイールでズーム
         </span>
       </div>
 
