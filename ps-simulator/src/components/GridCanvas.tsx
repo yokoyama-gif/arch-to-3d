@@ -696,8 +696,11 @@ export function GridCanvas({
           const labelX = mmToPx((p0.x + p1.x) / 2) + offset;
           const labelY = mmToPx((p0.y + p1.y) / 2) + offset - 4;
 
-          // 横管色は灰色(管種は竪管マーカー/ラベルで識別)
-          const horizColor = "#777";
+          // 横管色: 排水系(soil/waste/vent)は灰色、給水系(cold/hot/gas)は管種色
+          //  - 給水(cold)→青 #1565c0
+          //  - 給湯(hot)→赤 #c62828
+          //  - ガス(gas)→黄 #f9a825
+          const horizColor = isDrainPipe ? "#777" : pipeColor;
 
           return (
             <g key={`route-${i}`}>
