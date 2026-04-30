@@ -16,7 +16,7 @@ function createWindow(): void {
   if (devUrl) {
     win.loadURL(devUrl);
   } else {
-    win.loadFile(path.resolve(__dirname, "..", "..", "dist", "index.html"));
+    win.loadFile(path.resolve(__dirname, "..", "dist", "index.html"));
   }
 }
 

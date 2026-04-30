@@ -31,7 +31,12 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(gh auth *)",
-      "Bash(printenv GH_TOKEN GITHUB_TOKEN)"
+      "Bash(printenv GH_TOKEN GITHUB_TOKEN)",
+      "Bash(npm install *)",
+      "Bash(npm test *)",
+      "Bash(npx tsc *)",
+      "Bash(npx vite *)",
+      "Bash(npm run *)"
     ]
   }
 }
