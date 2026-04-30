@@ -23,6 +23,8 @@ export default function App() {
   const [placingType, setPlacingType] = useState<FixtureType | null>(null);
   // 柱の配置基準点（中心がデフォルト）
   const [columnAnchor, setColumnAnchor] = useState<Anchor>("mc");
+  // 背景図面の校正モード（2点クリックで実距離指定）
+  const [calibrationMode, setCalibrationMode] = useState(false);
 
   const store = useSimulatorStore();
 
@@ -93,6 +95,46 @@ export default function App() {
     }
   };
 
+  /**
+   * 校正の2点指定が完了したときの処理。
+   * 2点間の現状mm距離 → ユーザーが入力する実距離 で倍率を計算し、
+   * 背景画像の幅/高さを比例的にスケーリングする。
+   */
+  const handleCalibrationDone = (
+    p1: { x: number; y: number },
+    p2: { x: number; y: number }
+  ) => {
+    const bg = store.backgroundImage;
+    if (!bg) {
+      setCalibrationMode(false);
+      return;
+    }
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    const currentMmDist = Math.sqrt(dx * dx + dy * dy);
+    if (currentMmDist <= 0) {
+      setCalibrationMode(false);
+      return;
+    }
+    const input = window.prompt(
+      `2点間の実距離(mm)を入力してください\n（現状の図面上での距離: ${currentMmDist.toFixed(0)} mm）`,
+      "910"
+    );
+    setCalibrationMode(false);
+    if (!input) return;
+    const realMm = Number(input);
+    if (!isFinite(realMm) || realMm <= 0) {
+      alert("有効な数値を入力してください");
+      return;
+    }
+    const factor = realMm / currentMmDist;
+    // 中心を保ったままスケール（左上+幅から、新しい左上を再計算）
+    store.updateBackgroundImage({
+      widthMm: bg.widthMm * factor,
+      heightMm: bg.heightMm * factor,
+    });
+  };
+
   const handleLoadPlan = (name: string) => {
     const plan = store.savedPlans.find((p) => p.name === name);
     if (plan) {
@@ -144,6 +186,27 @@ export default function App() {
               background: "#fafafa",
             }}
           >
+            {calibrationMode && (
+              <div
+                style={{
+                  marginBottom: 6,
+                  padding: "6px 10px",
+                  background: "#fff8e1",
+                  border: "1px solid #ffc107",
+                  borderRadius: 4,
+                  fontSize: 12,
+                  color: "#7a4f01",
+                }}
+              >
+                図面校正モード: 図面上の2点をクリック → 実距離(mm)入力で自動スケール
+                <button
+                  onClick={() => setCalibrationMode(false)}
+                  style={{ marginLeft: 8, fontSize: 11, cursor: "pointer" }}
+                >
+                  キャンセル
+                </button>
+              </div>
+            )}
             {placingType && (
               <div
                 style={{
@@ -184,6 +247,11 @@ export default function App() {
               onSetPipeMidPoint={(id, pipeType, x, y) =>
                 store.setCustomPipeMidPoint(id, pipeType, x, y)
               }
+              onMoveBackground={(x, y) =>
+                store.updateBackgroundImage({ x, y })
+              }
+              calibrationMode={calibrationMode}
+              onCalibrationDone={handleCalibrationDone}
             />
           </div>
 
@@ -227,6 +295,9 @@ export default function App() {
               backgroundImage={store.backgroundImage}
               onSet={store.setBackgroundImage}
               onUpdate={store.updateBackgroundImage}
+              calibrationMode={calibrationMode}
+              onToggleCalibration={() => setCalibrationMode((v) => !v)}
+              gridSizeMm={store.buildingSettings.gridSizeMm}
             />
 
             <div style={{ margin: "16px 0", borderTop: "1px solid #eee" }} />

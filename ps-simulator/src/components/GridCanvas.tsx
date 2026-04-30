@@ -49,6 +49,17 @@ type Props = {
   onSetDrainOffset?: (id: string, offsetX: number, offsetY: number) => void;
   /** 配管中間点(エルボ)位置の上書き */
   onSetPipeMidPoint?: (id: string, pipeType: PipeType, x: number, y: number) => void;
+  /** 背景画像移動 (mm単位の絶対位置) */
+  onMoveBackground?: (x: number, y: number) => void;
+  /** 背景画像のスケール調整: 現状のwidthMm/heightMmにfactorを掛ける */
+  onScaleBackground?: (factor: number) => void;
+  /** 校正モード（2点指定）の状態と切替 */
+  calibrationMode?: boolean;
+  /** 校正の2点指定が完了したときに呼ばれる(現実距離を尋ねる) */
+  onCalibrationDone?: (
+    p1: { x: number; y: number },
+    p2: { x: number; y: number }
+  ) => void;
 };
 
 export function GridCanvas({
@@ -68,7 +79,13 @@ export function GridCanvas({
   onResizeFixtureGeometry,
   onSetDrainOffset,
   onSetPipeMidPoint,
+  onMoveBackground,
+  onScaleBackground: _onScaleBackground,
+  calibrationMode,
+  onCalibrationDone,
 }: Props) {
+  // _onScaleBackground は API 互換のため受け取り、実際の計算は親で onCalibrationDone 経由
+  void _onScaleBackground;
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.14);
@@ -95,6 +112,15 @@ export function GridCanvas({
     fixtureId: string;
     pipeType: PipeType;
   } | null>(null);
+  // 背景画像のドラッグ中（開始位置と背景元位置を保持）
+  const [bgDragging, setBgDragging] = useState<{
+    startMouseX: number;
+    startMouseY: number;
+    startX: number;
+    startY: number;
+  } | null>(null);
+  // 校正用の最初のクリック点（2点目で確定）
+  const [calibPoint1, setCalibPoint1] = useState<{ x: number; y: number } | null>(null);
 
   const canvasW = DEFAULT_CANVAS_W;
   const canvasH = DEFAULT_CANVAS_H;
@@ -194,7 +220,18 @@ export function GridCanvas({
 
   const handleCanvasClick = useCallback(
     (e: React.MouseEvent) => {
-      if (dragging) return;
+      if (dragging || bgDragging) return;
+      // 校正モード: 2点指定で完了
+      if (calibrationMode) {
+        const pos = getMouseMm(e);
+        if (!calibPoint1) {
+          setCalibPoint1({ x: pos.x, y: pos.y });
+        } else {
+          onCalibrationDone?.(calibPoint1, { x: pos.x, y: pos.y });
+          setCalibPoint1(null);
+        }
+        return;
+      }
       if (placingType) {
         const pos = getMouseMm(e);
         onAddFixture(placingType, pos.x, pos.y);
@@ -208,7 +245,34 @@ export function GridCanvas({
         onSelectFixture(null);
       }
     },
-    [placingType, dragging, getMouseMm, onAddFixture, onSelectFixture]
+    [
+      placingType,
+      dragging,
+      bgDragging,
+      calibrationMode,
+      calibPoint1,
+      getMouseMm,
+      onAddFixture,
+      onSelectFixture,
+      onCalibrationDone,
+    ]
+  );
+
+  /** 背景画像 mousedown：ドラッグ開始 */
+  const handleBackgroundMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (!backgroundImage || !onMoveBackground) return;
+      if (placingType || calibrationMode) return;
+      e.stopPropagation();
+      const pos = getMouseMm(e);
+      setBgDragging({
+        startMouseX: pos.x,
+        startMouseY: pos.y,
+        startX: backgroundImage.x,
+        startY: backgroundImage.y,
+      });
+    },
+    [backgroundImage, onMoveBackground, placingType, calibrationMode, getMouseMm]
   );
 
   const handleFixtureMouseDown = useCallback(
@@ -265,6 +329,16 @@ export function GridCanvas({
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
+      // 背景ドラッグ
+      if (bgDragging && onMoveBackground) {
+        const pos = getMouseMm(e);
+        const dx = pos.x - bgDragging.startMouseX;
+        const dy = pos.y - bgDragging.startMouseY;
+        const newX = snapToGrid(bgDragging.startX + dx, gridSizeMm);
+        const newY = snapToGrid(bgDragging.startY + dy, gridSizeMm);
+        onMoveBackground(newX, newY);
+        return;
+      }
       // エルボドラッグ
       if (elbowDragging && onSetPipeMidPoint) {
         const pos = getMouseMm(e);
@@ -334,6 +408,7 @@ export function GridCanvas({
       resizing,
       drainDragging,
       elbowDragging,
+      bgDragging,
       fixtures,
       getMouseMm,
       gridSizeMm,
@@ -341,6 +416,7 @@ export function GridCanvas({
       onResizeFixtureGeometry,
       onSetDrainOffset,
       onSetPipeMidPoint,
+      onMoveBackground,
     ]
   );
 
@@ -349,6 +425,7 @@ export function GridCanvas({
     setResizing(null);
     setDrainDragging(null);
     setElbowDragging(null);
+    setBgDragging(null);
   }, []);
 
   /**
@@ -436,7 +513,8 @@ export function GridCanvas({
         style={{
           background: "#fff",
           border: "1px solid #ccc",
-          cursor: placingType ? "crosshair" : "default",
+          cursor:
+            calibrationMode || placingType ? "crosshair" : "default",
         }}
         onClick={handleCanvasClick}
         onMouseMove={handleMouseMove}
@@ -453,7 +531,10 @@ export function GridCanvas({
             height={mmToPx(backgroundImage.heightMm)}
             opacity={backgroundImage.opacity}
             preserveAspectRatio="none"
-            pointerEvents="none"
+            // 校正モード時はクリックを取らせる、通常はドラッグで移動
+            pointerEvents={calibrationMode ? "none" : "auto"}
+            style={{ cursor: calibrationMode ? "crosshair" : "move" }}
+            onMouseDown={handleBackgroundMouseDown}
           />
         )}
 
@@ -799,6 +880,29 @@ export function GridCanvas({
             </g>
           );
         })}
+
+        {/* 校正モード: 第1点マーカー */}
+        {calibrationMode && calibPoint1 && (
+          <g pointerEvents="none">
+            <circle
+              cx={mmToPx(calibPoint1.x)}
+              cy={mmToPx(calibPoint1.y)}
+              r={6}
+              fill="rgba(255,193,7,0.7)"
+              stroke="#f57f17"
+              strokeWidth={2}
+            />
+            <text
+              x={mmToPx(calibPoint1.x) + 10}
+              y={mmToPx(calibPoint1.y) - 8}
+              fontSize={11}
+              fill="#f57f17"
+              fontWeight={700}
+            >
+              1
+            </text>
+          </g>
+        )}
 
         {/* 選択中設備のリサイズハンドル & 配管エルボハンドル(最前面) */}
         {(() => {
