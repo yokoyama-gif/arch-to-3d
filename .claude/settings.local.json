@@ -34,7 +34,11 @@
       "Bash(powershell -Command 'Restart-Service bthserv; Get-Service bthserv | Select-Object Name,Status')",
       "Bash(powershell -Command 'Get-Service bthserv | Select-Object Name,Status,StartType')",
       "Bash(powershell -Command 'Get-ItemProperty -Path \"\"HKCU:\\\\Control Panel\\\\Bluetooth\"\" -Name \"\"Notification Area Icon\"\"')",
-      "Bash(powershell -Command 'Start-Process \"\"ms-settings:bluetooth\"\"')"
+      "Bash(powershell -Command 'Start-Process \"\"ms-settings:bluetooth\"\"')",
+      "Bash(ffmpeg -version)",
+      "Bash(where ffmpeg *)",
+      "Bash(where ffprobe *)",
+      "Bash(gh pr *)"
     ]
   }
 }
