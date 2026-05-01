@@ -14,14 +14,15 @@ import {
   fixtureDrainSpec,
 } from "../domain/rules/fixtureDefaults";
 import { pipeColors, pipeTypeLabels } from "../domain/rules/pipeSpecs";
+import { CANVAS_DEFAULTS } from "../domain/rules/canvasDefaults";
 import { snapToGrid } from "../utils/geometry";
 
-// A3@1/100 (420×297mm) → 実寸 42000×29700 mm が余裕で入るサイズ
-const DEFAULT_CANVAS_W = 50000; // mm（≒A3横@1/100 + 余白）
-const DEFAULT_CANVAS_H = 35000; // mm
+// キャンバス＝A3横@1/100の実寸範囲 (42000×29700mm)
+const DEFAULT_CANVAS_W = CANVAS_DEFAULTS.widthMm;
+const DEFAULT_CANVAS_H = CANVAS_DEFAULTS.heightMm;
 const MIN_SCALE = 0.005;
 const MAX_SCALE = 0.5;
-const DEFAULT_SCALE = 0.04; // 約 50000×0.04=2000px で収まる
+const DEFAULT_SCALE = CANVAS_DEFAULTS.defaultScale;
 const ZOOM_STEP = 0.005;
 
 /** リサイズハンドル位置 */

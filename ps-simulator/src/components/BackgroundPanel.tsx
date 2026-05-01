@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import type { BackgroundImage } from "../domain/types";
 import { loadBackgroundFromFile } from "../utils/loadBackground";
+import { CANVAS_DEFAULTS } from "../domain/rules/canvasDefaults";
 import { NumberInput } from "./NumberInput";
 
 type Props = {
@@ -36,8 +37,17 @@ export function BackgroundPanel({
     setLoading(true);
     setError(null);
     try {
-      const img = await loadBackgroundFromFile(file);
-      onSet(img);
+      const raw = await loadBackgroundFromFile(file);
+      // キャンバス（A3@1/100=42000×29700mm）全体に自動フィット。
+      // 用紙比率と異なる画像は引き伸ばされるが、後でユーザーが微調整可能。
+      const fitted: BackgroundImage = {
+        ...raw,
+        x: 0,
+        y: 0,
+        widthMm: CANVAS_DEFAULTS.widthMm,
+        heightMm: CANVAS_DEFAULTS.heightMm,
+      };
+      onSet(fitted);
     } catch (err) {
       setError(err instanceof Error ? err.message : "読込失敗");
     } finally {
@@ -130,6 +140,20 @@ export function BackgroundPanel({
             title="現在の位置と寸法をグリッドの倍数に丸めます"
           >
             グリッドにスナップ
+          </button>
+          <button
+            onClick={() =>
+              onUpdate({
+                x: 0,
+                y: 0,
+                widthMm: CANVAS_DEFAULTS.widthMm,
+                heightMm: CANVAS_DEFAULTS.heightMm,
+              })
+            }
+            style={{ padding: "4px 8px", fontSize: 11, cursor: "pointer" }}
+            title="図面をキャンバス全体(A3@1/100=42×29.7m)に再フィットします"
+          >
+            A3全体にフィット
           </button>
         </div>
       )}
