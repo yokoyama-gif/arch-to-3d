@@ -47,42 +47,9 @@ export function PropertyPanel({
         ))}
       </div>
 
-      {/* 建物設定 */}
+      {/* 建物設定（必要最小限の項目のみ表示） */}
       <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>建物条件</h3>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 8px" }}>
-        <label>階数</label>
-        <NumberInput
-          value={s.floors}
-          min={1}
-          max={10}
-          step={1}
-          onChange={(v) => onUpdateSettings({ floors: v })}
-          style={inputStyle}
-        />
-
-        <label>住戸数</label>
-        <NumberInput
-          value={s.unitCount}
-          min={1}
-          step={1}
-          onChange={(v) => onUpdateSettings({ unitCount: v })}
-          style={inputStyle}
-        />
-
-        <label>廊下タイプ</label>
-        <select
-          value={s.corridorType}
-          onChange={(e) =>
-            onUpdateSettings({
-              corridorType: e.target.value as "single" | "double",
-            })
-          }
-          style={inputStyle}
-        >
-          <option value="single">片廊下</option>
-          <option value="double">中廊下</option>
-        </select>
-
         <label>構造種別</label>
         <select
           value={s.structureType}
@@ -97,15 +64,6 @@ export function PropertyPanel({
           <option value="rc">RC</option>
           <option value="steel">鉄骨</option>
         </select>
-
-        <label>天井懐(mm)</label>
-        <NumberInput
-          value={s.ceilingPlenumMm}
-          step={10}
-          min={0}
-          onChange={(v) => onUpdateSettings({ ceilingPlenumMm: v })}
-          style={inputStyle}
-        />
 
         <label>床段差許容(mm)</label>
         <NumberInput
