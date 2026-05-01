@@ -226,26 +226,42 @@ const state = {
 function uid(){ return 'i'+Math.random().toString(36).slice(2,9); }
 function rot2(x,y,a){ const c=Math.cos(a),s=Math.sin(a); return [x*c-y*s, x*s+y*c]; }
 
-/* ---- 3. DXFビルダ ---- */
+/* ---- 3. DXFビルダ (BLOCK / INSERT 対応) ---- */
 class DxfBuilder {
-  constructor(){ this.entities=[]; this.layers=new Map(); }
+  constructor(){
+    this.entities=[];
+    this.blocks=new Map();   // name -> entities[]
+    this.layers=new Map();
+    this._target=this.entities;
+  }
   layer(name,color){ if(!this.layers.has(name)) this.layers.set(name,color||7); }
+  startBlock(name){
+    if(!this.blocks.has(name)) this.blocks.set(name,[]);
+    this._target=this.blocks.get(name);
+  }
+  endBlock(){ this._target=this.entities; }
   line(x1,y1,x2,y2,layer){
     this.layer(layer);
-    this.entities.push(`0\nLINE\n8\n${layer}\n10\n${x1.toFixed(3)}\n20\n${y1.toFixed(3)}\n11\n${x2.toFixed(3)}\n21\n${y2.toFixed(3)}`);
+    this._target.push(`0\nLINE\n8\n${layer}\n10\n${x1.toFixed(3)}\n20\n${y1.toFixed(3)}\n11\n${x2.toFixed(3)}\n21\n${y2.toFixed(3)}`);
   }
   circle(cx,cy,r,layer){
     this.layer(layer);
-    this.entities.push(`0\nCIRCLE\n8\n${layer}\n10\n${cx.toFixed(3)}\n20\n${cy.toFixed(3)}\n40\n${r.toFixed(3)}`);
+    this._target.push(`0\nCIRCLE\n8\n${layer}\n10\n${cx.toFixed(3)}\n20\n${cy.toFixed(3)}\n40\n${r.toFixed(3)}`);
   }
   arc(cx,cy,r,a1,a2,layer){
     this.layer(layer);
-    this.entities.push(`0\nARC\n8\n${layer}\n10\n${cx.toFixed(3)}\n20\n${cy.toFixed(3)}\n40\n${r.toFixed(3)}\n50\n${a1.toFixed(3)}\n51\n${a2.toFixed(3)}`);
+    this._target.push(`0\nARC\n8\n${layer}\n10\n${cx.toFixed(3)}\n20\n${cy.toFixed(3)}\n40\n${r.toFixed(3)}\n50\n${a1.toFixed(3)}\n51\n${a2.toFixed(3)}`);
   }
   text(x,y,h,t,layer){
     this.layer(layer);
     const safe=String(t).replace(/\n/g,' ');
-    this.entities.push(`0\nTEXT\n8\n${layer}\n10\n${x.toFixed(3)}\n20\n${y.toFixed(3)}\n40\n${h.toFixed(3)}\n1\n${safe}`);
+    this._target.push(`0\nTEXT\n8\n${layer}\n10\n${x.toFixed(3)}\n20\n${y.toFixed(3)}\n40\n${h.toFixed(3)}\n1\n${safe}`);
+  }
+  insert(blockName,x,y,rot,layer,scale){
+    this.layer(layer);
+    const ang=(rot||0)*180/Math.PI;
+    const sc=scale||1;
+    this._target.push(`0\nINSERT\n8\n${layer}\n2\n${blockName}\n10\n${x.toFixed(3)}\n20\n${y.toFixed(3)}\n50\n${ang.toFixed(3)}\n41\n${sc.toFixed(3)}\n42\n${sc.toFixed(3)}\n43\n${sc.toFixed(3)}`);
   }
   polyline(pts,layer,dashed){
     if(pts.length<2) return;
@@ -262,12 +278,21 @@ class DxfBuilder {
     }
   }
   build(){
-    let s='999\nJIS Residential Electrical CAD\n';
+    let s='999\nJIS C 0303 Residential Electrical CAD\n';
     s+='0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1009\n9\n$INSUNITS\n70\n4\n0\nENDSEC\n';
     s+='0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLAYER\n70\n'+this.layers.size+'\n';
     for(const [name,color] of this.layers)
       s+=`0\nLAYER\n2\n${name}\n70\n0\n62\n${color}\n6\nCONTINUOUS\n`;
-    s+='0\nENDTAB\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n';
+    s+='0\nENDTAB\n0\nENDSEC\n';
+    // BLOCKS section (ブロック定義 = AutoCADで一括編集可能)
+    s+='0\nSECTION\n2\nBLOCKS\n';
+    for(const [name,ents] of this.blocks){
+      s+=`0\nBLOCK\n8\n0\n2\n${name}\n70\n0\n10\n0\n20\n0\n30\n0\n3\n${name}\n1\n\n`;
+      for(const e of ents) s+=e+'\n';
+      s+='0\nENDBLK\n8\n0\n';
+    }
+    s+='0\nENDSEC\n';
+    s+='0\nSECTION\n2\nENTITIES\n';
     for(const e of this.entities) s+=e+'\n';
     s+='0\nENDSEC\n0\nEOF\n';
     return s;
@@ -314,53 +339,51 @@ function pText(ctx,x,y,h,txt,anchor='center'){
   ctx.restore();
 }
 
-/* --- コンセント (JIS: 円+2本縦線+横棒) --- */
+/* --- コンセント (JIS C 0303: D形半円, フラット側=壁面) --- */
 function makeOutlet(id,name,suffix,opts={}){
   SYMBOLS[id]={
     id,name,cat:'outlet',layer:'E-OUTLET',color:1,
     paint(ctx,u){
-      pCircle(ctx,0,0,u*.5);
-      // 2本の差込口
-      pLine(ctx,-u*.15,-u*.5,-u*.15,-u*.82);
-      pLine(ctx, u*.15,-u*.5, u*.15,-u*.82);
-      // 横棒
-      pLine(ctx,-u*.45,-u*.82,u*.45,-u*.82);
-      if(opts.earth){
-        // 接地線
-        pLine(ctx,0,-u*.82,0,-u*1.0);
-        pLine(ctx,-u*.15,-u*1.0,u*.15,-u*1.0);
-      }
-      if(opts.twoGang){
-        pLine(ctx,-u*.05,-u*.5,-u*.05,-u*.82);
-        pLine(ctx, u*.05,-u*.5, u*.05,-u*.82);
-      }
-      if(suffix) pText(ctx,u*.85,u*.05,u*.38,suffix,'left');
+      // D形半円: 上半円 (curved part 上, 直径=壁側)
+      ctx.beginPath();
+      ctx.arc(0,0,u*.5,0,Math.PI);
+      ctx.closePath();
+      ctx.stroke();
+      // ラベル (半円内)
+      if(suffix) pText(ctx,0,u*.22,u*.32,suffix);
+      else if(opts.twoGang) pText(ctx,0,u*.22,u*.32,'2');
+      // 接続線 (壁の反対側に伸びる: 配線接続用)
+      if(opts.lead!==false) pLine(ctx,0,0,0,-u*.25);
     },
     dxf(b,x,y,rot,layer,u){
       const tx=(dx,dy)=>{const[a,c]=rot2(dx,dy,rot);return[x+a,y+c];};
-      b.circle(x,y,u*.5,layer);
-      let p1=tx(-u*.15,-u*.5),p2=tx(-u*.15,-u*.82);
+      const ra=(rot||0)*180/Math.PI;
+      // 半円弧
+      b.arc(x,y,u*.5,ra,ra+180,layer);
+      // 直径線 (D形のフラット辺)
+      let p1=tx(-u*.5,0),p2=tx(u*.5,0);
       b.line(p1[0],p1[1],p2[0],p2[1],layer);
-      p1=tx(u*.15,-u*.5);p2=tx(u*.15,-u*.82);
-      b.line(p1[0],p1[1],p2[0],p2[1],layer);
-      p1=tx(-u*.45,-u*.82);p2=tx(u*.45,-u*.82);
-      b.line(p1[0],p1[1],p2[0],p2[1],layer);
-      if(suffix){const tp=tx(u*.85,-u*.05);b.text(tp[0],tp[1],u*.32,suffix,layer);}
+      // 接続棒
+      if(opts.lead!==false){
+        p1=tx(0,0);p2=tx(0,-u*.25);
+        b.line(p1[0],p1[1],p2[0],p2[1],layer);
+      }
+      const lab=suffix||(opts.twoGang?'2':'');
+      if(lab){const tp=tx(0,u*.22);b.text(tp[0]-u*.18,tp[1]-u*.1,u*.28,lab,layer);}
     },
     icon:`<svg class="sym-icon" viewBox="-14 -14 28 28">
-      <circle cx="0" cy="0" r="5.5"/>
-      <line x1="-2" y1="-5.5" x2="-2" y2="-9"/>
-      <line x1="2" y1="-5.5" x2="2" y2="-9"/>
-      <line x1="-6" y1="-9" x2="6" y2="-9"/>
-      ${suffix?`<text class="stext" x="8" y="1">${suffix}</text>`:''}
+      <path d="M-9 0 A9 9 0 0 0 9 0 L-9 0 Z"/>
+      <line x1="0" y1="0" x2="0" y2="5"/>
+      ${(suffix||opts.twoGang)?`<text class="stext" x="0" y="-3" text-anchor="middle" style="font-size:6px">${suffix||'2'}</text>`:''}
     </svg>`
   };
 }
 makeOutlet('out-1','一般コンセント',null);
-makeOutlet('out-2g','2口コンセント','2',{twoGang:true});
-makeOutlet('out-E','接地コンセント','E',{earth:true});
+makeOutlet('out-2g','2口コンセント',null,{twoGang:true});
+makeOutlet('out-E','接地コンセント','E');
+makeOutlet('out-EL','漏電遮断','EL');
 makeOutlet('out-wp','防水コンセント','WP');
-makeOutlet('out-200','200Vコンセント','200V');
+makeOutlet('out-200','200V','200');
 makeOutlet('out-ac','エアコン用','AC');
 makeOutlet('out-ref','冷蔵庫用','RF');
 makeOutlet('out-floor','床コンセント','F');
@@ -508,6 +531,34 @@ SYMBOLS['lt-foot']={
   </svg>`
 };
 
+SYMBOLS['lt-hook']={
+  id:'lt-hook',name:'引掛シーリング',cat:'light',layer:'E-LIGHT',color:2,
+  paint(ctx,u){
+    // ひし形 (45°回転正方形) + ×
+    const r=u*.42;
+    ctx.beginPath();
+    ctx.moveTo(0,r);ctx.lineTo(r,0);ctx.lineTo(0,-r);ctx.lineTo(-r,0);ctx.closePath();
+    ctx.stroke();
+    pLine(ctx,-r*.55,-r*.55,r*.55,r*.55);
+    pLine(ctx,-r*.55,r*.55,r*.55,-r*.55);
+  },
+  dxf(b,x,y,rot,layer,u){
+    const r=u*.42;
+    const c=[[0,r],[r,0],[0,-r],[-r,0]];
+    const tc=c.map(([a,cv])=>{const v=rot2(a,cv,rot);return[x+v[0],y+v[1]];});
+    for(let i=0;i<4;i++) b.line(tc[i][0],tc[i][1],tc[(i+1)%4][0],tc[(i+1)%4][1],layer);
+    let p1=rot2(-r*.55,-r*.55,rot),p2=rot2(r*.55,r*.55,rot);
+    b.line(x+p1[0],y+p1[1],x+p2[0],y+p2[1],layer);
+    p1=rot2(-r*.55,r*.55,rot);p2=rot2(r*.55,-r*.55,rot);
+    b.line(x+p1[0],y+p1[1],x+p2[0],y+p2[1],layer);
+  },
+  icon:`<svg class="sym-icon" viewBox="-14 -14 28 28">
+    <path d="M0 -7 L7 0 L0 7 L-7 0 Z"/>
+    <line x1="-3.8" y1="-3.8" x2="3.8" y2="3.8"/>
+    <line x1="-3.8" y1="3.8" x2="3.8" y2="-3.8"/>
+  </svg>`
+};
+
 SYMBOLS['lt-spot']={
   id:'lt-spot',name:'スポットライト',cat:'light',layer:'E-LIGHT',color:2,
   paint(ctx,u){
@@ -644,6 +695,32 @@ SYMBOLS['pn-meter']={
   icon:`<svg class="sym-icon" viewBox="-14 -14 28 28">
     <circle cx="0" cy="0" r="7"/>
     <text class="stext" x="0" y="2" text-anchor="middle">Wh</text>
+  </svg>`
+};
+
+SYMBOLS['pn-mcb']={
+  id:'pn-mcb',name:'配線用遮断器',cat:'panel',layer:'E-PANEL',color:1,
+  paint(ctx,u){
+    pCircle(ctx,0,0,u*.5);
+    pText(ctx,0,u*.02,u*.34,'B');
+  },
+  dxf(b,x,y,rot,layer,u){ b.circle(x,y,u*.5,layer); b.text(x-u*.1,y-u*.12,u*.3,'B',layer); },
+  icon:`<svg class="sym-icon" viewBox="-14 -14 28 28">
+    <circle cx="0" cy="0" r="7"/>
+    <text class="stext" x="0" y="2" text-anchor="middle" style="font-size:7px">B</text>
+  </svg>`
+};
+
+SYMBOLS['pn-elcb']={
+  id:'pn-elcb',name:'漏電遮断器',cat:'panel',layer:'E-PANEL',color:1,
+  paint(ctx,u){
+    pCircle(ctx,0,0,u*.5);
+    pText(ctx,0,u*.02,u*.32,'BE');
+  },
+  dxf(b,x,y,rot,layer,u){ b.circle(x,y,u*.5,layer); b.text(x-u*.16,y-u*.12,u*.28,'BE',layer); },
+  icon:`<svg class="sym-icon" viewBox="-14 -14 28 28">
+    <circle cx="0" cy="0" r="7"/>
+    <text class="stext" x="0" y="2" text-anchor="middle" style="font-size:6px">BE</text>
   </svg>`
 };
 
@@ -1573,11 +1650,20 @@ function exportDxf(){
     else if(e.type==='ARC') b.arc(e.cx,e.cy,e.r,e.startAngle||0,e.endAngle||360,'BG');
     else if(e.type==='TEXT') b.text(e.x,e.y,e.h||100,e.text,'BG');
   }
-  // 記号
+  // 記号: BLOCK定義 + INSERT 配置 (AutoCAD等で一括編集可能)
   const u=state.symSize/2;
+  const usedTypes=new Set(state.symbols.map(s=>s.type));
+  for(const t of usedTypes){
+    const def=SYMBOLS[t];if(!def) continue;
+    const blockName='SYM_'+t.toUpperCase().replace(/-/g,'_');
+    b.startBlock(blockName);
+    def.dxf(b,0,0,0,def.layer,u);  // 原点に定義
+    b.endBlock();
+  }
   for(const s of state.symbols){
     const def=SYMBOLS[s.type];if(!def) continue;
-    def.dxf(b,s.x,s.y,s.rot,def.layer,u);
+    const blockName='SYM_'+s.type.toUpperCase().replace(/-/g,'_');
+    b.insert(blockName,s.x,s.y,s.rot,def.layer,1);
   }
   // 配線
   for(const w of state.wires){
