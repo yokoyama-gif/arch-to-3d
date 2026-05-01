@@ -130,6 +130,8 @@ export function GridCanvas({
   } | null>(null);
   // 校正用の最初のクリック点（2点目で確定）
   const [calibPoint1, setCalibPoint1] = useState<{ x: number; y: number } | null>(null);
+  // 左+右同時ドラッグでのズーム用：直前のクライアントY座標を保持
+  const [dualBtnZoomY, setDualBtnZoomY] = useState<number | null>(null);
 
   const canvasW = DEFAULT_CANVAS_W;
   const canvasH = DEFAULT_CANVAS_H;
@@ -520,7 +522,7 @@ export function GridCanvas({
           詳細
         </button>
         <span style={{ color: "#999", fontSize: 11, marginLeft: 8 }}>
-          範囲 {DEFAULT_CANVAS_W / 1000}×{DEFAULT_CANVAS_H / 1000}m / ホイールでズーム / 図面ドラッグで移動
+          範囲 {DEFAULT_CANVAS_W / 1000}×{DEFAULT_CANVAS_H / 1000}m / ホイールまたは左+右ドラッグでズーム / 図面ドラッグで移動
         </span>
       </div>
 
@@ -531,13 +533,57 @@ export function GridCanvas({
         style={{
           background: "#fff",
           border: "1px solid #ccc",
-          cursor:
-            calibrationMode || placingType ? "crosshair" : "default",
+          cursor: dualBtnZoomY != null
+            ? "ns-resize"
+            : calibrationMode || placingType ? "crosshair" : "default",
         }}
         onClick={handleCanvasClick}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        onMouseMove={(e) => {
+          // 左+右同時押し中ならズームに切り替える
+          // e.buttons は bitmask: 1=left, 2=right → 3 = both
+          if ((e.buttons & 3) === 3) {
+            if (dualBtnZoomY == null) {
+              // 同時押しが今フレームで始まったケース
+              setDualBtnZoomY(e.clientY);
+            } else {
+              const dy = e.clientY - dualBtnZoomY;
+              if (dy !== 0) {
+                // 上方向ドラッグでズームイン、下方向でズームアウト
+                setScale((prev) => {
+                  const factor = Math.exp(-dy * 0.005);
+                  return Math.min(MAX_SCALE, Math.max(MIN_SCALE, prev * factor));
+                });
+                setDualBtnZoomY(e.clientY);
+              }
+            }
+            return;
+          }
+          // 同時押しが解除された
+          if (dualBtnZoomY != null) setDualBtnZoomY(null);
+          handleMouseMove(e);
+        }}
+        onMouseDown={(e) => {
+          // 左+右が同じmousedownで揃った場合の初期化
+          if ((e.buttons & 3) === 3) {
+            e.preventDefault();
+            setDualBtnZoomY(e.clientY);
+          }
+        }}
+        onMouseUp={(e) => {
+          // 片方でも離れたらズーム終了
+          if ((e.buttons & 3) !== 3 && dualBtnZoomY != null) {
+            setDualBtnZoomY(null);
+          }
+          handleMouseUp();
+        }}
+        onMouseLeave={() => {
+          setDualBtnZoomY(null);
+          handleMouseUp();
+        }}
+        onContextMenu={(e) => {
+          // 右ドラッグズーム時にコンテキストメニューが出ると邪魔なので抑制
+          e.preventDefault();
+        }}
       >
         {/* 背景平面図(グリッドの後ろに表示) */}
         {backgroundImage && (
