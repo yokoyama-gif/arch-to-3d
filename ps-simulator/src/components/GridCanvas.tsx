@@ -195,6 +195,25 @@ export function GridCanvas({
           if (e.key === "ArrowRight") nx += step;
           onSetDrainOffset(selectedFixtureId, nx, ny);
         }
+      } else if (
+        bgDragMode &&
+        backgroundImage &&
+        onMoveBackground &&
+        (e.key === "ArrowUp" ||
+          e.key === "ArrowDown" ||
+          e.key === "ArrowLeft" ||
+          e.key === "ArrowRight")
+      ) {
+        // 図面移動モードON+設備未選択なら、十字キーで背景画像を1グリッド単位で動かす
+        e.preventDefault();
+        const step = gridSizeMm;
+        let nx = backgroundImage.x;
+        let ny = backgroundImage.y;
+        if (e.key === "ArrowUp") ny -= step;
+        if (e.key === "ArrowDown") ny += step;
+        if (e.key === "ArrowLeft") nx -= step;
+        if (e.key === "ArrowRight") nx += step;
+        onMoveBackground(nx, ny);
       } else if (e.key === "Escape" && placingType) {
         // 配置モードをキャンセル（親でハンドル）
       }
@@ -206,10 +225,13 @@ export function GridCanvas({
     placingType,
     fixtures,
     gridSizeMm,
+    bgDragMode,
+    backgroundImage,
     onDeleteFixture,
     onRotateFixture,
     onSelectFixture,
     onSetDrainOffset,
+    onMoveBackground,
   ]);
 
   // --- ズーム（マウスホイールで直接） ---
@@ -522,7 +544,7 @@ export function GridCanvas({
           詳細
         </button>
         <span style={{ color: "#999", fontSize: 11, marginLeft: 8 }}>
-          範囲 {DEFAULT_CANVAS_W / 1000}×{DEFAULT_CANVAS_H / 1000}m / ホイールまたは左+右ドラッグでズーム / 図面ドラッグで移動
+          範囲 {DEFAULT_CANVAS_W / 1000}×{DEFAULT_CANVAS_H / 1000}m / ホイールまたは左+右ドラッグでズーム / 図面はドラッグまたは十字キーで移動
         </span>
       </div>
 
