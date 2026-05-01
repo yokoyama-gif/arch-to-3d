@@ -130,8 +130,13 @@ export function GridCanvas({
   } | null>(null);
   // 校正用の最初のクリック点（2点目で確定）
   const [calibPoint1, setCalibPoint1] = useState<{ x: number; y: number } | null>(null);
-  // 左+右同時ドラッグでのズーム用：直前のクライアントY座標を保持
+  // 左+右同時ドラッグでのズーム用：直前のクライアントY座標を保持(レガシー、未使用)
   const [dualBtnZoomY, setDualBtnZoomY] = useState<number | null>(null);
+  // ラバーバンドズーム: 左+右ドラッグで範囲を選択し、その範囲に拡大表示する
+  const [zoomBox, setZoomBox] = useState<{
+    startMm: { x: number; y: number };
+    currentMm: { x: number; y: number };
+  } | null>(null);
 
   const canvasW = DEFAULT_CANVAS_W;
   const canvasH = DEFAULT_CANVAS_H;
@@ -544,7 +549,7 @@ export function GridCanvas({
           詳細
         </button>
         <span style={{ color: "#999", fontSize: 11, marginLeft: 8 }}>
-          範囲 {DEFAULT_CANVAS_W / 1000}×{DEFAULT_CANVAS_H / 1000}m / ホイールまたは左+右ドラッグでズーム / 図面はドラッグまたは十字キーで移動
+          範囲 {DEFAULT_CANVAS_W / 1000}×{DEFAULT_CANVAS_H / 1000}m / ホイールでズーム / 左+右ドラッグで範囲ズーム / 図面はドラッグ・十字キーで移動
         </span>
       </div>
 
@@ -555,67 +560,89 @@ export function GridCanvas({
         style={{
           background: "#fff",
           border: "1px solid #ccc",
-          cursor: dualBtnZoomY != null
-            ? "ns-resize"
+          cursor: zoomBox
+            ? "zoom-in"
             : calibrationMode || placingType ? "crosshair" : "default",
         }}
         onClick={(e) => {
-          // ズームドラッグ後の click は無視
-          if (dualBtnZoomY != null) return;
+          // ラバーバンドズーム中・直後の click は無視
+          if (zoomBox || dualBtnZoomY != null) return;
           handleCanvasClick(e);
         }}
         onMouseMove={(e) => {
-          // 左+右同時押し中ならズームに切り替える
-          // e.buttons は bitmask: 1=left, 2=right → 3 = both
+          // 左+右同時押し中ならラバーバンドで範囲選択
           if ((e.buttons & 3) === 3) {
-            if (dualBtnZoomY == null) {
-              // ドラッグ中の他のすべての操作をキャンセル(ズームへ即切替)
+            const pos = getMouseMm(e);
+            if (!zoomBox) {
+              // ドラッグ中の他のすべての操作をキャンセル(ズーム選択へ即切替)
               setDragging(null);
               setBgDragging(null);
               setResizing(null);
               setDrainDragging(null);
               setElbowDragging(null);
-              setDualBtnZoomY(e.clientY);
+              setZoomBox({ startMm: pos, currentMm: pos });
             } else {
-              const dy = e.clientY - dualBtnZoomY;
-              if (dy !== 0) {
-                // 上方向ドラッグでズームイン、下方向でズームアウト
-                setScale((prev) => {
-                  const factor = Math.exp(-dy * 0.005);
-                  return Math.min(MAX_SCALE, Math.max(MIN_SCALE, prev * factor));
-                });
-                setDualBtnZoomY(e.clientY);
-              }
+              setZoomBox({ ...zoomBox, currentMm: pos });
             }
             return;
           }
-          // 同時押しが解除された
-          if (dualBtnZoomY != null) setDualBtnZoomY(null);
+          // 同時押しが解除された → 何もしない（mouseupで処理）
           handleMouseMove(e);
         }}
         onMouseDown={(e) => {
-          // 左+右が同じmousedownで揃った場合の初期化
-          // または右クリック単独で押されたとき、後で左を加えれば3になる準備として
-          // 既存のドラッグ状態を全部キャンセル
           if ((e.buttons & 3) === 3) {
             e.preventDefault();
-            // すべてのドラッグ系を解除してズームへ
+            const pos = getMouseMm(e);
             setDragging(null);
             setBgDragging(null);
             setResizing(null);
             setDrainDragging(null);
             setElbowDragging(null);
-            setDualBtnZoomY(e.clientY);
+            setZoomBox({ startMm: pos, currentMm: pos });
           }
         }}
         onMouseUp={(e) => {
-          // 片方でも離れたらズーム終了
-          if ((e.buttons & 3) !== 3 && dualBtnZoomY != null) {
-            setDualBtnZoomY(null);
+          // どちらかのボタンが離されたタイミングでズームを確定
+          if (zoomBox && (e.buttons & 3) !== 3) {
+            const x1 = Math.min(zoomBox.startMm.x, zoomBox.currentMm.x);
+            const y1 = Math.min(zoomBox.startMm.y, zoomBox.currentMm.y);
+            const x2 = Math.max(zoomBox.startMm.x, zoomBox.currentMm.x);
+            const y2 = Math.max(zoomBox.startMm.y, zoomBox.currentMm.y);
+            const boxW = x2 - x1;
+            const boxH = y2 - y1;
+            // 極小選択は無視(クリック扱い)
+            if (boxW < 100 || boxH < 100) {
+              setZoomBox(null);
+              return;
+            }
+            // 親スクロールコンテナのサイズを取得して目標スケールを計算
+            const scrollEl = containerRef.current?.parentElement;
+            if (scrollEl) {
+              const viewW = scrollEl.clientWidth;
+              const viewH = scrollEl.clientHeight;
+              // 90%余白で枠が画面に余裕で収まるサイズに
+              const targetScale = Math.min(
+                MAX_SCALE,
+                Math.max(
+                  MIN_SCALE,
+                  Math.min(viewW / boxW, viewH / boxH) * 0.9
+                )
+              );
+              setScale(targetScale);
+              // スケール反映後にスクロール位置を中央へ
+              const cxMm = (x1 + x2) / 2;
+              const cyMm = (y1 + y2) / 2;
+              requestAnimationFrame(() => {
+                scrollEl.scrollLeft = cxMm * targetScale - viewW / 2;
+                scrollEl.scrollTop = cyMm * targetScale - viewH / 2;
+              });
+            }
+            setZoomBox(null);
           }
           handleMouseUp();
         }}
         onMouseLeave={() => {
+          setZoomBox(null);
           setDualBtnZoomY(null);
           handleMouseUp();
         }}
@@ -1095,6 +1122,25 @@ export function GridCanvas({
             </g>
           );
         })()}
+
+        {/* ラバーバンドズームの選択枠（最前面） */}
+        {zoomBox && (
+          <rect
+            x={mmToPx(Math.min(zoomBox.startMm.x, zoomBox.currentMm.x))}
+            y={mmToPx(Math.min(zoomBox.startMm.y, zoomBox.currentMm.y))}
+            width={mmToPx(
+              Math.abs(zoomBox.currentMm.x - zoomBox.startMm.x)
+            )}
+            height={mmToPx(
+              Math.abs(zoomBox.currentMm.y - zoomBox.startMm.y)
+            )}
+            fill="rgba(33,150,243,0.15)"
+            stroke="#1976d2"
+            strokeWidth={1.5}
+            strokeDasharray="6 3"
+            pointerEvents="none"
+          />
+        )}
       </svg>
     </div>
   );
