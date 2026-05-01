@@ -1,0 +1,1686 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>住宅電気図面CADシステム</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{
+  --ink:#1a2332;--ink-soft:#3d4a5c;--paper:#f4ecd8;--paper-deep:#e8dcc0;
+  --rule:#c9b896;--accent:#a83232;--accent-cool:#2d5b8e;--highlight:#d4a574;
+  --shadow:rgba(26,35,50,0.15);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:"Hiragino Mincho ProN","Yu Mincho",serif;background:var(--paper-deep);color:var(--ink);user-select:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+#app{display:grid;grid-template-columns:252px 1fr 228px;grid-template-rows:46px 1fr 26px;height:100vh}
+#topbar{grid-column:1/-1;background:var(--ink);color:var(--paper);display:flex;align-items:center;padding:0 14px;gap:8px;border-bottom:2px solid var(--accent);z-index:10}
+#topbar h1{font-size:13px;letter-spacing:.1em;border-right:1px solid rgba(244,236,216,.2);padding-right:12px;margin-right:4px}
+#topbar h1 small{display:block;font-size:8px;opacity:.5;letter-spacing:.25em;font-family:monospace}
+.tb-btn{font-size:10px;padding:5px 10px;border:1px solid rgba(244,236,216,.2);background:rgba(244,236,216,.04);color:var(--paper);letter-spacing:.05em;transition:all .15s}
+.tb-btn:hover{background:rgba(244,236,216,.12)}
+.tb-btn.primary{background:var(--accent);border-color:var(--accent)}
+.tb-btn.primary:hover{background:#c44141}
+.tb-sep{flex:1}
+.tb-info{font-size:10px;opacity:.55;font-family:monospace}
+#sidebar{background:var(--paper);border-right:1px solid var(--rule);overflow-y:auto}
+#sidebar::-webkit-scrollbar{width:5px}
+#sidebar::-webkit-scrollbar-thumb{background:var(--rule)}
+.cat{border-bottom:1px solid var(--rule)}
+.cat-head{padding:7px 12px;font-size:9px;letter-spacing:.2em;color:var(--ink-soft);background:rgba(201,184,150,.12);display:flex;align-items:center;gap:6px}
+.cat-head::before{content:"";width:10px;height:1px;background:var(--ink-soft)}
+.cat-grid{display:grid;grid-template-columns:repeat(3,1fr);padding:4px;gap:3px}
+.sym-btn{aspect-ratio:1;background:var(--paper);border:1px solid transparent;border-radius:2px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:3px;transition:all .1s}
+.sym-btn:hover{border-color:var(--rule)}
+.sym-btn.active{background:var(--ink);border-color:var(--accent)}
+.sym-btn.active .sym-icon path,.sym-btn.active .sym-icon line,.sym-btn.active .sym-icon circle,.sym-btn.active .sym-icon rect,.sym-btn.active .sym-icon polyline{stroke:var(--paper)}
+.sym-btn.active .sfill{fill:var(--paper)!important}
+.sym-btn.active .stext{fill:var(--paper)!important}
+.sym-btn.active .sym-label{color:var(--paper)}
+.sym-icon{width:28px;height:28px}
+.sym-icon path,.sym-icon line,.sym-icon circle,.sym-icon rect,.sym-icon polyline{stroke:var(--ink);fill:none;stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round}
+.sfill{fill:var(--ink);stroke:none!important}
+.stext{fill:var(--ink);font-family:monospace;font-size:5px;stroke:none!important}
+.sym-label{font-size:7.5px;color:var(--ink-soft);text-align:center;line-height:1.1}
+#stage{position:relative;background:var(--paper);overflow:hidden}
+#canvas{display:block;cursor:crosshair}
+#stage.pan #canvas{cursor:grab}
+#stage.panning #canvas{cursor:grabbing}
+#crosshair-info{position:absolute;bottom:8px;left:8px;background:rgba(26,35,50,.85);color:var(--paper);padding:4px 10px;font-size:10px;font-family:monospace;border-radius:2px;pointer-events:none}
+#tool-hint{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:5px 13px;font-size:10px;letter-spacing:.1em;border:1px solid var(--accent);border-radius:2px;pointer-events:none;opacity:0;transition:opacity .2s}
+#tool-hint.show{opacity:1}
+#tool-hint b{color:var(--highlight);font-weight:normal}
+#rightpanel{background:var(--paper);border-left:1px solid var(--rule);overflow-y:auto;display:flex;flex-direction:column}
+#rightpanel::-webkit-scrollbar{width:5px}
+#rightpanel::-webkit-scrollbar-thumb{background:var(--rule)}
+.panel-section{border-bottom:1px solid var(--rule);padding:8px 12px}
+.panel-section h3{font-size:9px;letter-spacing:.2em;color:var(--ink-soft);margin-bottom:7px;display:flex;align-items:center;gap:6px}
+.panel-section h3::before{content:"";width:10px;height:1px;background:var(--ink-soft)}
+.tool-row{display:flex;flex-direction:column;gap:3px}
+.tool-btn{padding:5px 8px;font-size:10px;border:1px solid var(--rule);background:var(--paper);text-align:left;letter-spacing:.05em;display:flex;align-items:center;gap:6px;transition:all .1s}
+.tool-btn:hover{background:rgba(255,255,255,.6);border-color:var(--ink-soft)}
+.tool-btn.active{background:var(--ink);color:var(--paper);border-color:var(--accent)}
+.tool-btn .key{font-family:monospace;font-size:8px;margin-left:auto;opacity:.5;border:1px solid currentColor;padding:1px 3px;border-radius:2px}
+.prop-row{display:flex;align-items:center;gap:6px;font-size:10px;margin-bottom:4px}
+.prop-row label{width:48px;color:var(--ink-soft);letter-spacing:.04em}
+.prop-row input,.prop-row select{flex:1;border:1px solid var(--rule);background:var(--paper);padding:3px 6px;font-family:monospace;font-size:10px;color:var(--ink);border-radius:2px}
+.prop-row input:focus,.prop-row select:focus{outline:none;border-color:var(--accent)}
+.layer-row{display:flex;align-items:center;padding:3px 0;gap:6px;font-size:10px;cursor:pointer}
+.layer-row .swatch{width:11px;height:11px;border:1px solid var(--ink)}
+.layer-row .name{flex:1}
+.layer-row .count{font-family:monospace;font-size:8px;color:var(--ink-soft)}
+.layer-row.hidden .name,.layer-row.hidden .count{opacity:.3;text-decoration:line-through}
+#cond-row{display:flex;gap:3px;margin-bottom:6px}
+.cond-btn{flex:1;padding:4px 2px;font-size:9px;font-family:monospace;border:1px solid var(--rule);background:var(--paper);transition:all .1s;text-align:center}
+.cond-btn.active{background:var(--ink);color:var(--paper);border-color:var(--accent)}
+#statusbar{grid-column:1/-1;background:var(--ink);color:var(--paper);font-size:9px;padding:0 14px;display:flex;align-items:center;gap:14px;font-family:monospace;letter-spacing:.08em}
+.stat{opacity:.7}.stat b{color:var(--highlight);font-weight:normal;margin-left:4px}
+#fileInput{display:none}
+.toast{position:fixed;top:54px;right:16px;background:var(--ink);color:var(--paper);padding:8px 14px;font-size:10px;letter-spacing:.08em;border-left:3px solid var(--accent);z-index:100;opacity:0;transform:translateX(14px);transition:all .3s}
+.toast.show{opacity:1;transform:translateX(0)}
+</style>
+</head>
+<body>
+<div id="app">
+
+<header id="topbar">
+  <h1>住宅電気図面CADシステム<small>JIS C 0303 準拠</small></h1>
+  <button class="tb-btn" id="btnLoadDxf">DXF 読込</button>
+  <button class="tb-btn" id="btnClear">クリア</button>
+  <button class="tb-btn" id="btnFit">全体表示</button>
+  <div class="tb-sep"></div>
+  <span class="tb-info" id="info-counts">S:0 W:0</span>
+  <button class="tb-btn primary" id="btnExportDxf">DXF 出力</button>
+  <button class="tb-btn primary" id="btnExportPdf">PDF</button>
+  <button class="tb-btn primary" id="btnExportPng">PNG</button>
+  <input type="file" id="fileInput" accept=".dxf,.DXF">
+</header>
+
+<aside id="sidebar"></aside>
+
+<main id="stage">
+  <canvas id="canvas"></canvas>
+  <div id="tool-hint"></div>
+  <div id="crosshair-info">— mm</div>
+</main>
+
+<aside id="rightpanel">
+  <div class="panel-section">
+    <h3>ツール</h3>
+    <div class="tool-row">
+      <button class="tool-btn" data-tool="select">選択・移動 <span class="key">V</span></button>
+      <button class="tool-btn" data-tool="wire">配線(実線) <span class="key">W</span></button>
+      <button class="tool-btn" data-tool="wire-dash">隠蔽配線(破線) <span class="key">H</span></button>
+      <button class="tool-btn" data-tool="homerun">引込(ホームラン) <span class="key">M</span></button>
+      <button class="tool-btn" data-tool="text">文字注記 <span class="key">T</span></button>
+    </div>
+  </div>
+
+  <div class="panel-section">
+    <h3>配線設定</h3>
+    <div class="prop-row"><label>電線本数</label></div>
+    <div id="cond-row">
+      <button class="cond-btn active" data-c="2">2本</button>
+      <button class="cond-btn" data-c="3">3本</button>
+      <button class="cond-btn" data-c="4">4本</button>
+      <button class="cond-btn" data-c="5">5本</button>
+    </div>
+    <div class="prop-row">
+      <label>回路番号</label>
+      <input type="text" id="circuitNum" value="" placeholder="例: 1A" maxlength="6">
+    </div>
+    <div class="prop-row">
+      <label>直交方向</label>
+      <select id="orthoMode">
+        <option value="H">水平→垂直</option>
+        <option value="V">垂直→水平</option>
+        <option value="free">自由</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="panel-section">
+    <h3>表示</h3>
+    <div class="prop-row"><label>記号サイズ</label>
+      <input type="number" id="symSize" value="200" step="10" min="50" max="1000"> mm
+    </div>
+    <div class="prop-row"><label>グリッド</label>
+      <select id="snapSize">
+        <option value="0">なし</option>
+        <option value="50">50mm</option>
+        <option value="91" selected>910(半マス)</option>
+        <option value="455">455(柱間)</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="panel-section">
+    <h3>レイヤー</h3>
+    <div id="layerList"></div>
+  </div>
+
+  <div class="panel-section">
+    <h3>選択中</h3>
+    <div id="selectionPanel" style="font-size:10px;color:var(--ink-soft);line-height:1.7">
+      何も選択されていません
+    </div>
+  </div>
+
+  <div class="panel-section" style="margin-top:auto">
+    <h3>キー操作</h3>
+    <div style="font-family:monospace;font-size:9px;line-height:1.8">
+      <div>V . 選択　W . 配線(実線)</div>
+      <div>H . 隠蔽線　M . 引込</div>
+      <div>Tab . 直交方向切替</div>
+      <div>R . 回転90°　Del . 削除</div>
+      <div>Esc . 解除　Ctrl+Z . 元に戻す</div>
+      <div>中ボタンドラッグ . パン</div>
+      <div>ホイール . ズーム</div>
+    </div>
+  </div>
+</aside>
+
+<footer id="statusbar">
+  <span class="stat">縮尺<b id="stat-scale">1:50</b></span>
+  <span class="stat">ZOOM<b id="stat-zoom">100%</b></span>
+  <span class="stat">座標<b id="stat-coord">0,0</b></span>
+  <span class="stat" style="margin-left:auto" id="stat-msg">準備完了</span>
+</footer>
+</div>
+
+<script>
+/* ============================================================
+ * 住宅電気図面CADシステム
+ * JIS C 0303 準拠 / 直交配線 / 電線本数マーク / 3路・4路スイッチ
+ * ============================================================ */
+
+/* ---- 1. 状態 ---- */
+const state = {
+  bgEntities: [],
+  symbols: [],   // {id, type, x, y, rot, layer}
+  wires: [],     // {id, points:[{x,y}], style, conductors, circuit, layer}
+  texts: [],     // {id, x, y, text, height, layer}
+  homeruns: [],  // {id, x, y, rot, circuit, layer}
+  selected: new Set(),
+  tool: 'select',
+  view: { ox:0, oy:0, scale:0.15 },
+  drawingWire: null,
+  orthoMode: 'H',   // 'H'|'V'|'free'
+  conductors: 2,
+  circuitNum: '',
+  hover: { x:0, y:0 },
+  dragging: null,
+  panning: null,
+  history: [],
+  historyIdx: -1,
+  symSize: 200,
+  snap: 91,
+};
+
+/* ---- 2. ユーティリティ ---- */
+function uid(){ return 'i'+Math.random().toString(36).slice(2,9); }
+function rot2(x,y,a){ const c=Math.cos(a),s=Math.sin(a); return [x*c-y*s, x*s+y*c]; }
+
+/* ---- 3. DXFビルダ ---- */
+class DxfBuilder {
+  constructor(){ this.entities=[]; this.layers=new Map(); }
+  layer(name,color){ if(!this.layers.has(name)) this.layers.set(name,color||7); }
+  line(x1,y1,x2,y2,layer){
+    this.layer(layer);
+    this.entities.push(`0\nLINE\n8\n${layer}\n10\n${x1.toFixed(3)}\n20\n${y1.toFixed(3)}\n11\n${x2.toFixed(3)}\n21\n${y2.toFixed(3)}`);
+  }
+  circle(cx,cy,r,layer){
+    this.layer(layer);
+    this.entities.push(`0\nCIRCLE\n8\n${layer}\n10\n${cx.toFixed(3)}\n20\n${cy.toFixed(3)}\n40\n${r.toFixed(3)}`);
+  }
+  arc(cx,cy,r,a1,a2,layer){
+    this.layer(layer);
+    this.entities.push(`0\nARC\n8\n${layer}\n10\n${cx.toFixed(3)}\n20\n${cy.toFixed(3)}\n40\n${r.toFixed(3)}\n50\n${a1.toFixed(3)}\n51\n${a2.toFixed(3)}`);
+  }
+  text(x,y,h,t,layer){
+    this.layer(layer);
+    const safe=String(t).replace(/\n/g,' ');
+    this.entities.push(`0\nTEXT\n8\n${layer}\n10\n${x.toFixed(3)}\n20\n${y.toFixed(3)}\n40\n${h.toFixed(3)}\n1\n${safe}`);
+  }
+  polyline(pts,layer,dashed){
+    if(pts.length<2) return;
+    for(let i=0;i<pts.length-1;i++){
+      const p1=pts[i],p2=pts[i+1];
+      if(!dashed){ this.line(p1.x,p1.y,p2.x,p2.y,layer); continue; }
+      const dx=p2.x-p1.x,dy=p2.y-p1.y,len=Math.hypot(dx,dy);
+      let t=0,on=true;
+      while(t<len){
+        const t2=Math.min(t+(on?105:50),len);
+        if(on) this.line(p1.x+dx*t/len,p1.y+dy*t/len,p1.x+dx*t2/len,p1.y+dy*t2/len,layer);
+        t=t2; on=!on;
+      }
+    }
+  }
+  build(){
+    let s='999\nJIS Residential Electrical CAD\n';
+    s+='0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1009\n9\n$INSUNITS\n70\n4\n0\nENDSEC\n';
+    s+='0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLAYER\n70\n'+this.layers.size+'\n';
+    for(const [name,color] of this.layers)
+      s+=`0\nLAYER\n2\n${name}\n70\n0\n62\n${color}\n6\nCONTINUOUS\n`;
+    s+='0\nENDTAB\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n';
+    for(const e of this.entities) s+=e+'\n';
+    s+='0\nENDSEC\n0\nEOF\n';
+    return s;
+  }
+}
+
+/* ---- 4. レイヤー ---- */
+const LAYERS = {
+  'BG':       { name:'背景(DXF)',  color:'#2d5b8e', dxfColor:5, visible:true },
+  'E-OUTLET': { name:'コンセント', color:'#a83232', dxfColor:1, visible:true },
+  'E-SWITCH': { name:'スイッチ',   color:'#6b3a9e', dxfColor:6, visible:true },
+  'E-LIGHT':  { name:'照明器具',   color:'#c28000', dxfColor:2, visible:true },
+  'E-WEAK':   { name:'弱電・通信', color:'#2e7d4a', dxfColor:3, visible:true },
+  'E-PANEL':  { name:'盤・設備',   color:'#1a5a8e', dxfColor:5, visible:true },
+  'E-WIRE':   { name:'配線',       color:'#1a2332', dxfColor:7, visible:true },
+  'E-HOME':   { name:'引込線',     color:'#a83232', dxfColor:1, visible:true },
+  'E-TEXT':   { name:'文字注記',   color:'#1a2332', dxfColor:7, visible:true },
+};
+
+/* ---- 5. 記号ライブラリ (JIS C 0303) ---- */
+const CATEGORIES = [
+  { id:'outlet', name:'コンセント' },
+  { id:'switch', name:'スイッチ' },
+  { id:'light',  name:'照明器具' },
+  { id:'weak',   name:'弱電・通信' },
+  { id:'panel',  name:'盤・設備' },
+];
+
+const SYMBOLS = {};
+
+/* --- 共通描画ヘルパ --- */
+function pLine(ctx,x1,y1,x2,y2){ ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke(); }
+function pCircle(ctx,cx,cy,r,fill){
+  ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);
+  fill ? ctx.fill() : ctx.stroke();
+}
+function pArc(ctx,cx,cy,r,a1,a2){ ctx.beginPath();ctx.arc(cx,cy,r,a1,a2);ctx.stroke(); }
+function pText(ctx,x,y,h,txt,anchor='center'){
+  ctx.save();
+  ctx.scale(1,-1);
+  ctx.font=`${h*0.88}px "JetBrains Mono",monospace`;
+  ctx.textAlign=anchor; ctx.textBaseline='middle';
+  ctx.fillText(txt,x,-y);
+  ctx.restore();
+}
+
+/* --- コンセント (JIS: 円+2本縦線+横棒) --- */
+function makeOutlet(id,name,suffix,opts={}){
+  SYMBOLS[id]={
+    id,name,cat:'outlet',layer:'E-OUTLET',color:1,
+    paint(ctx,u){
+      pCircle(ctx,0,0,u*.5);
+      // 2本の差込口
+      pLine(ctx,-u*.15,-u*.5,-u*.15,-u*.82);
+      pLine(ctx, u*.15,-u*.5, u*.15,-u*.82);
+      // 横棒
+      pLine(ctx,-u*.45,-u*.82,u*.45,-u*.82);
+      if(opts.earth){
+        // 接地線
+        pLine(ctx,0,-u*.82,0,-u*1.0);
+        pLine(ctx,-u*.15,-u*1.0,u*.15,-u*1.0);
+      }
+      if(opts.twoGang){
+        pLine(ctx,-u*.05,-u*.5,-u*.05,-u*.82);
+        pLine(ctx, u*.05,-u*.5, u*.05,-u*.82);
+      }
+      if(suffix) pText(ctx,u*.85,u*.05,u*.38,suffix,'left');
+    },
+    dxf(b,x,y,rot,layer,u){
+      const tx=(dx,dy)=>{const[a,c]=rot2(dx,dy,rot);return[x+a,y+c];};
+      b.circle(x,y,u*.5,layer);
+      let p1=tx(-u*.15,-u*.5),p2=tx(-u*.15,-u*.82);
+      b.line(p1[0],p1[1],p2[0],p2[1],layer);
+      p1=tx(u*.15,-u*.5);p2=tx(u*.15,-u*.82);
+      b.line(p1[0],p1[1],p2[0],p2[1],layer);
+      p1=tx(-u*.45,-u*.82);p2=tx(u*.45,-u*.82);
+      b.line(p1[0],p1[1],p2[0],p2[1],layer);
+      if(suffix){const tp=tx(u*.85,-u*.05);b.text(tp[0],tp[1],u*.32,suffix,layer);}
+    },
+    icon:`<svg class="sym-icon" viewBox="-14 -14 28 28">
+      <circle cx="0" cy="0" r="5.5"/>
+      <line x1="-2" y1="-5.5" x2="-2" y2="-9"/>
+      <line x1="2" y1="-5.5" x2="2" y2="-9"/>
+      <line x1="-6" y1="-9" x2="6" y2="-9"/>
+      ${suffix?`<text class="stext" x="8" y="1">${suffix}</text>`:''}
+    </svg>`
+  };
+}
+makeOutlet('out-1','一般コンセント',null);
+makeOutlet('out-2g','2口コンセント','2',{twoGang:true});
+makeOutlet('out-E','接地コンセント','E',{earth:true});
+makeOutlet('out-wp','防水コンセント','WP');
+makeOutlet('out-200','200Vコンセント','200V');
+makeOutlet('out-ac','エアコン用','AC');
+makeOutlet('out-ref','冷蔵庫用','RF');
+makeOutlet('out-floor','床コンセント','F');
+
+/* --- スイッチ (JIS: 実線円●+壁方向線) --- */
+function makeSwitch(id,name,mark,opts={}){
+  const r = 0.32;
+  SYMBOLS[id]={
+    id,name,cat:'switch',layer:'E-SWITCH',color:6,
+    paint(ctx,u){
+      // 黒丸 (壁面取付点)
+      ctx.save();
+      ctx.fillStyle=ctx.strokeStyle;
+      pCircle(ctx,0,0,u*r,true);
+      ctx.restore();
+      // 壁方向線 (右上方向)
+      pLine(ctx,u*r,0,u*.85,0);
+      // 3路/4路数字
+      if(mark) pText(ctx,u*1.05,u*.05,u*.38,mark,'left');
+      // 連スイッチ本数
+      if(opts.gang>1) pText(ctx,-u*.7,u*.05,u*.38,String(opts.gang),'center');
+    },
+    dxf(b,x,y,rot,layer,u){
+      b.circle(x,y,u*r,layer);
+      const p1=rot2(u*r,0,rot),p2=rot2(u*.85,0,rot);
+      b.line(x+p1[0],y+p1[1],x+p2[0],y+p2[1],layer);
+      if(mark){const tp=rot2(u*1.05,0,rot);b.text(x+tp[0],y+tp[1],u*.3,mark,layer);}
+    },
+    icon:`<svg class="sym-icon" viewBox="-14 -14 28 28">
+      <circle class="sfill" cx="-2" cy="0" r="4"/>
+      <line x1="2" y1="0" x2="9" y2="0"/>
+      ${mark?`<text class="stext" x="10" y="1">${mark}</text>`:''}
+      ${opts.gang>1?`<text class="stext" x="-12" y="1">${opts.gang}</text>`:''}
+    </svg>`
+  };
+}
+makeSwitch('sw-1','片切スイッチ',null);
+makeSwitch('sw-2','2連スイッチ',null,{gang:2});
+makeSwitch('sw-3','3連スイッチ',null,{gang:3});
+makeSwitch('sw-3way','3路スイッチ','3');
+makeSwitch('sw-4way','4路スイッチ','4');
+makeSwitch('sw-dim','調光スイッチ','R');
+makeSwitch('sw-pir','人感スイッチ','RAS');
+makeSwitch('sw-pull','プルスイッチ','P');
+makeSwitch('sw-key','確認表示灯','L');
+makeSwitch('sw-timer','タイマースイッチ','T');
+
+/* --- 照明器具 --- */
+SYMBOLS['lt-ceiling']={
+  id:'lt-ceiling',name:'シーリング',cat:'light',layer:'E-LIGHT',color:2,
+  paint(ctx,u){
+    pCircle(ctx,0,0,u*.5);
+    const a=u*.354;
+    pLine(ctx,-a,-a,a,a); pLine(ctx,-a,a,a,-a);
+  },
+  dxf(b,x,y,rot,layer,u){
+    b.circle(x,y,u*.5,layer);
+    const a=u*.354;
+    let p1=rot2(-a,-a,rot),p2=rot2(a,a,rot);
+    b.line(x+p1[0],y+p1[1],x+p2[0],y+p2[1],layer);
+    p1=rot2(-a,a,rot);p2=rot2(a,-a,rot);
+    b.line(x+p1[0],y+p1[1],x+p2[0],y+p2[1],layer);
+  },
+  icon:`<svg class="sym-icon" viewBox="-14 -14 28 28">
+    <circle cx="0" cy="0" r="7"/>
+    <line x1="-5" y1="-5" x2="5" y2="5"/>
+    <line x1="-5" y1="5" x2="5" y2="-5"/>
+  </svg>`
+};
+
+SYMBOLS['lt-down']={
+  id:'lt-down',name:'ダウンライト',cat:'light',layer:'E-LIGHT',color:2,
+  paint(ctx,u){ pCircle(ctx,0,0,u*.5); pCircle(ctx,0,0,u*.22); },
+  dxf(b,x,y,rot,layer,u){ b.circle(x,y,u*.5,layer); b.circle(x,y,u*.22,layer); },
+  icon:`<svg class="sym-icon" viewBox="-14 -14 28 28">
+    <circle cx="0" cy="0" r="7"/><circle cx="0" cy="0" r="3"/>
+  </svg>`
+};
+
+SYMBOLS['lt-pendant']={
+  id:'lt-pendant',name:'ペンダント',cat:'light',layer:'E-LIGHT',color:2,
+  paint(ctx,u){
+    pCircle(ctx,0,0,u*.5);
+    pLine(ctx,0,u*.5,0,u*.85);
+    ctx.save();ctx.fillStyle=ctx.strokeStyle;
+    pCircle(ctx,0,u*.85,u*.1,true);ctx.restore();
+  },
+  dxf(b,x,y,rot,layer,u){
+    b.circle(x,y,u*.5,layer);
+    const p1=rot2(0,u*.5,rot),p2=rot2(0,u*.85,rot);
+    b.line(x+p1[0],y+p1[1],x+p2[0],y+p2[1],layer);
+    const p3=rot2(0,u*.85,rot);b.circle(x+p3[0],y+p3[1],u*.1,layer);
+  },
+  icon:`<svg class="sym-icon" viewBox="-14 -14 28 28">
+    <circle cx="0" cy="0" r="7"/>
+    <line x1="0" y1="7" x2="0" y2="11"/>
+    <circle class="sfill" cx="0" cy="11" r="1.5"/>
+  </svg>`
+};
+
+SYMBOLS['lt-bracket']={
+  id:'lt-bracket',name:'ブラケット',cat:'light',layer:'E-LIGHT',color:2,
+  paint(ctx,u){
+    pArc(ctx,0,0,u*.5,Math.PI,0);
+    pLine(ctx,-u*.5,0,u*.5,0);
+  },
+  dxf(b,x,y,rot,layer,u){
+    const ra=(rot*180/Math.PI);
+    b.arc(x,y,u*.5,ra,ra+180,layer);
+    const p1=rot2(-u*.5,0,rot),p2=rot2(u*.5,0,rot);
+    b.line(x+p1[0],y+p1[1],x+p2[0],y+p2[1],layer);
+  },
+  icon:`<svg class="sym-icon" viewBox="-14 -14 28 28">
+    <path d="M-7 0 A7 7 0 0 1 7 0"/>
+    <line x1="-7" y1="0" x2="7" y2="0"/>
+  </svg>`
+};
+
+SYMBOLS['lt-fluor']={
+  id:'lt-fluor',name:'蛍光灯',cat:'light',layer:'E-LIGHT',color:2,
+  paint(ctx,u){
+    ctx.beginPath();ctx.rect(-u*.9,-u*.18,u*1.8,u*.36);ctx.stroke();
+    pLine(ctx,-u*.9,0,u*.9,0);
+  },
+  dxf(b,x,y,rot,layer,u){
+    const corners=[[-u*.9,-u*.18],[u*.9,-u*.18],[u*.9,u*.18],[-u*.9,u*.18]];
+    const tc=corners.map(([a,c])=>{const r=rot2(a,c,rot);return[x+r[0],y+r[1]];});
+    for(let i=0;i<4;i++) b.line(tc[i][0],tc[i][1],tc[(i+1)%4][0],tc[(i+1)%4][1],layer);
+    const p1=rot2(-u*.9,0,rot),p2=rot2(u*.9,0,rot);
+    b.line(x+p1[0],y+p1[1],x+p2[0],y+p2[1],layer);
+  },
+  icon:`<svg class="sym-icon" viewBox="-14 -14 28 28">
+    <rect x="-12" y="-3" width="24" height="6"/>
+    <line x1="-12" y1="0" x2="12" y2="0"/>
+  </svg>`
+};
+
+SYMBOLS['lt-foot']={
+  id:'lt-foot',name:'フットライト',cat:'light',layer:'E-LIGHT',color:2,
+  paint(ctx,u){ pCircle(ctx,0,0,u*.42); pText(ctx,0,0,u*.32,'F'); },
+  dxf(b,x,y,rot,layer,u){ b.circle(x,y,u*.42,layer); b.text(x,y,u*.28,'F',layer); },
+  icon:`<svg class="sym-icon" viewBox="-14 -14 28 28">
+    <circle cx="0" cy="0" r="6"/>
+    <text class="stext" x="0" y="2" text-anchor="middle">F</text>
+  </svg>`
+};
+
+SYMBOLS['lt-spot']={
+  id:'lt-spot',name:'スポットライト',cat:'light',layer:'E-LIGHT',color:2,
+  paint(ctx,u){
+    pCircle(ctx,0,0,u*.42);
+    // 照射方向の三角
+    ctx.beginPath();
+    ctx.moveTo(u*.42,u*.25);ctx.lineTo(u*.42,-u*.25);ctx.lineTo(u*.85,0);ctx.closePath();ctx.stroke();
+  },
+  dxf(b,x,y,rot,layer,u){
+    b.circle(x,y,u*.42,layer);
+    const p1=rot2(u*.42,u*.25,rot),p2=rot2(u*.42,-u*.25,rot),p3=rot2(u*.85,0,rot);
+    b.line(x+p1[0],y+p1[1],x+p2[0],y+p2[1],layer);
+    b.line(x+p2[0],y+p2[1],x+p3[0],y+p3[1],layer);
+    b.line(x+p3[0],y+p3[1],x+p1[0],y+p1[1],layer);
+  },
+  icon:`<svg class="sym-icon" viewBox="-14 -14 28 28">
+    <circle cx="-2" cy="0" r="5"/>
+    <path d="M3 3 L3 -3 L10 0 Z"/>
+  </svg>`
+};
+
+/* --- 弱電・通信 (JIS: 円+文字+接続棒) --- */
+function makeWeak(id,name,letter){
+  SYMBOLS[id]={
+    id,name,cat:'weak',layer:'E-WEAK',color:3,
+    paint(ctx,u){
+      pCircle(ctx,0,0,u*.5);
+      pText(ctx,0,u*.02,u*.44,letter);
+      pLine(ctx,-u*.45,-u*.65,u*.45,-u*.65);
+      pLine(ctx,0,-u*.5,0,-u*.65);
+    },
+    dxf(b,x,y,rot,layer,u){
+      b.circle(x,y,u*.5,layer);
+      b.text(x,y,u*.38,letter,layer);
+      const p1=rot2(-u*.45,-u*.65,rot),p2=rot2(u*.45,-u*.65,rot);
+      b.line(x+p1[0],y+p1[1],x+p2[0],y+p2[1],layer);
+      const p3=rot2(0,-u*.5,rot),p4=rot2(0,-u*.65,rot);
+      b.line(x+p3[0],y+p3[1],x+p4[0],y+p4[1],layer);
+    },
+    icon:`<svg class="sym-icon" viewBox="-14 -14 28 28">
+      <circle cx="0" cy="0" r="7"/>
+      <text class="stext" x="0" y="2" text-anchor="middle">${letter}</text>
+      <line x1="-6" y1="-9" x2="6" y2="-9"/>
+      <line x1="0" y1="-7" x2="0" y2="-9"/>
+    </svg>`
+  };
+}
+makeWeak('wk-tv','TV端子','TV');
+makeWeak('wk-tel','電話','T');
+makeWeak('wk-lan','LAN','LAN');
+makeWeak('wk-int','インターホン(室内)','I');
+makeWeak('wk-int-out','インターホン(玄関)','◐');
+makeWeak('wk-spk','スピーカー','SP');
+makeWeak('wk-fire','住宅用火災警報器','S');
+
+/* --- 盤・設備 --- */
+SYMBOLS['pn-dist']={
+  id:'pn-dist',name:'分電盤',cat:'panel',layer:'E-PANEL',color:5,
+  paint(ctx,u){
+    ctx.beginPath();ctx.rect(-u*.9,-u*.5,u*1.8,u);ctx.stroke();
+    for(let i=0;i<5;i++){
+      const t=-u*.9+i*u*.36;
+      pLine(ctx,t,-u*.5,t+u*.36,u*.5);
+    }
+  },
+  dxf(b,x,y,rot,layer,u){
+    const c=[[-u*.9,-u*.5],[u*.9,-u*.5],[u*.9,u*.5],[-u*.9,u*.5]];
+    const tc=c.map(([a,cv])=>{const r=rot2(a,cv,rot);return[x+r[0],y+r[1]];});
+    for(let i=0;i<4;i++) b.line(tc[i][0],tc[i][1],tc[(i+1)%4][0],tc[(i+1)%4][1],layer);
+    for(let i=0;i<5;i++){
+      const t=-u*.9+i*u*.36;
+      const p1=rot2(t,-u*.5,rot),p2=rot2(t+u*.36,u*.5,rot);
+      b.line(x+p1[0],y+p1[1],x+p2[0],y+p2[1],layer);
+    }
+  },
+  icon:`<svg class="sym-icon" viewBox="-14 -14 28 28">
+    <rect x="-12" y="-7" width="24" height="14"/>
+    <line x1="-8" y1="-7" x2="-4" y2="7"/>
+    <line x1="-3" y1="-7" x2="1" y2="7"/>
+    <line x1="2" y1="-7" x2="6" y2="7"/>
+  </svg>`
+};
+
+SYMBOLS['pn-fan']={
+  id:'pn-fan',name:'換気扇',cat:'panel',layer:'E-PANEL',color:3,
+  paint(ctx,u){
+    ctx.beginPath();ctx.rect(-u*.5,-u*.5,u,u);ctx.stroke();
+    pLine(ctx,-u*.5,-u*.5,u*.5,u*.5);
+    pLine(ctx,-u*.5,u*.5,u*.5,-u*.5);
+  },
+  dxf(b,x,y,rot,layer,u){
+    const c=[[-u*.5,-u*.5],[u*.5,-u*.5],[u*.5,u*.5],[-u*.5,u*.5]];
+    const tc=c.map(([a,cv])=>{const r=rot2(a,cv,rot);return[x+r[0],y+r[1]];});
+    for(let i=0;i<4;i++) b.line(tc[i][0],tc[i][1],tc[(i+1)%4][0],tc[(i+1)%4][1],layer);
+    let p1=rot2(-u*.5,-u*.5,rot),p2=rot2(u*.5,u*.5,rot);
+    b.line(x+p1[0],y+p1[1],x+p2[0],y+p2[1],layer);
+    p1=rot2(-u*.5,u*.5,rot);p2=rot2(u*.5,-u*.5,rot);
+    b.line(x+p1[0],y+p1[1],x+p2[0],y+p2[1],layer);
+  },
+  icon:`<svg class="sym-icon" viewBox="-14 -14 28 28">
+    <rect x="-8" y="-8" width="16" height="16"/>
+    <line x1="-8" y1="-8" x2="8" y2="8"/>
+    <line x1="-8" y1="8" x2="8" y2="-8"/>
+  </svg>`
+};
+
+SYMBOLS['pn-ac']={
+  id:'pn-ac',name:'エアコン(室内機)',cat:'panel',layer:'E-PANEL',color:3,
+  paint(ctx,u){
+    ctx.beginPath();ctx.rect(-u*.9,-u*.32,u*1.8,u*.64);ctx.stroke();
+    pLine(ctx,-u*.7,-u*.08,u*.7,-u*.08);
+    pLine(ctx,-u*.7,u*.08,u*.7,u*.08);
+  },
+  dxf(b,x,y,rot,layer,u){
+    const c=[[-u*.9,-u*.32],[u*.9,-u*.32],[u*.9,u*.32],[-u*.9,u*.32]];
+    const tc=c.map(([a,cv])=>{const r=rot2(a,cv,rot);return[x+r[0],y+r[1]];});
+    for(let i=0;i<4;i++) b.line(tc[i][0],tc[i][1],tc[(i+1)%4][0],tc[(i+1)%4][1],layer);
+    let p1=rot2(-u*.7,-u*.08,rot),p2=rot2(u*.7,-u*.08,rot);
+    b.line(x+p1[0],y+p1[1],x+p2[0],y+p2[1],layer);
+    p1=rot2(-u*.7,u*.08,rot);p2=rot2(u*.7,u*.08,rot);
+    b.line(x+p1[0],y+p1[1],x+p2[0],y+p2[1],layer);
+  },
+  icon:`<svg class="sym-icon" viewBox="-14 -14 28 28">
+    <rect x="-12" y="-5" width="24" height="10"/>
+    <line x1="-9" y1="-1.5" x2="9" y2="-1.5"/>
+    <line x1="-9" y1="1.5" x2="9" y2="1.5"/>
+  </svg>`
+};
+
+SYMBOLS['pn-meter']={
+  id:'pn-meter',name:'電力量計',cat:'panel',layer:'E-PANEL',color:1,
+  paint(ctx,u){ pCircle(ctx,0,0,u*.5); pText(ctx,0,u*.02,u*.36,'Wh'); },
+  dxf(b,x,y,rot,layer,u){ b.circle(x,y,u*.5,layer); b.text(x,y,u*.28,'Wh',layer); },
+  icon:`<svg class="sym-icon" viewBox="-14 -14 28 28">
+    <circle cx="0" cy="0" r="7"/>
+    <text class="stext" x="0" y="2" text-anchor="middle">Wh</text>
+  </svg>`
+};
+
+SYMBOLS['pn-jbox']={
+  id:'pn-jbox',name:'ジョイントBOX',cat:'panel',layer:'E-WIRE',color:7,
+  paint(ctx,u){ pCircle(ctx,0,0,u*.28); },
+  dxf(b,x,y,rot,layer,u){ b.circle(x,y,u*.28,layer); },
+  icon:`<svg class="sym-icon" viewBox="-14 -14 28 28">
+    <circle cx="0" cy="0" r="5"/>
+  </svg>`
+};
+
+/* ---- 6. UI構築 ---- */
+function buildSidebar(){
+  const sb=document.getElementById('sidebar');
+  for(const cat of CATEGORIES){
+    const div=document.createElement('div');
+    div.className='cat';
+    div.innerHTML=`<div class="cat-head">${cat.name}</div><div class="cat-grid"></div>`;
+    const grid=div.querySelector('.cat-grid');
+    for(const k in SYMBOLS){
+      const s=SYMBOLS[k];
+      if(s.cat!==cat.id) continue;
+      const btn=document.createElement('button');
+      btn.className='sym-btn'; btn.dataset.sym=k; btn.title=s.name;
+      btn.innerHTML=s.icon+`<div class="sym-label">${s.name}</div>`;
+      btn.onclick=()=>selectTool(k);
+      grid.appendChild(btn);
+    }
+    sb.appendChild(div);
+  }
+}
+
+function buildLayerPanel(){
+  const list=document.getElementById('layerList');
+  list.innerHTML='';
+  for(const lkey in LAYERS){
+    const l=LAYERS[lkey];
+    const count=lkey==='BG'?state.bgEntities.length:
+      lkey==='E-WIRE'?state.wires.length:
+      lkey==='E-TEXT'?state.texts.length:
+      lkey==='E-HOME'?state.homeruns.length:
+      state.symbols.filter(s=>SYMBOLS[s.type]?.layer===lkey).length;
+    const row=document.createElement('div');
+    row.className='layer-row'+(l.visible?'':' hidden');
+    row.innerHTML=`<span style="font-size:10px;width:14px;color:var(--ink-soft)">${l.visible?'●':'○'}</span>
+      <span class="swatch" style="background:${l.color}"></span>
+      <span class="name">${l.name}</span>
+      <span class="count">${count}</span>`;
+    row.onclick=()=>{l.visible=!l.visible;buildLayerPanel();render();};
+    list.appendChild(row);
+  }
+}
+
+function selectTool(t){
+  state.tool=t;
+  state.drawingWire=null;
+  document.querySelectorAll('.sym-btn').forEach(b=>b.classList.toggle('active',b.dataset.sym===t));
+  document.querySelectorAll('.tool-btn').forEach(b=>b.classList.toggle('active',b.dataset.tool===t));
+  const h=document.getElementById('tool-hint');
+  if(SYMBOLS[t]){ h.innerHTML='記号: <b>'+SYMBOLS[t].name+'</b> — クリックで配置 / Rで回転 / Escで解除'; h.classList.add('show'); }
+  else if(t==='wire'){ h.innerHTML='<b>配線(実線)</b> — クリックで頂点追加 / Tabで直交方向切替 / 右クリック・Escで確定'; h.classList.add('show'); }
+  else if(t==='wire-dash'){ h.innerHTML='<b>隠蔽配線(破線)</b> — クリックで頂点追加 / Tabで直交方向切替 / 右クリック・Escで確定'; h.classList.add('show'); }
+  else if(t==='homerun'){ h.innerHTML='<b>引込(ホームラン)</b> — クリックで配置 / Rで回転'; h.classList.add('show'); }
+  else if(t==='text'){ h.innerHTML='<b>文字注記</b> — クリック位置に文字を入力'; h.classList.add('show'); }
+  else { h.classList.remove('show'); }
+  document.getElementById('stage').classList.toggle('pan',t==='pan');
+  render();
+}
+
+document.querySelectorAll('.tool-btn').forEach(b=>{
+  b.onclick=()=>selectTool(b.dataset.tool);
+});
+document.querySelectorAll('.cond-btn').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('.cond-btn').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    state.conductors=parseInt(b.dataset.c);
+    // 選択中の配線に即時反映
+    if(state.selected.size){
+      pushHistory();
+      for(const id of state.selected){
+        const w=state.wires.find(w=>w.id===id);
+        if(w) w.conductors=state.conductors;
+      }
+      updateSelectionPanel(); render();
+    }
+  };
+});
+document.getElementById('circuitNum').onchange=e=>{
+  state.circuitNum=e.target.value.trim();
+  if(state.selected.size){
+    pushHistory();
+    for(const id of state.selected){
+      const w=state.wires.find(w=>w.id===id);
+      if(w) w.circuit=state.circuitNum;
+      const hr=state.homeruns.find(h=>h.id===id);
+      if(hr) hr.circuit=state.circuitNum;
+    }
+    updateSelectionPanel(); render();
+  }
+};
+document.getElementById('orthoMode').onchange=e=>{ state.orthoMode=e.target.value; };
+
+/* ---- 7. 座標変換 ---- */
+const canvas=document.getElementById('canvas');
+const ctx=canvas.getContext('2d');
+
+function resizeCanvas(){
+  const stage=document.getElementById('stage');
+  const r=stage.getBoundingClientRect();
+  canvas.width=r.width*devicePixelRatio;
+  canvas.height=r.height*devicePixelRatio;
+  canvas.style.width=r.width+'px';
+  canvas.style.height=r.height+'px';
+  render();
+}
+window.addEventListener('resize',resizeCanvas);
+
+function world2screen(x,y){
+  const cx=canvas.width/2,cy=canvas.height/2;
+  const s=state.view.scale*devicePixelRatio;
+  return{x:cx+(x-state.view.ox)*s, y:cy-(y-state.view.oy)*s};
+}
+function screen2world(sx,sy){
+  const cx=canvas.width/2,cy=canvas.height/2;
+  const s=state.view.scale*devicePixelRatio;
+  const px=sx*devicePixelRatio,py=sy*devicePixelRatio;
+  return{x:state.view.ox+(px-cx)/s, y:state.view.oy-(py-cy)/s};
+}
+function snap(wp){
+  if(state.snap<=0) return{x:wp.x,y:wp.y};
+  return{x:Math.round(wp.x/state.snap)*state.snap, y:Math.round(wp.y/state.snap)*state.snap};
+}
+
+/* ---- 8. 直交配線ルーティング ---- */
+function getOrthoPoints(p1, p2, mode){
+  if(mode==='free') return [p1,p2];
+  const dx=Math.abs(p2.x-p1.x), dy=Math.abs(p2.y-p1.y);
+  if(dx<1 || dy<1) return [p1,p2]; // 既に直線
+  if(mode==='H'){
+    return [p1, {x:p2.x, y:p1.y}, p2];
+  } else {
+    return [p1, {x:p1.x, y:p2.y}, p2];
+  }
+}
+
+/* ---- 9. レンダリング ---- */
+function render(){
+  const w=canvas.width,h=canvas.height;
+  ctx.fillStyle='#f4ecd8';
+  ctx.fillRect(0,0,w,h);
+  drawGrid();
+  if(LAYERS['BG'].visible) drawBackground();
+  if(LAYERS['E-WIRE'].visible) drawWires();
+  if(LAYERS['E-HOME'].visible) drawHomeruns();
+  if(LAYERS['E-TEXT'].visible) drawTexts();
+  drawSymbols();
+  if(state.drawingWire) drawWirePreview();
+  drawSheetFrame();
+  updateStats();
+}
+
+function drawGrid(){
+  if(state.snap<=0) return;
+  const s=state.view.scale*devicePixelRatio;
+  if(s<0.04) return;
+  const tl=screen2world(0,0);
+  const br=screen2world(canvas.width/devicePixelRatio,canvas.height/devicePixelRatio);
+  const step=state.snap;
+  const xMin=Math.floor(tl.x/step)*step,xMax=Math.ceil(br.x/step)*step;
+  const yMin=Math.floor(br.y/step)*step,yMax=Math.ceil(tl.y/step)*step;
+  ctx.strokeStyle='rgba(168,50,50,0.06)';ctx.lineWidth=1;
+  ctx.beginPath();
+  for(let x=xMin;x<=xMax;x+=step){const p1=world2screen(x,yMin),p2=world2screen(x,yMax);ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);}
+  for(let y=yMin;y<=yMax;y+=step){const p1=world2screen(xMin,y),p2=world2screen(xMax,y);ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);}
+  ctx.stroke();
+  // 原点
+  const o=world2screen(0,0);
+  ctx.strokeStyle='rgba(168,50,50,0.35)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(o.x-10,o.y);ctx.lineTo(o.x+10,o.y);ctx.moveTo(o.x,o.y-10);ctx.lineTo(o.x,o.y+10);ctx.stroke();
+}
+
+function drawBackground(){
+  ctx.strokeStyle=LAYERS['BG'].color;ctx.lineWidth=1.0;ctx.lineCap='round';ctx.lineJoin='round';
+  for(const e of state.bgEntities){
+    if(e.type==='LINE'){
+      const p1=world2screen(e.x1,e.y1),p2=world2screen(e.x2,e.y2);
+      ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.stroke();
+    } else if(e.type==='POLYLINE'){
+      ctx.beginPath();
+      for(let i=0;i<e.points.length;i++){const p=world2screen(e.points[i].x,e.points[i].y);i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y);}
+      if(e.closed) ctx.closePath();
+      ctx.stroke();
+    } else if(e.type==='CIRCLE'){
+      const p=world2screen(e.cx,e.cy);const r=e.r*state.view.scale*devicePixelRatio;
+      ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.stroke();
+    } else if(e.type==='ARC'){
+      const p=world2screen(e.cx,e.cy);const r=e.r*state.view.scale*devicePixelRatio;
+      ctx.beginPath();ctx.arc(p.x,p.y,r,-e.endAngle*Math.PI/180,-e.startAngle*Math.PI/180);ctx.stroke();
+    } else if(e.type==='TEXT'){
+      const p=world2screen(e.x,e.y);const hh=e.h*state.view.scale*devicePixelRatio;
+      if(hh<5) continue;
+      ctx.fillStyle=LAYERS['BG'].color;ctx.font=`${hh}px serif`;ctx.textBaseline='alphabetic';ctx.fillText(e.text,p.x,p.y);
+    }
+  }
+}
+
+/* 電線本数マーク（斜め線）を配線セグメント上に描画 */
+function drawConductorMarks(pts, conductors, selW){
+  if(conductors<=1) return;
+  const s=state.view.scale*devicePixelRatio;
+  const markLen=6; // px
+  const spacing=5; // px between marks
+  for(let i=0;i<pts.length-1;i++){
+    const p1=world2screen(pts[i].x,pts[i].y);
+    const p2=world2screen(pts[i+1].x,pts[i+1].y);
+    const len=Math.hypot(p2.x-p1.x,p2.y-p1.y);
+    if(len<20) continue;
+    const dx=(p2.x-p1.x)/len, dy=(p2.y-p1.y)/len;
+    const mx=(p1.x+p2.x)/2, my=(p1.y+p2.y)/2;
+    const total=(conductors-1)*spacing;
+    ctx.lineWidth=selW?2:1.2;
+    for(let j=0;j<conductors;j++){
+      const off=-total/2+j*spacing;
+      const cx2=mx+dx*off, cy2=my+dy*off;
+      // 45°の斜め線 (ワイヤ方向に対して垂直方向に markLen/2 ずつ)
+      ctx.beginPath();
+      ctx.moveTo(cx2-dy*markLen-dx*markLen*0.5, cy2+dx*markLen-dy*markLen*0.5);
+      ctx.lineTo(cx2+dy*markLen+dx*markLen*0.5, cy2-dx*markLen+dy*markLen*0.5);
+      ctx.stroke();
+    }
+  }
+}
+
+function drawWires(){
+  ctx.lineCap='round';ctx.lineJoin='round';
+  for(const w of state.wires){
+    if(w.points.length<2) continue;
+    const sel=state.selected.has(w.id);
+    const col=LAYERS['E-WIRE'].color;
+    ctx.strokeStyle=sel?'rgba(168,50,50,0.9)':col;
+    ctx.lineWidth=sel?2.8:1.6;
+    if(w.style==='dash') ctx.setLineDash([8,4]); else ctx.setLineDash([]);
+    ctx.beginPath();
+    for(let i=0;i<w.points.length;i++){
+      const p=world2screen(w.points[i].x,w.points[i].y);
+      i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // 電線本数マーク
+    ctx.strokeStyle=sel?'rgba(168,50,50,0.9)':col;
+    drawConductorMarks(w.points, w.conductors||2, sel);
+    // 回路番号
+    if(w.circuit && w.points.length>=2){
+      const mid=Math.floor((w.points.length-1)/2);
+      const pm=world2screen(w.points[mid].x, w.points[mid].y);
+      const s=state.view.scale*devicePixelRatio;
+      const h=Math.max(8, 80*s);
+      if(h>7){
+        ctx.save();
+        ctx.fillStyle=col;
+        ctx.font=`${h}px monospace`;
+        ctx.textAlign='center';ctx.textBaseline='bottom';
+        ctx.fillText(w.circuit, pm.x, pm.y-3);
+        ctx.restore();
+      }
+    }
+    // 選択ハイライト
+    if(sel){
+      ctx.strokeStyle='rgba(168,50,50,0.4)';ctx.lineWidth=1;ctx.setLineDash([4,3]);
+      for(const pt of w.points){
+        const sp=world2screen(pt.x,pt.y);
+        ctx.beginPath();ctx.arc(sp.x,sp.y,5,0,Math.PI*2);ctx.stroke();
+      }
+      ctx.setLineDash([]);
+    }
+  }
+}
+
+function drawWirePreview(){
+  const w=state.drawingWire;
+  if(!w||w.points.length<1) return;
+  const lastPt=w.points[w.points.length-1];
+  const hover=state.hover;
+  // 直交プレビューポイント計算
+  const previewPts=[...w.points, ...getOrthoPoints(lastPt, hover, state.orthoMode).slice(1)];
+
+  ctx.strokeStyle='rgba(168,50,50,0.65)';ctx.lineWidth=1.5;
+  if(w.style==='dash') ctx.setLineDash([8,4]); else ctx.setLineDash([]);
+  ctx.beginPath();
+  for(let i=0;i<previewPts.length;i++){
+    const p=world2screen(previewPts[i].x,previewPts[i].y);
+    i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.strokeStyle='rgba(168,50,50,0.65)';
+  drawConductorMarks(previewPts, w.conductors||2, false);
+  // 確定済み頂点
+  for(const pt of w.points){
+    const sp=world2screen(pt.x,pt.y);
+    ctx.fillStyle='rgba(168,50,50,0.8)';
+    ctx.beginPath();ctx.arc(sp.x,sp.y,3,0,Math.PI*2);ctx.fill();
+  }
+}
+
+function drawHomeruns(){
+  const s=state.view.scale*devicePixelRatio;
+  const u=Math.max(6, 180*s);
+  for(const hr of state.homeruns){
+    const p=world2screen(hr.x,hr.y);
+    const sel=state.selected.has(hr.id);
+    ctx.save();
+    ctx.translate(p.x,p.y);
+    ctx.rotate(-hr.rot);
+    ctx.strokeStyle=sel?'rgba(168,50,50,0.9)':LAYERS['E-HOME'].color;
+    ctx.fillStyle=ctx.strokeStyle;
+    ctx.lineWidth=sel?2.2:1.4;
+    ctx.lineCap='round';ctx.lineJoin='round';
+    // 矢印 (→ 向き)
+    ctx.beginPath();
+    ctx.moveTo(-u*.8,0);ctx.lineTo(u*.8,0);
+    ctx.moveTo(u*.4,-u*.35);ctx.lineTo(u*.8,0);ctx.lineTo(u*.4,u*.35);
+    ctx.stroke();
+    // 底辺の2本線
+    ctx.beginPath();
+    ctx.moveTo(-u*.8,-u*.22);ctx.lineTo(-u*.8,u*.22);
+    ctx.stroke();
+    // 回路番号
+    if(hr.circuit){
+      ctx.scale(1,-1);
+      ctx.font=`${Math.max(9,u*.45)}px monospace`;
+      ctx.textAlign='center';ctx.textBaseline='bottom';
+      ctx.fillText(hr.circuit,0,-u*.2);
+    }
+    ctx.restore();
+    if(sel){
+      ctx.strokeStyle='rgba(168,50,50,0.4)';ctx.lineWidth=1;ctx.setLineDash([3,2]);
+      ctx.strokeRect(p.x-u*.9,p.y-u*.5,u*1.8,u);
+      ctx.setLineDash([]);
+    }
+  }
+}
+
+function drawSymbols(){
+  for(const sym of state.symbols){
+    const def=SYMBOLS[sym.type];
+    if(!def) continue;
+    if(!LAYERS[def.layer]?.visible) continue;
+    const p=world2screen(sym.x,sym.y);
+    const u=state.symSize/2*state.view.scale*devicePixelRatio;
+    const sel=state.selected.has(sym.id);
+    ctx.save();
+    ctx.translate(p.x,p.y);
+    ctx.rotate(-sym.rot);
+    ctx.scale(1,-1);
+    ctx.strokeStyle=LAYERS[def.layer].color;
+    ctx.fillStyle=LAYERS[def.layer].color;
+    ctx.lineWidth=sel?2.4:1.4;
+    ctx.lineCap='round';ctx.lineJoin='round';
+    def.paint(ctx,u);
+    if(sel){
+      ctx.strokeStyle='rgba(168,50,50,0.55)';ctx.lineWidth=1;ctx.setLineDash([4,3]);
+      ctx.scale(1,-1);
+      ctx.strokeRect(-u*1.1,-u*1.1,u*2.2,u*2.2);
+      ctx.setLineDash([]);
+    }
+    ctx.restore();
+  }
+}
+
+function drawTexts(){
+  const s=state.view.scale*devicePixelRatio;
+  ctx.fillStyle=LAYERS['E-TEXT'].color;
+  for(const t of state.texts){
+    const p=world2screen(t.x,t.y);
+    const h=Math.max(5,t.height*s);
+    if(h<4) continue;
+    ctx.font=`${h}px "Hiragino Mincho ProN",serif`;
+    ctx.textAlign='left';ctx.textBaseline='middle';
+    const sel=state.selected.has(t.id);
+    if(sel){
+      const tw=ctx.measureText(t.text).width;
+      ctx.strokeStyle='rgba(168,50,50,0.5)';ctx.lineWidth=1;ctx.setLineDash([3,2]);
+      ctx.strokeRect(p.x-2,p.y-h/2-2,tw+4,h+4);ctx.setLineDash([]);
+    }
+    ctx.fillText(t.text,p.x,p.y);
+  }
+}
+
+function drawSheetFrame(){
+  const w=canvas.width,h=canvas.height;
+  const lenPx=1000*state.view.scale*devicePixelRatio;
+  if(lenPx<25||lenPx>w*.4) return;
+  const x0=w-lenPx-24,y0=h-22;
+  ctx.strokeStyle='#1a2332';ctx.fillStyle='#1a2332';ctx.lineWidth=1.2;
+  ctx.beginPath();
+  ctx.moveTo(x0,y0);ctx.lineTo(x0+lenPx,y0);
+  ctx.moveTo(x0,y0-4);ctx.lineTo(x0,y0+4);
+  ctx.moveTo(x0+lenPx,y0-4);ctx.lineTo(x0+lenPx,y0+4);
+  ctx.stroke();
+  ctx.font='9px monospace';ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText('1000mm',x0+lenPx/2,y0+6);
+}
+
+/* ---- 10. 入力 ---- */
+canvas.addEventListener('contextmenu',e=>e.preventDefault());
+
+canvas.addEventListener('mousedown',e=>{
+  const rect=canvas.getBoundingClientRect();
+  const sx=e.clientX-rect.left,sy=e.clientY-rect.top;
+  const wp=screen2world(sx,sy);
+  const sp=snap(wp);
+
+  if(e.button===1||(e.button===0&&spacePressed)){
+    state.panning={sx,sy,ox:state.view.ox,oy:state.view.oy};
+    document.getElementById('stage').classList.add('panning');
+    return;
+  }
+
+  if(e.button===2){
+    if(state.drawingWire&&state.drawingWire.points.length>=2) finishWire();
+    else{ state.drawingWire=null; state.selected.clear(); render(); }
+    return;
+  }
+  if(e.button!==0) return;
+
+  const t=state.tool;
+
+  if(SYMBOLS[t]){
+    pushHistory();
+    state.symbols.push({id:uid(),type:t,x:sp.x,y:sp.y,rot:0,layer:SYMBOLS[t].layer});
+    buildLayerPanel(); render(); return;
+  }
+
+  if(t==='wire'||t==='wire-dash'){
+    if(!state.drawingWire){
+      state.drawingWire={id:uid(),points:[{x:sp.x,y:sp.y}],style:t==='wire-dash'?'dash':'solid',conductors:state.conductors,circuit:state.circuitNum,layer:'E-WIRE'};
+    } else {
+      // 直交パスで確定済み点を追加
+      const lastPt=state.drawingWire.points[state.drawingWire.points.length-1];
+      const ortho=getOrthoPoints(lastPt,sp,state.orthoMode);
+      for(let i=1;i<ortho.length;i++) state.drawingWire.points.push(ortho[i]);
+    }
+    render(); return;
+  }
+
+  if(t==='homerun'){
+    pushHistory();
+    state.homeruns.push({id:uid(),x:sp.x,y:sp.y,rot:0,circuit:state.circuitNum,layer:'E-HOME'});
+    buildLayerPanel(); render(); return;
+  }
+
+  if(t==='text'){
+    const txt=prompt('文字を入力:');
+    if(txt&&txt.trim()){
+      pushHistory();
+      state.texts.push({id:uid(),x:sp.x,y:sp.y,text:txt.trim(),height:state.symSize*.4,layer:'E-TEXT'});
+      buildLayerPanel(); render();
+    }
+    return;
+  }
+
+  // 選択
+  const hit=pickAt(wp.x,wp.y);
+  if(!e.shiftKey) state.selected.clear();
+  if(hit){
+    state.selected.add(hit.id);
+    state.dragging={id:hit.id,kind:hit.kind,startW:wp,orig:snapshotItem(hit)};
+    // 配線の場合、プロパティをパネルに反映
+    if(hit.kind==='wire'){
+      const fw=state.wires.find(w=>w.id===hit.id);
+      if(fw){
+        state.conductors=fw.conductors||2;
+        document.querySelectorAll('.cond-btn').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.c)===state.conductors));
+        document.getElementById('circuitNum').value=fw.circuit||'';
+      }
+    }
+    if(hit.kind==='homerun'){
+      const fh=state.homeruns.find(h=>h.id===hit.id);
+      if(fh) document.getElementById('circuitNum').value=fh.circuit||'';
+    }
+  }
+  updateSelectionPanel(); render();
+});
+
+canvas.addEventListener('mousemove',e=>{
+  const rect=canvas.getBoundingClientRect();
+  const sx=e.clientX-rect.left,sy=e.clientY-rect.top;
+  const wp=screen2world(sx,sy);
+  state.hover=snap(wp);
+
+  if(state.panning){
+    state.view.ox=state.panning.ox-(sx-state.panning.sx)/state.view.scale;
+    state.view.oy=state.panning.oy+(sy-state.panning.sy)/state.view.scale;
+    render(); return;
+  }
+  if(state.dragging){
+    const sp2=snap(wp);
+    const dx=sp2.x-state.dragging.startW.x, dy=sp2.y-state.dragging.startW.y;
+    const orig=state.dragging.orig;
+    if(state.dragging.kind==='symbol'){
+      const s=state.symbols.find(s=>s.id===state.dragging.id);
+      if(s){s.x=orig.x+dx;s.y=orig.y+dy;}
+    } else if(state.dragging.kind==='text'){
+      const s=state.texts.find(s=>s.id===state.dragging.id);
+      if(s){s.x=orig.x+dx;s.y=orig.y+dy;}
+    } else if(state.dragging.kind==='wire'){
+      const w=state.wires.find(w=>w.id===state.dragging.id);
+      if(w) w.points=orig.points.map(p=>({x:p.x+dx,y:p.y+dy}));
+    } else if(state.dragging.kind==='homerun'){
+      const hr=state.homeruns.find(h=>h.id===state.dragging.id);
+      if(hr){hr.x=orig.x+dx;hr.y=orig.y+dy;}
+    }
+    render();
+  } else if(state.drawingWire){
+    render();
+  }
+  const sp=snap(wp);
+  document.getElementById('stat-coord').textContent=`${Math.round(sp.x)},${Math.round(sp.y)}`;
+  document.getElementById('crosshair-info').textContent=`X=${Math.round(sp.x)}  Y=${Math.round(sp.y)} mm`;
+});
+
+canvas.addEventListener('mouseup',e=>{
+  if(state.panning){state.panning=null;document.getElementById('stage').classList.remove('panning');}
+  if(state.dragging){pushHistory();state.dragging=null;}
+});
+
+canvas.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const rect=canvas.getBoundingClientRect();
+  const sx=e.clientX-rect.left,sy=e.clientY-rect.top;
+  const wp=screen2world(sx,sy);
+  const factor=e.deltaY<0?1.15:1/1.15;
+  state.view.scale=Math.max(0.003,Math.min(state.view.scale*factor,8));
+  const wp2=screen2world(sx,sy);
+  state.view.ox+=wp.x-wp2.x;state.view.oy+=wp.y-wp2.y;
+  render();
+},{passive:false});
+
+let spacePressed=false;
+window.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT'||e.target.tagName==='TEXTAREA') return;
+  if(e.code==='Space'){spacePressed=true;document.getElementById('stage').classList.add('pan');e.preventDefault();}
+  if(e.key==='Tab'){
+    e.preventDefault();
+    const modes=['H','V','free'];
+    const idx=modes.indexOf(state.orthoMode);
+    state.orthoMode=modes[(idx+1)%modes.length];
+    document.getElementById('orthoMode').value=state.orthoMode;
+    toast(`直交モード: ${state.orthoMode==='H'?'水平→垂直':state.orthoMode==='V'?'垂直→水平':'自由'}`);
+    render();
+  }
+  if(e.key==='Escape'){
+    if(state.drawingWire&&state.drawingWire.points.length>=2) finishWire();
+    else{ state.drawingWire=null; state.selected.clear(); selectTool('select'); }
+    render();
+  }
+  if(e.key==='Delete'||e.key==='Backspace'){
+    if(state.selected.size){
+      pushHistory();
+      state.symbols=state.symbols.filter(s=>!state.selected.has(s.id));
+      state.wires=state.wires.filter(w=>!state.selected.has(w.id));
+      state.texts=state.texts.filter(t=>!state.selected.has(t.id));
+      state.homeruns=state.homeruns.filter(h=>!state.selected.has(h.id));
+      state.selected.clear();
+      buildLayerPanel();updateSelectionPanel();render();
+    }
+  }
+  if(e.key==='r'||e.key==='R'){
+    if(state.selected.size){
+      pushHistory();
+      for(const id of state.selected){
+        const s=state.symbols.find(s=>s.id===id);
+        if(s) s.rot=(s.rot+Math.PI/2)%(Math.PI*2);
+        const hr=state.homeruns.find(h=>h.id===id);
+        if(hr) hr.rot=(hr.rot+Math.PI/2)%(Math.PI*2);
+      }
+      updateSelectionPanel();render();
+    }
+  }
+  if(e.key==='v'||e.key==='V') selectTool('select');
+  if(e.key==='w'||e.key==='W') selectTool('wire');
+  if(e.key==='h'||e.key==='H') selectTool('wire-dash');
+  if(e.key==='m'||e.key==='M') selectTool('homerun');
+  if(e.key==='t'||e.key==='T') selectTool('text');
+  if((e.ctrlKey||e.metaKey)&&e.key==='z'){undo();e.preventDefault();}
+  if((e.ctrlKey||e.metaKey)&&(e.key==='y'||(e.shiftKey&&e.key==='Z'))){redo();e.preventDefault();}
+});
+window.addEventListener('keyup',e=>{
+  if(e.code==='Space'){spacePressed=false;document.getElementById('stage').classList.remove('pan');}
+});
+
+function finishWire(){
+  if(state.drawingWire&&state.drawingWire.points.length>=2){
+    pushHistory();
+    state.wires.push(state.drawingWire);
+    buildLayerPanel();
+  }
+  state.drawingWire=null;render();
+}
+
+function pickAt(x,y){
+  const tol=state.symSize*.65;
+  for(let i=state.symbols.length-1;i>=0;i--){
+    const s=state.symbols[i];
+    if(Math.abs(s.x-x)<tol&&Math.abs(s.y-y)<tol) return{id:s.id,kind:'symbol'};
+  }
+  for(let i=state.homeruns.length-1;i>=0;i--){
+    const h=state.homeruns[i];
+    if(Math.abs(h.x-x)<tol&&Math.abs(h.y-y)<tol) return{id:h.id,kind:'homerun'};
+  }
+  for(let i=state.texts.length-1;i>=0;i--){
+    const t=state.texts[i];
+    const tw=t.text.length*t.height*.6;
+    if(x>=t.x-2&&x<=t.x+tw&&Math.abs(y-t.y)<t.height) return{id:t.id,kind:'text'};
+  }
+  for(let i=state.wires.length-1;i>=0;i--){
+    const w=state.wires[i];
+    for(let j=0;j<w.points.length-1;j++){
+      if(distToSeg({x,y},w.points[j],w.points[j+1])<state.symSize*.35) return{id:w.id,kind:'wire'};
+    }
+  }
+  return null;
+}
+function distToSeg(p,a,b){
+  const dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;
+  if(l2===0) return Math.hypot(p.x-a.x,p.y-a.y);
+  let t=((p.x-a.x)*dx+(p.y-a.y)*dy)/l2;
+  t=Math.max(0,Math.min(1,t));
+  return Math.hypot(p.x-a.x-t*dx,p.y-a.y-t*dy);
+}
+function snapshotItem(hit){
+  if(hit.kind==='symbol'){const s=state.symbols.find(s=>s.id===hit.id);return{x:s.x,y:s.y};}
+  if(hit.kind==='text'){const s=state.texts.find(s=>s.id===hit.id);return{x:s.x,y:s.y};}
+  if(hit.kind==='wire'){const s=state.wires.find(w=>w.id===hit.id);return{points:s.points.map(p=>({...p}))};}
+  if(hit.kind==='homerun'){const s=state.homeruns.find(h=>h.id===hit.id);return{x:s.x,y:s.y};}
+  return{};
+}
+
+/* ---- 11. 履歴 ---- */
+function deepCopy(){
+  return{
+    symbols:JSON.parse(JSON.stringify(state.symbols)),
+    wires:JSON.parse(JSON.stringify(state.wires)),
+    texts:JSON.parse(JSON.stringify(state.texts)),
+    homeruns:JSON.parse(JSON.stringify(state.homeruns)),
+  };
+}
+function pushHistory(){
+  state.history=state.history.slice(0,state.historyIdx+1);
+  state.history.push(deepCopy());
+  if(state.history.length>60) state.history.shift();
+  state.historyIdx=state.history.length-1;
+}
+function applyHistory(snap){
+  state.symbols=snap.symbols;state.wires=snap.wires;state.texts=snap.texts;state.homeruns=snap.homeruns;
+  state.selected.clear();
+}
+function undo(){
+  if(state.historyIdx>0){state.historyIdx--;applyHistory(JSON.parse(JSON.stringify(state.history[state.historyIdx])));buildLayerPanel();updateSelectionPanel();render();}
+}
+function redo(){
+  if(state.historyIdx<state.history.length-1){state.historyIdx++;applyHistory(JSON.parse(JSON.stringify(state.history[state.historyIdx])));buildLayerPanel();updateSelectionPanel();render();}
+}
+
+/* ---- 12. DXF 読込 ---- */
+function parseDxf(text){
+  const lines=text.split(/\r?\n/);
+  const pairs=[];
+  for(let i=0;i<lines.length-1;i+=2){
+    const code=parseInt(lines[i].trim(),10);
+    const value=lines[i+1];
+    if(isNaN(code)){i--;continue;}
+    pairs.push([code,value]);
+  }
+  const entities=[];
+  let inEnt=false,cur=null,polyPts=[],inPoly=false,polyClosed=false;
+  for(const [code,value] of pairs){
+    if(code===0){
+      if(cur&&inEnt) finalizeDxf(cur);
+      const v=(value||'').trim();
+      if(v==='ENDSEC'){inEnt=false;cur=null;}
+      else if(v==='EOF') break;
+      else if(inEnt){
+        if(v==='SEQEND'){
+          if(inPoly) entities.push({type:'POLYLINE',points:polyPts.slice(),closed:polyClosed});
+          polyPts=[];inPoly=false;polyClosed=false;cur=null;
+        } else {
+          cur={type:v};
+          if(v==='POLYLINE'){inPoly=true;polyPts=[];polyClosed=false;}
+        }
+      }
+    } else if(code===2){
+      if((value||'').trim()==='ENTITIES') inEnt=true;
+    } else if(inEnt&&cur){
+      const num=parseFloat(value);
+      switch(cur.type){
+        case 'LINE':
+          if(code===10)cur.x1=num;else if(code===20)cur.y1=num;
+          else if(code===11)cur.x2=num;else if(code===21)cur.y2=num;break;
+        case 'LWPOLYLINE':
+          if(code===10)cur._x=num;
+          else if(code===20)(cur.points=cur.points||[]).push({x:cur._x,y:num});
+          else if(code===70)cur.closed=(parseInt(value,10)&1)===1;break;
+        case 'POLYLINE':
+          if(code===70)polyClosed=(parseInt(value,10)&1)===1;break;
+        case 'VERTEX':
+          if(code===10)cur._x=num;else if(code===20)cur._y=num;break;
+        case 'CIRCLE':
+          if(code===10)cur.cx=num;else if(code===20)cur.cy=num;else if(code===40)cur.r=num;break;
+        case 'ARC':
+          if(code===10)cur.cx=num;else if(code===20)cur.cy=num;else if(code===40)cur.r=num;
+          else if(code===50)cur.startAngle=num;else if(code===51)cur.endAngle=num;break;
+        case 'TEXT':case 'MTEXT':
+          if(code===10)cur.x=num;else if(code===20)cur.y=num;else if(code===40)cur.h=num;
+          else if(code===1)cur.text=(cur.text||'')+value;break;
+      }
+    }
+  }
+  if(cur&&inEnt) finalizeDxf(cur);
+  if(inPoly&&polyPts.length>0) entities.push({type:'POLYLINE',points:polyPts.slice(),closed:polyClosed});
+  return entities;
+
+  function finalizeDxf(e){
+    if(e.type==='LINE'&&e.x1!==undefined) entities.push({type:'LINE',x1:e.x1,y1:e.y1,x2:e.x2,y2:e.y2});
+    else if(e.type==='LWPOLYLINE'&&e.points) entities.push({type:'POLYLINE',points:e.points,closed:!!e.closed});
+    else if(e.type==='VERTEX'&&inPoly&&e._x!==undefined) polyPts.push({x:e._x,y:e._y});
+    else if(e.type==='CIRCLE'&&e.cx!==undefined) entities.push({type:'CIRCLE',cx:e.cx,cy:e.cy,r:e.r});
+    else if(e.type==='ARC'&&e.cx!==undefined) entities.push({type:'ARC',cx:e.cx,cy:e.cy,r:e.r,startAngle:e.startAngle||0,endAngle:e.endAngle||360});
+    else if((e.type==='TEXT'||e.type==='MTEXT')&&e.text) entities.push({type:'TEXT',x:e.x||0,y:e.y||0,h:e.h||100,text:e.text});
+  }
+}
+
+document.getElementById('btnLoadDxf').onclick=()=>document.getElementById('fileInput').click();
+document.getElementById('fileInput').onchange=e=>{
+  const f=e.target.files[0];if(!f) return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const utf8=ev.target.result;
+    if((utf8.match(/�/g)||[]).length>5){
+      const r2=new FileReader();
+      r2.onload=ev2=>loadDxfText(ev2.target.result,f.name);
+      r2.readAsText(f,'shift-jis');return;
+    }
+    loadDxfText(utf8,f.name);
+  };
+  reader.readAsText(f,'utf-8');
+};
+function loadDxfText(text,name){
+  pushHistory();
+  state.bgEntities=parseDxf(text);
+  toast(`${name} を読込: ${state.bgEntities.length} 図形`);
+  buildLayerPanel();fitView();
+}
+
+document.getElementById('btnFit').onclick=fitView;
+function fitView(){
+  const all=[];
+  for(const e of state.bgEntities){
+    if(e.type==='LINE') all.push([e.x1,e.y1],[e.x2,e.y2]);
+    else if(e.type==='POLYLINE') for(const p of e.points) all.push([p.x,p.y]);
+    else if(e.type==='CIRCLE') all.push([e.cx-e.r,e.cy-e.r],[e.cx+e.r,e.cy+e.r]);
+    else if(e.type==='ARC') all.push([e.cx-e.r,e.cy-e.r],[e.cx+e.r,e.cy+e.r]);
+    else if(e.type==='TEXT') all.push([e.x,e.y]);
+  }
+  for(const s of state.symbols) all.push([s.x,s.y]);
+  for(const w of state.wires) for(const p of w.points) all.push([p.x,p.y]);
+  for(const h of state.homeruns) all.push([h.x,h.y]);
+  if(all.length===0){state.view={ox:0,oy:0,scale:0.15};render();return;}
+  let xmin=Infinity,ymin=Infinity,xmax=-Infinity,ymax=-Infinity;
+  for(const [x,y] of all){xmin=Math.min(xmin,x);ymin=Math.min(ymin,y);xmax=Math.max(xmax,x);ymax=Math.max(ymax,y);}
+  const bw=xmax-xmin,bh=ymax-ymin,margin=Math.max(bw,bh)*.12+1000;
+  state.view.ox=(xmin+xmax)/2;state.view.oy=(ymin+ymax)/2;
+  const aw=canvas.width/devicePixelRatio-80,ah=canvas.height/devicePixelRatio-80;
+  state.view.scale=Math.min(aw/(bw+margin),ah/(bh+margin));
+  if(!isFinite(state.view.scale)||state.view.scale<=0) state.view.scale=0.15;
+  render();
+}
+
+/* ---- 13. 出力 ---- */
+document.getElementById('btnClear').onclick=()=>{
+  if(!confirm('すべての記号・配線・注記を削除しますか?')) return;
+  pushHistory();
+  state.symbols=[];state.wires=[];state.texts=[];state.homeruns=[];
+  state.selected.clear();buildLayerPanel();render();
+};
+
+document.getElementById('btnExportDxf').onclick=exportDxf;
+document.getElementById('btnExportPng').onclick=exportPng;
+document.getElementById('btnExportPdf').onclick=exportPdf;
+
+function exportDxf(){
+  const b=new DxfBuilder();
+  for(const k in LAYERS) b.layer(k,LAYERS[k].dxfColor);
+  // 背景
+  for(const e of state.bgEntities){
+    if(e.type==='LINE') b.line(e.x1,e.y1,e.x2,e.y2,'BG');
+    else if(e.type==='POLYLINE'){
+      for(let i=0;i<e.points.length-1;i++) b.line(e.points[i].x,e.points[i].y,e.points[i+1].x,e.points[i+1].y,'BG');
+      if(e.closed&&e.points.length>2){const l=e.points.length-1;b.line(e.points[l].x,e.points[l].y,e.points[0].x,e.points[0].y,'BG');}
+    }
+    else if(e.type==='CIRCLE') b.circle(e.cx,e.cy,e.r,'BG');
+    else if(e.type==='ARC') b.arc(e.cx,e.cy,e.r,e.startAngle||0,e.endAngle||360,'BG');
+    else if(e.type==='TEXT') b.text(e.x,e.y,e.h||100,e.text,'BG');
+  }
+  // 記号
+  const u=state.symSize/2;
+  for(const s of state.symbols){
+    const def=SYMBOLS[s.type];if(!def) continue;
+    def.dxf(b,s.x,s.y,s.rot,def.layer,u);
+  }
+  // 配線
+  for(const w of state.wires){
+    b.polyline(w.points,'E-WIRE',w.style==='dash');
+    // 電線本数マーク (DXF: 斜め短線)
+    const conductors=w.conductors||2;
+    if(conductors>1){
+      for(let i=0;i<w.points.length-1;i++){
+        const p1=w.points[i],p2=w.points[i+1];
+        const len=Math.hypot(p2.x-p1.x,p2.y-p1.y);
+        if(len<30) continue;
+        const dx=(p2.x-p1.x)/len,dy=(p2.y-p1.y)/len;
+        const mx=(p1.x+p2.x)/2,my=(p1.y+p2.y)/2;
+        const markLen=60,spacing=40;
+        const total=(conductors-1)*spacing;
+        for(let j=0;j<conductors;j++){
+          const off=-total/2+j*spacing;
+          const cx2=mx+dx*off,cy2=my+dy*off;
+          b.line(cx2-dy*markLen-dx*markLen*.5,cy2+dx*markLen-dy*markLen*.5,
+                 cx2+dy*markLen+dx*markLen*.5,cy2-dx*markLen+dy*markLen*.5,'E-WIRE');
+        }
+      }
+    }
+    if(w.circuit&&w.points.length>=2){
+      const mid=Math.floor((w.points.length-1)/2);
+      const pm=w.points[mid];
+      b.text(pm.x,pm.y,80,w.circuit,'E-WIRE');
+    }
+  }
+  // 引込
+  for(const hr of state.homeruns){
+    const u2=180;
+    const tx=(dx,dy)=>{const[a,c]=rot2(dx,dy,hr.rot);return[hr.x+a,hr.y+c];};
+    let p1=tx(-u2*.8,0),p2=tx(u2*.8,0);
+    b.line(p1[0],p1[1],p2[0],p2[1],'E-HOME');
+    p1=tx(u2*.4,u2*.35);p2=tx(u2*.8,0);const p3=tx(u2*.4,-u2*.35);
+    b.line(p1[0],p1[1],p2[0],p2[1],'E-HOME');b.line(p2[0],p2[1],p3[0],p3[1],'E-HOME');
+    p1=tx(-u2*.8,-u2*.22);p2=tx(-u2*.8,u2*.22);
+    b.line(p1[0],p1[1],p2[0],p2[1],'E-HOME');
+    if(hr.circuit){const tp=tx(0,u2*.3);b.text(tp[0],tp[1],80,hr.circuit,'E-HOME');}
+  }
+  // 注記
+  for(const t of state.texts) b.text(t.x,t.y,t.height*.7,t.text,'E-TEXT');
+
+  download('electrical-plan.dxf',b.build(),'application/dxf');
+  toast('DXF を出力しました');
+}
+
+function exportPng(){
+  canvas.toBlob(blob=>{
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;a.download='electrical-plan.png';a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),100);
+    toast('PNG を出力しました');
+  },'image/png');
+}
+
+function exportPdf(){
+  const {jsPDF}=window.jspdf;
+  const pdf=new jsPDF({orientation:'landscape',unit:'mm',format:'a3'});
+  pdf.setFont('helvetica','bold');pdf.setFontSize(13);
+  pdf.text('住宅電気図面',20,16);
+  pdf.setFont('helvetica','normal');pdf.setFontSize(8);
+  pdf.text('JIS C 0303  '+new Date().toLocaleDateString('ja-JP'),20,22);
+
+  const px=25,py=28,pw=370,ph=235;
+  pdf.setDrawColor(80);pdf.setLineWidth(0.3);pdf.rect(px,py,pw,ph);
+
+  const all=[];
+  for(const e of state.bgEntities){
+    if(e.type==='LINE') all.push([e.x1,e.y1],[e.x2,e.y2]);
+    else if(e.type==='POLYLINE') for(const p of e.points) all.push([p.x,p.y]);
+    else if(e.type==='CIRCLE') all.push([e.cx-e.r,e.cy-e.r],[e.cx+e.r,e.cy+e.r]);
+  }
+  for(const s of state.symbols) all.push([s.x-state.symSize,s.y-state.symSize],[s.x+state.symSize,s.y+state.symSize]);
+  for(const w of state.wires) for(const pt of w.points) all.push([pt.x,pt.y]);
+  for(const hr of state.homeruns) all.push([hr.x,hr.y]);
+
+  if(all.length===0){pdf.text('(図面が空です)',px+10,py+20);}
+  else{
+    let xmin=Infinity,ymin=Infinity,xmax=-Infinity,ymax=-Infinity;
+    for(const [x,y] of all){xmin=Math.min(xmin,x);ymin=Math.min(ymin,y);xmax=Math.max(xmax,x);ymax=Math.max(ymax,y);}
+    const w0=xmax-xmin||1,h0=ymax-ymin||1;
+    const sc=Math.min(pw/w0,ph/h0)*.92;
+    const cx2=px+pw/2,cy2=py+ph/2;
+    const tx=x=>cx2+(x-(xmin+xmax)/2)*sc;
+    const ty=y=>cy2-(y-(ymin+ymax)/2)*sc;
+
+    // 背景
+    pdf.setLineWidth(0.08);pdf.setDrawColor(45,91,142);
+    for(const e of state.bgEntities){
+      if(e.type==='LINE') pdf.line(tx(e.x1),ty(e.y1),tx(e.x2),ty(e.y2));
+      else if(e.type==='POLYLINE'){
+        for(let i=0;i<e.points.length-1;i++) pdf.line(tx(e.points[i].x),ty(e.points[i].y),tx(e.points[i+1].x),ty(e.points[i+1].y));
+      }
+      else if(e.type==='CIRCLE') pdf.circle(tx(e.cx),ty(e.cy),e.r*sc);
+    }
+    // 配線
+    pdf.setDrawColor(26,35,50);pdf.setLineWidth(0.22);
+    for(const w of state.wires){
+      if(w.style==='dash') pdf.setLineDashPattern([1.2,0.8],0);
+      for(let i=0;i<w.points.length-1;i++) pdf.line(tx(w.points[i].x),ty(w.points[i].y),tx(w.points[i+1].x),ty(w.points[i+1].y));
+      pdf.setLineDashPattern([],0);
+      // 電線本数マーク
+      const conductors=w.conductors||2;
+      if(conductors>1){
+        for(let i=0;i<w.points.length-1;i++){
+          const p1={x:tx(w.points[i].x),y:ty(w.points[i].y)};
+          const p2={x:tx(w.points[i+1].x),y:ty(w.points[i+1].y)};
+          const len=Math.hypot(p2.x-p1.x,p2.y-p1.y);
+          if(len<5) continue;
+          const dx2=(p2.x-p1.x)/len,dy2=(p2.y-p1.y)/len;
+          const mx2=(p1.x+p2.x)/2,my2=(p1.y+p2.y)/2;
+          const ml=2.5,sp2=1.5,tot=(conductors-1)*sp2;
+          for(let j=0;j<conductors;j++){
+            const off=-tot/2+j*sp2;
+            const cx3=mx2+dx2*off,cy3=my2+dy2*off;
+            pdf.line(cx3-dy2*ml-dx2*ml*.5,cy3+dx2*ml-dy2*ml*.5,cx3+dy2*ml+dx2*ml*.5,cy3-dx2*ml+dy2*ml*.5);
+          }
+        }
+      }
+    }
+    // 記号 (DXFビルダ経由でPDF描画)
+    pdf.setLineWidth(0.18);
+    for(const s of state.symbols){
+      const def=SYMBOLS[s.type];if(!def) continue;
+      const u=state.symSize/2;
+      const lc=LAYERS[def.layer].color;
+      const c=hex2rgb(lc);
+      pdf.setDrawColor(c.r,c.g,c.b);pdf.setFillColor(c.r,c.g,c.b);
+      const tb=new DxfBuilder();
+      def.dxf(tb,s.x,s.y,s.rot,def.layer,u);
+      for(const ent of tb.entities){
+        const lines2=ent.split('\n');
+        const code=lines2[1];
+        const m=parseDxfEnt(ent);
+        if(code==='LINE') pdf.line(tx(parseFloat(m[10])),ty(parseFloat(m[20])),tx(parseFloat(m[11])),ty(parseFloat(m[21])));
+        else if(code==='CIRCLE') pdf.circle(tx(parseFloat(m[10])),ty(parseFloat(m[20])),parseFloat(m[40])*sc);
+        else if(code==='TEXT'){
+          pdf.setFontSize(Math.max(5,parseFloat(m[40])*sc*2.6));
+          pdf.text(m[1]||'',tx(parseFloat(m[10])),ty(parseFloat(m[20])));
+        }
+      }
+    }
+    // 注記
+    pdf.setDrawColor(26,35,50);pdf.setTextColor(26,35,50);
+    for(const t of state.texts){
+      pdf.setFontSize(Math.max(5,t.height*sc*2.4));
+      pdf.text(t.text||'',tx(t.x),ty(t.y));
+    }
+  }
+  // 凡例フッタ
+  pdf.setFontSize(7);pdf.setTextColor(80);
+  pdf.text(`記号:${state.symbols.length}  配線:${state.wires.length}  引込:${state.homeruns.length}  注記:${state.texts.length}`,px+pw-100,py+ph+8);
+  pdf.save('electrical-plan.pdf');
+  toast('PDF を出力しました');
+}
+
+function parseDxfEnt(s){
+  const lines2=s.split('\n'),m={};
+  for(let i=0;i<lines2.length-1;i+=2){
+    const c=lines2[i].trim();
+    if(c==='0'||c==='2'||c==='8'||c==='1'){m[c]=lines2[i+1];continue;}
+    m[parseInt(c,10)]=lines2[i+1];
+  }
+  return m;
+}
+function hex2rgb(h){const m=h.replace('#','');return{r:parseInt(m.substr(0,2),16),g:parseInt(m.substr(2,2),16),b:parseInt(m.substr(4,2),16)};}
+function download(filename,content,type){
+  const blob=new Blob([content],{type:type||'text/plain'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=filename;a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),200);
+}
+function toast(msg){
+  let t=document.querySelector('.toast');
+  if(!t){t=document.createElement('div');t.className='toast';document.body.appendChild(t);}
+  t.textContent=msg;t.classList.add('show');
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2800);
+  document.getElementById('stat-msg').textContent=msg;
+}
+
+/* ---- 14. UI同期 ---- */
+function updateStats(){
+  const eq=state.view.scale;
+  const ratio=Math.round(1/eq);
+  if(isFinite(ratio)&&ratio>0) document.getElementById('stat-scale').textContent='1:'+ratio;
+  document.getElementById('stat-zoom').textContent=Math.round(eq*100*6.67)+'%';
+  document.getElementById('info-counts').textContent=`S:${state.symbols.length} W:${state.wires.length} HR:${state.homeruns.length}`;
+}
+
+function updateSelectionPanel(){
+  const p=document.getElementById('selectionPanel');
+  if(state.selected.size===0){p.textContent='何も選択されていません';return;}
+  const ids=[...state.selected];
+  if(ids.length===1){
+    const id=ids[0];
+    const sym=state.symbols.find(s=>s.id===id);
+    const w=state.wires.find(w=>w.id===id);
+    const t=state.texts.find(t=>t.id===id);
+    const hr=state.homeruns.find(h=>h.id===id);
+    if(sym){
+      const def=SYMBOLS[sym.type];
+      p.innerHTML=`<b>${def?.name||sym.type}</b><br>座標: ${Math.round(sym.x)}, ${Math.round(sym.y)} mm<br>回転: ${Math.round(sym.rot*180/Math.PI)}°<br>レイヤ: ${def?.layer||'-'}`;
+    } else if(w){
+      const len=w.points.reduce((s,pt,i)=>i?s+Math.hypot(pt.x-w.points[i-1].x,pt.y-w.points[i-1].y):0,0);
+      p.innerHTML=`<b>配線(${w.style==='dash'?'隠蔽':'露出'})</b><br>頂点数: ${w.points.length}<br>全長: ${Math.round(len)} mm<br>電線本数: ${w.conductors||2}本<br>回路番号: ${w.circuit||'—'}`;
+    } else if(hr){
+      p.innerHTML=`<b>引込(ホームラン)</b><br>座標: ${Math.round(hr.x)}, ${Math.round(hr.y)} mm<br>回路番号: ${hr.circuit||'—'}`;
+    } else if(t){
+      p.innerHTML=`<b>注記</b><br>テキスト: ${t.text}<br>座標: ${Math.round(t.x)}, ${Math.round(t.y)} mm`;
+    } else {p.textContent='不明';}
+  } else {
+    p.textContent=`${ids.length} 要素を選択中`;
+  }
+}
+
+document.getElementById('symSize').onchange=e=>{state.symSize=parseFloat(e.target.value)||200;render();};
+document.getElementById('snapSize').onchange=e=>{state.snap=parseFloat(e.target.value)||0;render();};
+
+/* ---- 15. 起動 ---- */
+buildSidebar();
+buildLayerPanel();
+selectTool('select');
+resizeCanvas();
+pushHistory();
+toast('DXF読込ボタンから平面図を読み込んで電気記号を配置してください');
+</script>
+</body>
+</html>
