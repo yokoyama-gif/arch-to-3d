@@ -175,9 +175,10 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
       <div>H . 隠蔽線　M . 引込</div>
       <div>Tab . 直交方向切替</div>
       <div>R . 回転90°　Del . 削除</div>
-      <div>Esc . 解除　Ctrl+Z . 元に戻す</div>
-      <div>中ボタンドラッグ . パン</div>
-      <div>ホイール . ズーム</div>
+      <div>Ctrl+D . 複写　Ctrl+Z . 戻す</div>
+      <div>配線選択→頂点□をドラッグ</div>
+      <div>記号付近→自動スナップ(●)</div>
+      <div>中ドラッグ . パン</div>
     </div>
   </div>
 </aside>
@@ -217,6 +218,8 @@ const state = {
   historyIdx: -1,
   symSize: 200,
   snap: 91,
+  snapHint: null,    // {x,y,id} 記号スナップ表示用
+  vertexDrag: null,  // {wireId, vertIdx, origPts} 頂点ドラッグ
 };
 
 /* ---- 2. ユーティリティ ---- */
@@ -776,7 +779,32 @@ function snap(wp){
   return{x:Math.round(wp.x/state.snap)*state.snap, y:Math.round(wp.y/state.snap)*state.snap};
 }
 
-/* ---- 8. 直交配線ルーティング ---- */
+/* ---- 8. スナップ（グリッド＋記号中心） ---- */
+function getSnapPoint(wp){
+  // 記号中心に近ければ優先スナップ
+  const symTol = state.symSize * 0.6;
+  for(let i=state.symbols.length-1;i>=0;i--){
+    const s=state.symbols[i];
+    if(Math.abs(s.x-wp.x)<symTol && Math.abs(s.y-wp.y)<symTol){
+      state.snapHint={x:s.x,y:s.y,id:s.id};
+      return{x:s.x,y:s.y};
+    }
+  }
+  // ジョイントBOX / 配線端点にもスナップ
+  const wTol = state.symSize * 0.4;
+  for(const w of state.wires){
+    for(const pt of w.points){
+      if(Math.abs(pt.x-wp.x)<wTol && Math.abs(pt.y-wp.y)<wTol){
+        state.snapHint={x:pt.x,y:pt.y,id:null};
+        return{x:pt.x,y:pt.y};
+      }
+    }
+  }
+  state.snapHint=null;
+  return snap(wp);
+}
+
+/* ---- 直交配線ルーティング ---- */
 function getOrthoPoints(p1, p2, mode){
   if(mode==='free') return [p1,p2];
   const dx=Math.abs(p2.x-p1.x), dy=Math.abs(p2.y-p1.y);
@@ -795,7 +823,7 @@ function render(){
   ctx.fillRect(0,0,w,h);
   drawGrid();
   if(LAYERS['BG'].visible) drawBackground();
-  if(LAYERS['E-WIRE'].visible) drawWires();
+  if(LAYERS['E-WIRE'].visible){ drawWires(); drawJunctions(); }
   if(LAYERS['E-HOME'].visible) drawHomeruns();
   if(LAYERS['E-TEXT'].visible) drawTexts();
   drawSymbols();
@@ -910,15 +938,61 @@ function drawWires(){
         ctx.restore();
       }
     }
-    // 選択ハイライト
+    // 選択ハイライト：頂点ハンドル（□）を表示
     if(sel){
-      ctx.strokeStyle='rgba(168,50,50,0.4)';ctx.lineWidth=1;ctx.setLineDash([4,3]);
+      ctx.setLineDash([]);
       for(const pt of w.points){
         const sp=world2screen(pt.x,pt.y);
-        ctx.beginPath();ctx.arc(sp.x,sp.y,5,0,Math.PI*2);ctx.stroke();
+        ctx.fillStyle='#fff';
+        ctx.strokeStyle='rgba(168,50,50,0.9)';ctx.lineWidth=1.2;
+        ctx.fillRect(sp.x-5,sp.y-5,10,10);
+        ctx.strokeRect(sp.x-5,sp.y-5,10,10);
       }
-      ctx.setLineDash([]);
     }
+  }
+}
+
+/* 接続点ドット (T・X接続に黒丸) */
+function findJunctions(){
+  const eps=2;
+  const map={};
+  const key=(x,y)=>`${Math.round(x)},${Math.round(y)}`;
+  // 全配線の頂点を登録
+  for(const w of state.wires){
+    for(const pt of w.points){
+      const k=key(pt.x,pt.y);
+      if(!map[k]) map[k]={x:pt.x,y:pt.y,wires:new Set()};
+      map[k].wires.add(w.id);
+    }
+  }
+  // 頂点がほかの配線セグメント上にあるか検査（T字接続）
+  for(const w1 of state.wires){
+    for(const pt of w1.points){
+      for(const w2 of state.wires){
+        if(w2.id===w1.id) continue;
+        for(let i=0;i<w2.points.length-1;i++){
+          if(distToSeg(pt,w2.points[i],w2.points[i+1])<eps){
+            const k=key(pt.x,pt.y);
+            if(!map[k]) map[k]={x:pt.x,y:pt.y,wires:new Set()};
+            map[k].wires.add(w1.id);
+            map[k].wires.add(w2.id);
+          }
+        }
+      }
+    }
+  }
+  // 2本以上の異なる配線が交わる点のみをジャンクションとする
+  return Object.values(map).filter(p=>p.wires.size>=2);
+}
+
+function drawJunctions(){
+  const s=state.view.scale*devicePixelRatio;
+  const r=Math.max(3,55*s);
+  const junctions=findJunctions();
+  ctx.fillStyle=LAYERS['E-WIRE'].color;
+  for(const j of junctions){
+    const p=world2screen(j.x,j.y);
+    ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fill();
   }
 }
 
@@ -946,6 +1020,18 @@ function drawWirePreview(){
     const sp=world2screen(pt.x,pt.y);
     ctx.fillStyle='rgba(168,50,50,0.8)';
     ctx.beginPath();ctx.arc(sp.x,sp.y,3,0,Math.PI*2);ctx.fill();
+  }
+  // 記号スナップヒント
+  if(state.snapHint){
+    const sh=world2screen(state.snapHint.x,state.snapHint.y);
+    const sr=Math.max(6,state.symSize*0.55*state.view.scale*devicePixelRatio);
+    ctx.strokeStyle='rgba(168,50,50,0.85)';ctx.lineWidth=1.5;ctx.setLineDash([]);
+    ctx.beginPath();ctx.arc(sh.x,sh.y,sr,0,Math.PI*2);ctx.stroke();
+    // 十字マーカ
+    ctx.beginPath();
+    ctx.moveTo(sh.x-sr*.5,sh.y);ctx.lineTo(sh.x+sr*.5,sh.y);
+    ctx.moveTo(sh.x,sh.y-sr*.5);ctx.lineTo(sh.x,sh.y+sr*.5);
+    ctx.stroke();
   }
 }
 
@@ -1055,7 +1141,7 @@ canvas.addEventListener('mousedown',e=>{
   const rect=canvas.getBoundingClientRect();
   const sx=e.clientX-rect.left,sy=e.clientY-rect.top;
   const wp=screen2world(sx,sy);
-  const sp=snap(wp);
+  const sp=getSnapPoint(wp);
 
   if(e.button===1||(e.button===0&&spacePressed)){
     state.panning={sx,sy,ox:state.view.ox,oy:state.view.oy};
@@ -1111,7 +1197,7 @@ canvas.addEventListener('mousedown',e=>{
   if(!e.shiftKey) state.selected.clear();
   if(hit){
     state.selected.add(hit.id);
-    state.dragging={id:hit.id,kind:hit.kind,startW:wp,orig:snapshotItem(hit)};
+    state.dragging={id:hit.id,kind:hit.kind,vertIdx:hit.vertIdx,startW:wp,orig:snapshotItem(hit)};
     // 配線の場合、プロパティをパネルに反映
     if(hit.kind==='wire'){
       const fw=state.wires.find(w=>w.id===hit.id);
@@ -1133,7 +1219,7 @@ canvas.addEventListener('mousemove',e=>{
   const rect=canvas.getBoundingClientRect();
   const sx=e.clientX-rect.left,sy=e.clientY-rect.top;
   const wp=screen2world(sx,sy);
-  state.hover=snap(wp);
+  state.hover=getSnapPoint(wp);
 
   if(state.panning){
     state.view.ox=state.panning.ox-(sx-state.panning.sx)/state.view.scale;
@@ -1141,10 +1227,14 @@ canvas.addEventListener('mousemove',e=>{
     render(); return;
   }
   if(state.dragging){
-    const sp2=snap(wp);
+    const sp2=getSnapPoint(wp);
     const dx=sp2.x-state.dragging.startW.x, dy=sp2.y-state.dragging.startW.y;
     const orig=state.dragging.orig;
-    if(state.dragging.kind==='symbol'){
+    if(state.dragging.kind==='vertex'){
+      // 頂点個別移動
+      const w=state.wires.find(w=>w.id===state.dragging.id);
+      if(w) w.points[state.dragging.vertIdx]={x:sp2.x,y:sp2.y};
+    } else if(state.dragging.kind==='symbol'){
       const s=state.symbols.find(s=>s.id===state.dragging.id);
       if(s){s.x=orig.x+dx;s.y=orig.y+dy;}
     } else if(state.dragging.kind==='text'){
@@ -1231,6 +1321,27 @@ window.addEventListener('keydown',e=>{
   if(e.key==='t'||e.key==='T') selectTool('text');
   if((e.ctrlKey||e.metaKey)&&e.key==='z'){undo();e.preventDefault();}
   if((e.ctrlKey||e.metaKey)&&(e.key==='y'||(e.shiftKey&&e.key==='Z'))){redo();e.preventDefault();}
+  if((e.ctrlKey||e.metaKey)&&e.key==='d'){
+    e.preventDefault();
+    if(state.selected.size>0){
+      pushHistory();
+      const off=state.snap||91;
+      const newIds=new Set();
+      for(const id of state.selected){
+        const sym=state.symbols.find(s=>s.id===id);
+        if(sym){const nid=uid();state.symbols.push({...sym,id:nid,x:sym.x+off,y:sym.y+off});newIds.add(nid);}
+        const w=state.wires.find(w=>w.id===id);
+        if(w){const nid=uid();state.wires.push({...w,id:nid,points:w.points.map(p=>({x:p.x+off,y:p.y+off}))});newIds.add(nid);}
+        const hr=state.homeruns.find(h=>h.id===id);
+        if(hr){const nid=uid();state.homeruns.push({...hr,id:nid,x:hr.x+off,y:hr.y+off});newIds.add(nid);}
+        const tx=state.texts.find(t=>t.id===id);
+        if(tx){const nid=uid();state.texts.push({...tx,id:nid,x:tx.x+off,y:tx.y+off});newIds.add(nid);}
+      }
+      state.selected=newIds;
+      buildLayerPanel();updateSelectionPanel();render();
+      toast('複写しました (Ctrl+D)');
+    }
+  }
 });
 window.addEventListener('keyup',e=>{
   if(e.code==='Space'){spacePressed=false;document.getElementById('stage').classList.remove('pan');}
@@ -1247,6 +1358,19 @@ function finishWire(){
 
 function pickAt(x,y){
   const tol=state.symSize*.65;
+  // 選択済み配線の頂点を最優先（ドラッグしやすくする）
+  if(state.selected.size===1){
+    const selId=[...state.selected][0];
+    const selWire=state.wires.find(w=>w.id===selId);
+    if(selWire){
+      const vtol=state.symSize*.45;
+      for(let j=0;j<selWire.points.length;j++){
+        const pt=selWire.points[j];
+        if(Math.abs(pt.x-x)<vtol&&Math.abs(pt.y-y)<vtol)
+          return{id:selId,kind:'vertex',vertIdx:j};
+      }
+    }
+  }
   for(let i=state.symbols.length-1;i>=0;i--){
     const s=state.symbols[i];
     if(Math.abs(s.x-x)<tol&&Math.abs(s.y-y)<tol) return{id:s.id,kind:'symbol'};
@@ -1278,7 +1402,7 @@ function distToSeg(p,a,b){
 function snapshotItem(hit){
   if(hit.kind==='symbol'){const s=state.symbols.find(s=>s.id===hit.id);return{x:s.x,y:s.y};}
   if(hit.kind==='text'){const s=state.texts.find(s=>s.id===hit.id);return{x:s.x,y:s.y};}
-  if(hit.kind==='wire'){const s=state.wires.find(w=>w.id===hit.id);return{points:s.points.map(p=>({...p}))};}
+  if(hit.kind==='wire'||hit.kind==='vertex'){const s=state.wires.find(w=>w.id===hit.id);return{points:s.points.map(p=>({...p}))};}
   if(hit.kind==='homerun'){const s=state.homeruns.find(h=>h.id===hit.id);return{x:s.x,y:s.y};}
   return{};
 }
