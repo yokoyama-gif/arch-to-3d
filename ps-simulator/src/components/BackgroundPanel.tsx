@@ -16,6 +16,11 @@ type Props = {
   onToggleBgDragMode: () => void;
   /** 現在のグリッド寸法(mm) - スナップ計算に使用 */
   gridSizeMm: number;
+  /** モジュール寸法(mm) - 粗いスナップ用 */
+  moduleMm: number;
+  /** スナップ単位を「モジュール」にするか（false=細グリッド） */
+  snapToModule: boolean;
+  onToggleSnapToModule: () => void;
 };
 
 /**
@@ -31,7 +36,11 @@ export function BackgroundPanel({
   bgDragMode,
   onToggleBgDragMode,
   gridSizeMm,
+  moduleMm,
+  snapToModule,
+  onToggleSnapToModule,
 }: Props) {
+  const snapStep = snapToModule ? moduleMm : gridSizeMm;
   const fileRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -161,20 +170,58 @@ export function BackgroundPanel({
             {backgroundImage.grayscale ? "白黒ON" : "白黒"}
           </button>
           <button
+            onClick={onToggleSnapToModule}
+            style={{
+              padding: "4px 8px",
+              fontSize: 11,
+              cursor: "pointer",
+              background: snapToModule ? "#4caf50" : "#f5f5f5",
+              color: snapToModule ? "#fff" : undefined,
+              fontWeight: snapToModule ? 700 : 400,
+            }}
+            title={
+              snapToModule
+                ? `モジュール(${moduleMm}mm)単位で動く - 大きく動かして粗合わせ`
+                : `細グリッド(${gridSizeMm}mm)単位で動く - 細かい位置調整`
+            }
+          >
+            スナップ: {snapToModule ? `モジュール(${moduleMm})` : `細(${gridSizeMm})`}
+          </button>
+          <button
             onClick={() => {
-              // 位置・寸法をグリッドにスナップ
-              const snap = (v: number) => Math.round(v / gridSizeMm) * gridSizeMm;
+              // 位置・寸法を現在の snapStep にスナップ
+              const snap = (v: number) =>
+                Math.round(v / snapStep) * snapStep;
               onUpdate({
                 x: snap(backgroundImage.x),
                 y: snap(backgroundImage.y),
-                widthMm: Math.max(gridSizeMm, snap(backgroundImage.widthMm)),
-                heightMm: Math.max(gridSizeMm, snap(backgroundImage.heightMm)),
+                widthMm: Math.max(snapStep, snap(backgroundImage.widthMm)),
+                heightMm: Math.max(snapStep, snap(backgroundImage.heightMm)),
               });
             }}
             style={{ padding: "4px 8px", fontSize: 11, cursor: "pointer" }}
-            title="現在の位置と寸法をグリッドの倍数に丸めます"
+            title={`位置と寸法を ${snapStep}mm の倍数に丸めます`}
           >
-            グリッドにスナップ
+            今すぐ整列
+          </button>
+          <button
+            onClick={() => {
+              // 左上を最寄りのモジュール交点へスナップ（粗合わせ）
+              const snapX = Math.round(backgroundImage.x / moduleMm) * moduleMm;
+              const snapY = Math.round(backgroundImage.y / moduleMm) * moduleMm;
+              onUpdate({ x: snapX, y: snapY });
+            }}
+            style={{ padding: "4px 8px", fontSize: 11, cursor: "pointer" }}
+            title={`図面の左上をモジュール(${moduleMm}mm)交点へ最寄りスナップ`}
+          >
+            左上→モジュール交点
+          </button>
+          <button
+            onClick={() => onUpdate({ x: 0, y: 0 })}
+            style={{ padding: "4px 8px", fontSize: 11, cursor: "pointer" }}
+            title="原点(0,0)に瞬時に戻す"
+          >
+            原点(0,0)へ
           </button>
           <button
             onClick={() =>

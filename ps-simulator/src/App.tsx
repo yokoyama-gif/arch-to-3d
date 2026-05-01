@@ -25,6 +25,8 @@ export default function App() {
   const [placingAnchor, setPlacingAnchor] = useState<Anchor>("mc");
   // 図面ドラッグモード（ONのときだけ背景画像が動く）
   const [bgDragMode, setBgDragMode] = useState(false);
+  // 背景のスナップ単位 true=モジュール / false=細グリッド
+  const [snapToModule, setSnapToModule] = useState(false);
   // 背景図面の校正モード（2点クリックで実距離指定）
   const [calibrationMode, setCalibrationMode] = useState(false);
 
@@ -268,6 +270,11 @@ export default function App() {
               calibrationMode={calibrationMode}
               onCalibrationDone={handleCalibrationDone}
               bgDragMode={bgDragMode}
+              bgSnapStepMm={
+                snapToModule
+                  ? store.buildingSettings.moduleMm
+                  : store.buildingSettings.gridSizeMm
+              }
             />
           </div>
 
@@ -291,6 +298,9 @@ export default function App() {
               bgDragMode={bgDragMode}
               onToggleBgDragMode={() => setBgDragMode((v) => !v)}
               gridSizeMm={store.buildingSettings.gridSizeMm}
+              moduleMm={store.buildingSettings.moduleMm}
+              snapToModule={snapToModule}
+              onToggleSnapToModule={() => setSnapToModule((v) => !v)}
             />
 
             <div style={{ margin: "16px 0", borderTop: "1px solid #eee" }} />

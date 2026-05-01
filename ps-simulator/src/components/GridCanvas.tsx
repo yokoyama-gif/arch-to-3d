@@ -68,6 +68,11 @@ type Props = {
    * OFF時はパレット配置・選択解除など通常動作。
    */
   bgDragMode?: boolean;
+  /**
+   * 背景画像のスナップ単位(mm)。未指定なら gridSizeMm を使う。
+   * モジュール(900等)を渡すと、ドラッグ中も粗いグリッドで動く。
+   */
+  bgSnapStepMm?: number;
 };
 
 export function GridCanvas({
@@ -92,6 +97,7 @@ export function GridCanvas({
   calibrationMode,
   onCalibrationDone,
   bgDragMode,
+  bgSnapStepMm,
 }: Props) {
   // _onScaleBackground は API 互換のため受け取り、実際の計算は親で onCalibrationDone 経由
   void _onScaleBackground;
@@ -209,9 +215,10 @@ export function GridCanvas({
           e.key === "ArrowLeft" ||
           e.key === "ArrowRight")
       ) {
-        // 図面移動モードON+設備未選択なら、十字キーで背景画像を1グリッド単位で動かす
+        // 図面移動モードON+設備未選択なら、十字キーで背景画像を移動
+        // モジュールスナップが有効ならbgSnapStepMmを使う（粗合わせ）
         e.preventDefault();
-        const step = gridSizeMm;
+        const step = bgSnapStepMm ?? gridSizeMm;
         let nx = backgroundImage.x;
         let ny = backgroundImage.y;
         if (e.key === "ArrowUp") ny -= step;
@@ -231,6 +238,7 @@ export function GridCanvas({
     fixtures,
     gridSizeMm,
     bgDragMode,
+    bgSnapStepMm,
     backgroundImage,
     onDeleteFixture,
     onRotateFixture,
@@ -374,8 +382,10 @@ export function GridCanvas({
         const pos = getMouseMm(e);
         const dx = pos.x - bgDragging.startMouseX;
         const dy = pos.y - bgDragging.startMouseY;
-        const newX = snapToGrid(bgDragging.startX + dx, gridSizeMm);
-        const newY = snapToGrid(bgDragging.startY + dy, gridSizeMm);
+        // モジュールスナップが有効ならbgSnapStepMmを使う
+        const step = bgSnapStepMm ?? gridSizeMm;
+        const newX = snapToGrid(bgDragging.startX + dx, step);
+        const newY = snapToGrid(bgDragging.startY + dy, step);
         onMoveBackground(newX, newY);
         return;
       }
@@ -449,6 +459,7 @@ export function GridCanvas({
       drainDragging,
       elbowDragging,
       bgDragging,
+      bgSnapStepMm,
       fixtures,
       getMouseMm,
       gridSizeMm,
@@ -684,6 +695,37 @@ export function GridCanvas({
             onMouseDown={handleBackgroundMouseDown}
           />
         )}
+
+        {/* 背景画像の四隅に座標ラベル（移動モード中のみ表示）*/}
+        {backgroundImage && bgDragMode && (() => {
+          const bg = backgroundImage;
+          const corners: Array<{ x: number; y: number; label: string; ax: "start" | "middle" | "end"; ay: number }> = [
+            { x: bg.x, y: bg.y, label: `(${bg.x}, ${bg.y})`, ax: "start", ay: -4 },
+            { x: bg.x + bg.widthMm, y: bg.y, label: `(${bg.x + bg.widthMm}, ${bg.y})`, ax: "end", ay: -4 },
+            { x: bg.x, y: bg.y + bg.heightMm, label: `(${bg.x}, ${bg.y + bg.heightMm})`, ax: "start", ay: 12 },
+            { x: bg.x + bg.widthMm, y: bg.y + bg.heightMm, label: `(${bg.x + bg.widthMm}, ${bg.y + bg.heightMm})`, ax: "end", ay: 12 },
+          ];
+          return (
+            <g pointerEvents="none">
+              {corners.map((c, i) => (
+                <g key={i}>
+                  <circle cx={mmToPx(c.x)} cy={mmToPx(c.y)} r={4} fill="#1976d2" />
+                  <text
+                    x={mmToPx(c.x) + (c.ax === "start" ? 6 : -6)}
+                    y={mmToPx(c.y) + c.ay}
+                    fontSize={10}
+                    fill="#1976d2"
+                    fontWeight={700}
+                    textAnchor={c.ax}
+                    style={{ paintOrder: "stroke", stroke: "#fff", strokeWidth: 3 }}
+                  >
+                    {c.label}
+                  </text>
+                </g>
+              ))}
+            </g>
+          );
+        })()}
 
         {/* グリッド */}
         {gridLines}
