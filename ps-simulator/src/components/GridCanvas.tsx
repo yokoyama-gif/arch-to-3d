@@ -63,6 +63,11 @@ type Props = {
     p1: { x: number; y: number },
     p2: { x: number; y: number }
   ) => void;
+  /**
+   * 背景ドラッグモード。ON時は空白クリックが背景画像の移動に使われる。
+   * OFF時はパレット配置・選択解除など通常動作。
+   */
+  bgDragMode?: boolean;
 };
 
 export function GridCanvas({
@@ -86,6 +91,7 @@ export function GridCanvas({
   onScaleBackground: _onScaleBackground,
   calibrationMode,
   onCalibrationDone,
+  bgDragMode,
 }: Props) {
   // _onScaleBackground は API 互換のため受け取り、実際の計算は親で onCalibrationDone 経由
   void _onScaleBackground;
@@ -204,18 +210,17 @@ export function GridCanvas({
     onSetDrainOffset,
   ]);
 
-  // --- ズーム（マウスホイール） ---
+  // --- ズーム（マウスホイールで直接） ---
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
     const handleWheel = (e: WheelEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        setScale((prev) => {
-          const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
-          return Math.min(MAX_SCALE, Math.max(MIN_SCALE, prev + delta));
-        });
-      }
+      e.preventDefault();
+      // 縮小方向にずらした倍率: ホイール量に比例してズーム量を調整
+      const delta = e.deltaY > 0 ? -ZOOM_STEP * 2 : ZOOM_STEP * 2;
+      setScale((prev) =>
+        Math.min(MAX_SCALE, Math.max(MIN_SCALE, prev + delta))
+      );
     };
     container.addEventListener("wheel", handleWheel, { passive: false });
     return () => container.removeEventListener("wheel", handleWheel);
@@ -265,6 +270,9 @@ export function GridCanvas({
   const handleBackgroundMouseDown = useCallback(
     (e: React.MouseEvent) => {
       if (!backgroundImage || !onMoveBackground) return;
+      // 背景ドラッグは「図面移動モード」がONのときのみ反応する。
+      // OFFのときはパレット配置や設備選択の邪魔にならないよう完全に無視。
+      if (!bgDragMode) return;
       if (placingType || calibrationMode) return;
       e.stopPropagation();
       const pos = getMouseMm(e);
@@ -275,7 +283,7 @@ export function GridCanvas({
         startY: backgroundImage.y,
       });
     },
-    [backgroundImage, onMoveBackground, placingType, calibrationMode, getMouseMm]
+    [backgroundImage, onMoveBackground, placingType, calibrationMode, bgDragMode, getMouseMm]
   );
 
   const handleFixtureMouseDown = useCallback(
@@ -512,7 +520,7 @@ export function GridCanvas({
           詳細
         </button>
         <span style={{ color: "#999", fontSize: 11, marginLeft: 8 }}>
-          範囲 {DEFAULT_CANVAS_W / 1000}×{DEFAULT_CANVAS_H / 1000}m / Ctrl+ホイールでズーム
+          範囲 {DEFAULT_CANVAS_W / 1000}×{DEFAULT_CANVAS_H / 1000}m / ホイールでズーム / 図面ドラッグで移動
         </span>
       </div>
 
@@ -541,9 +549,26 @@ export function GridCanvas({
             height={mmToPx(backgroundImage.heightMm)}
             opacity={backgroundImage.opacity}
             preserveAspectRatio="none"
-            // 校正モード時はクリックを取らせる、通常はドラッグで移動
-            pointerEvents={calibrationMode ? "none" : "auto"}
-            style={{ cursor: calibrationMode ? "crosshair" : "move" }}
+            /*
+             * 背景画像のクリック反応は「図面移動モード」のときだけ。
+             *  - 校正モード中  : 透過(クリックは校正用に使う)
+             *  - bgDragMode ON: 反応(ドラッグで移動)
+             *  - 通常モード   : 透過(設備配置・選択の邪魔をしない)
+             */
+            pointerEvents={
+              calibrationMode ? "none" : bgDragMode ? "auto" : "none"
+            }
+            style={{
+              cursor: calibrationMode
+                ? "crosshair"
+                : bgDragMode
+                ? "move"
+                : "default",
+              // 白黒モード（grayscaleフィルタ + コントラスト軽くアップ）
+              filter: backgroundImage.grayscale
+                ? "grayscale(1) contrast(1.1)"
+                : undefined,
+            }}
             onMouseDown={handleBackgroundMouseDown}
           />
         )}

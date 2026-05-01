@@ -11,6 +11,9 @@ type Props = {
   /** 校正モード ON/OFF を親で管理 */
   calibrationMode: boolean;
   onToggleCalibration: () => void;
+  /** 図面移動モード ON/OFF（ON時のみ背景がドラッグできる） */
+  bgDragMode: boolean;
+  onToggleBgDragMode: () => void;
   /** 現在のグリッド寸法(mm) - スナップ計算に使用 */
   gridSizeMm: number;
 };
@@ -25,6 +28,8 @@ export function BackgroundPanel({
   onUpdate,
   calibrationMode,
   onToggleCalibration,
+  bgDragMode,
+  onToggleBgDragMode,
   gridSizeMm,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -113,6 +118,20 @@ export function BackgroundPanel({
       {backgroundImage && (
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 8 }}>
           <button
+            onClick={onToggleBgDragMode}
+            style={{
+              padding: "4px 8px",
+              fontSize: 11,
+              cursor: "pointer",
+              background: bgDragMode ? "#1976d2" : "#f5f5f5",
+              color: bgDragMode ? "#fff" : undefined,
+              fontWeight: bgDragMode ? 700 : 400,
+            }}
+            title="ONの時だけ図面をドラッグで動かせます。設備配置と切り替えてご使用ください"
+          >
+            {bgDragMode ? "図面移動中" : "図面を移動"}
+          </button>
+          <button
             onClick={onToggleCalibration}
             style={{
               padding: "4px 8px",
@@ -124,6 +143,22 @@ export function BackgroundPanel({
             title="図面上の2点をクリック → 実距離(mm)を入力すると、その距離になるよう図面が自動でスケーリングされます"
           >
             {calibrationMode ? "校正中…2点クリック" : "2点指定で校正"}
+          </button>
+          <button
+            onClick={() =>
+              onUpdate({ grayscale: !backgroundImage.grayscale })
+            }
+            style={{
+              padding: "4px 8px",
+              fontSize: 11,
+              cursor: "pointer",
+              background: backgroundImage.grayscale ? "#424242" : "#f5f5f5",
+              color: backgroundImage.grayscale ? "#fff" : undefined,
+              fontWeight: backgroundImage.grayscale ? 700 : 400,
+            }}
+            title="図面をグレースケール表示に切り替えます。色付き設備が見やすくなります"
+          >
+            {backgroundImage.grayscale ? "白黒ON" : "白黒"}
           </button>
           <button
             onClick={() => {

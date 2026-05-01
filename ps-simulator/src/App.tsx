@@ -21,8 +21,10 @@ import { importPlanFromJson } from "./utils/importJson";
 
 export default function App() {
   const [placingType, setPlacingType] = useState<FixtureType | null>(null);
-  // 柱の配置基準点（中心がデフォルト）
-  const [columnAnchor, setColumnAnchor] = useState<Anchor>("mc");
+  // 配置基準点（全設備で共通）。中心がデフォルト = クリック点が設備の中心になる
+  const [placingAnchor, setPlacingAnchor] = useState<Anchor>("mc");
+  // 図面ドラッグモード（ONのときだけ背景画像が動く）
+  const [bgDragMode, setBgDragMode] = useState(false);
   // 背景図面の校正モード（2点クリックで実距離指定）
   const [calibrationMode, setCalibrationMode] = useState(false);
 
@@ -55,27 +57,22 @@ export default function App() {
   };
 
   const handleAddFixture = (type: FixtureType, x: number, y: number) => {
-    // 柱は9点アンカーで補正してから配置
-    // 重要: 「クリック点をスナップ → アンカー補正」の順で行うことで、
-    //       選んだアンカー基準点が正確にグリッド線上に乗る。
-    //       逆順（アンカー補正→左上をスナップ）だと中心がグリッドからずれる。
-    if (type === "column") {
-      const def = fixtureDefaults.column;
-      const grid = store.buildingSettings.gridSizeMm;
-      const snappedX = snapToGrid(x, grid);
-      const snappedY = snapToGrid(y, grid);
-      const offset = applyAnchorOffset(
-        snappedX,
-        snappedY,
-        def.w,
-        def.h,
-        columnAnchor
-      );
-      // 補正後の左上はグリッド外でも構わない。snapしないaddFixtureRawで配置。
-      store.addFixtureRaw(type, offset.x, offset.y);
-    } else {
-      store.addFixture(type, x, y);
-    }
+    // 全設備で9点アンカー配置を共通利用
+    //  1. クリック点をグリッドにスナップ (基準点をグリッド交点に)
+    //  2. アンカー位置から左上座標を逆算 (中心/角などを基準にずらす)
+    //  3. addFixtureRaw で再スナップせず配置
+    const def = fixtureDefaults[type];
+    const grid = store.buildingSettings.gridSizeMm;
+    const snappedX = snapToGrid(x, grid);
+    const snappedY = snapToGrid(y, grid);
+    const offset = applyAnchorOffset(
+      snappedX,
+      snappedY,
+      def.w,
+      def.h,
+      placingAnchor
+    );
+    store.addFixtureRaw(type, offset.x, offset.y);
     if (type !== "ps") {
       setPlacingType(null);
     }
@@ -238,13 +235,12 @@ export default function App() {
                 <div style={{ fontSize: 12, color: "#1976d2" }}>
                   配置モード: グリッドをクリックして設備を配置 / パレットをもう一度クリックで解除
                 </div>
-                {placingType === "column" && (
-                  <AnchorPicker
-                    label="柱の配置基準点"
-                    value={columnAnchor}
-                    onChange={setColumnAnchor}
-                  />
-                )}
+                {/* 全設備で9点アンカーを共通利用しグリッド点に落としやすく */}
+                <AnchorPicker
+                  label="配置基準点（クリックがこの点に来ます）"
+                  value={placingAnchor}
+                  onChange={setPlacingAnchor}
+                />
               </div>
             )}
             <GridCanvas
@@ -271,6 +267,7 @@ export default function App() {
               }
               calibrationMode={calibrationMode}
               onCalibrationDone={handleCalibrationDone}
+              bgDragMode={bgDragMode}
             />
           </div>
 
@@ -291,6 +288,8 @@ export default function App() {
               onUpdate={store.updateBackgroundImage}
               calibrationMode={calibrationMode}
               onToggleCalibration={() => setCalibrationMode((v) => !v)}
+              bgDragMode={bgDragMode}
+              onToggleBgDragMode={() => setBgDragMode((v) => !v)}
               gridSizeMm={store.buildingSettings.gridSizeMm}
             />
 

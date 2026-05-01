@@ -133,6 +133,8 @@ export type BackgroundImage = {
   heightMm: number;
   /** 不透明度 0..1 */
   opacity: number;
+  /** 白黒(グレースケール)で表示するか */
+  grayscale?: boolean;
 };
 
 /** 配管径(横管・竪管)のペア */
