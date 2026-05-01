@@ -559,13 +559,22 @@ export function GridCanvas({
             ? "ns-resize"
             : calibrationMode || placingType ? "crosshair" : "default",
         }}
-        onClick={handleCanvasClick}
+        onClick={(e) => {
+          // ズームドラッグ後の click は無視
+          if (dualBtnZoomY != null) return;
+          handleCanvasClick(e);
+        }}
         onMouseMove={(e) => {
           // 左+右同時押し中ならズームに切り替える
           // e.buttons は bitmask: 1=left, 2=right → 3 = both
           if ((e.buttons & 3) === 3) {
             if (dualBtnZoomY == null) {
-              // 同時押しが今フレームで始まったケース
+              // ドラッグ中の他のすべての操作をキャンセル(ズームへ即切替)
+              setDragging(null);
+              setBgDragging(null);
+              setResizing(null);
+              setDrainDragging(null);
+              setElbowDragging(null);
               setDualBtnZoomY(e.clientY);
             } else {
               const dy = e.clientY - dualBtnZoomY;
@@ -586,8 +595,16 @@ export function GridCanvas({
         }}
         onMouseDown={(e) => {
           // 左+右が同じmousedownで揃った場合の初期化
+          // または右クリック単独で押されたとき、後で左を加えれば3になる準備として
+          // 既存のドラッグ状態を全部キャンセル
           if ((e.buttons & 3) === 3) {
             e.preventDefault();
+            // すべてのドラッグ系を解除してズームへ
+            setDragging(null);
+            setBgDragging(null);
+            setResizing(null);
+            setDrainDragging(null);
+            setElbowDragging(null);
             setDualBtnZoomY(e.clientY);
           }
         }}
