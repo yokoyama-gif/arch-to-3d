@@ -50,10 +50,30 @@ type SimulatorState = {
   setFixtureGeometry: (id: string, x: number, y: number, w: number, h: number) => void;
   /** 排水溝のオフセット位置を更新（設備左上からのmm） */
   setFixtureDrainOffset: (id: string, offsetX: number, offsetY: number) => void;
-  /** 配管ルートの中間点(エルボ)位置を上書き（横管を曲げる用） */
-  setCustomPipeMidPoint: (id: string, pipeType: PipeType, x: number, y: number) => void;
-  /** カスタム中間点をクリアして自動L字ルートに戻す */
-  clearCustomPipeMidPoint: (id: string, pipeType: PipeType) => void;
+  /** 配管コーナー(中間点)を1点更新する */
+  updateCustomPipePoint: (
+    id: string,
+    pipeType: PipeType,
+    index: number,
+    x: number,
+    y: number
+  ) => void;
+  /** 配管に新しいコーナーを挿入する（既存配列の指定位置に） */
+  insertCustomPipePoint: (
+    id: string,
+    pipeType: PipeType,
+    index: number,
+    x: number,
+    y: number
+  ) => void;
+  /** 指定位置のコーナーを削除する */
+  removeCustomPipePoint: (
+    id: string,
+    pipeType: PipeType,
+    index: number
+  ) => void;
+  /** カスタム経路をクリアして自動L字ルートに戻す */
+  clearCustomPipePoints: (id: string, pipeType: PipeType) => void;
   rotateFixture: (id: string) => void;
   deleteFixture: (id: string) => void;
   selectFixture: (id: string | null) => void;
@@ -221,15 +241,19 @@ export const useSimulatorStore = create<SimulatorState>((set, get) => {
       get().recalculate();
     },
 
-    setCustomPipeMidPoint: (id, pipeType, x, y) => {
+    updateCustomPipePoint: (id, pipeType, index, x, y) => {
       set((state) => ({
         fixtures: state.fixtures.map((f) => {
           if (f.id !== id) return f;
+          const cur = f.customPipePoints?.[pipeType] ?? [];
+          if (index < 0 || index >= cur.length) return f;
+          const nextPts = [...cur];
+          nextPts[index] = { x, y };
           return {
             ...f,
-            customPipeMidPoint: {
-              ...(f.customPipeMidPoint ?? {}),
-              [pipeType]: { x, y },
+            customPipePoints: {
+              ...(f.customPipePoints ?? {}),
+              [pipeType]: nextPts,
             },
           };
         }),
@@ -237,14 +261,53 @@ export const useSimulatorStore = create<SimulatorState>((set, get) => {
       get().recalculate();
     },
 
-    clearCustomPipeMidPoint: (id, pipeType) => {
+    insertCustomPipePoint: (id, pipeType, index, x, y) => {
       set((state) => ({
         fixtures: state.fixtures.map((f) => {
           if (f.id !== id) return f;
-          if (!f.customPipeMidPoint) return f;
-          const next = { ...f.customPipeMidPoint };
+          const cur = f.customPipePoints?.[pipeType] ?? [];
+          const safeIndex = Math.max(0, Math.min(cur.length, index));
+          const nextPts = [...cur];
+          nextPts.splice(safeIndex, 0, { x, y });
+          return {
+            ...f,
+            customPipePoints: {
+              ...(f.customPipePoints ?? {}),
+              [pipeType]: nextPts,
+            },
+          };
+        }),
+      }));
+      get().recalculate();
+    },
+
+    removeCustomPipePoint: (id, pipeType, index) => {
+      set((state) => ({
+        fixtures: state.fixtures.map((f) => {
+          if (f.id !== id) return f;
+          const cur = f.customPipePoints?.[pipeType] ?? [];
+          if (index < 0 || index >= cur.length) return f;
+          const nextPts = cur.filter((_, i) => i !== index);
+          return {
+            ...f,
+            customPipePoints: {
+              ...(f.customPipePoints ?? {}),
+              [pipeType]: nextPts,
+            },
+          };
+        }),
+      }));
+      get().recalculate();
+    },
+
+    clearCustomPipePoints: (id, pipeType) => {
+      set((state) => ({
+        fixtures: state.fixtures.map((f) => {
+          if (f.id !== id) return f;
+          if (!f.customPipePoints) return f;
+          const next = { ...f.customPipePoints };
           delete next[pipeType];
-          return { ...f, customPipeMidPoint: next };
+          return { ...f, customPipePoints: next };
         }),
       }));
       get().recalculate();

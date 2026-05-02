@@ -89,11 +89,12 @@ export type Fixture = {
    */
   drainOffsetMm?: Point;
   /**
-   * 配管ルート中間点の上書き（管種ごと）。絶対座標(mm)。
-   * 未指定の場合は自動L字ルートを使う。
-   * ユーザーが横管をドラッグで曲げた場合に保持される。
+   * 配管ルート中間点の上書き（管種ごと）。絶対座標(mm)の配列。
+   * 未指定または空なら自動L字ルートを使う。
+   * 配列なら from → points[0] → points[1] → ... → to の経路で接続。
+   * ユーザーが横管をドラッグで曲げたり、新しいコーナーを追加した場合に保持。
    */
-  customPipeMidPoint?: Partial<Record<PipeType, Point>>;
+  customPipePoints?: Partial<Record<PipeType, Point[]>>;
 };
 
 /** 配管要件 */

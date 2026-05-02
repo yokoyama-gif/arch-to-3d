@@ -94,11 +94,12 @@ export function calcPipeRoutes(fixtures: Fixture[]): PipeRoute[] {
       const from = isDrain ? drainFrom : supplyFrom;
       const variant = isDrain ? "h-first" : "v-first";
 
-      // ユーザーが手動で曲げた中間点があれば優先
-      const customMid = eq.customPipeMidPoint?.[pipeType as PipeType];
-      const points = customMid
-        ? [from, customMid, to]
-        : buildRoute(from, to, variant);
+      // ユーザーが手動で追加したコーナー(複数)があれば優先
+      const customPts = eq.customPipePoints?.[pipeType as PipeType];
+      const points =
+        customPts && customPts.length > 0
+          ? [from, ...customPts, to]
+          : buildRoute(from, to, variant);
 
       // 配管長は実際の経路に沿った長さで計算
       let lengthMm = 0;

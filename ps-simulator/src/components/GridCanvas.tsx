@@ -50,8 +50,28 @@ type Props = {
   onResizeFixtureGeometry?: (id: string, x: number, y: number, w: number, h: number) => void;
   /** 排水溝の位置を更新（設備左上からのmm） */
   onSetDrainOffset?: (id: string, offsetX: number, offsetY: number) => void;
-  /** 配管中間点(エルボ)位置の上書き */
-  onSetPipeMidPoint?: (id: string, pipeType: PipeType, x: number, y: number) => void;
+  /** 配管中間点(エルボ)位置を更新する: index番目のコーナーをx,yに */
+  onUpdatePipePoint?: (
+    id: string,
+    pipeType: PipeType,
+    index: number,
+    x: number,
+    y: number
+  ) => void;
+  /** 配管に新しいコーナーを追加（index位置に挿入） */
+  onInsertPipePoint?: (
+    id: string,
+    pipeType: PipeType,
+    index: number,
+    x: number,
+    y: number
+  ) => void;
+  /** 配管コーナーを削除 */
+  onRemovePipePoint?: (
+    id: string,
+    pipeType: PipeType,
+    index: number
+  ) => void;
   /** 背景画像移動 (mm単位の絶対位置) */
   onMoveBackground?: (x: number, y: number) => void;
   /** 背景画像のスケール調整: 現状のwidthMm/heightMmにfactorを掛ける */
@@ -99,7 +119,9 @@ export function GridCanvas({
   onRotateFixture,
   onResizeFixtureGeometry,
   onSetDrainOffset,
-  onSetPipeMidPoint,
+  onUpdatePipePoint,
+  onInsertPipePoint,
+  onRemovePipePoint,
   onMoveBackground,
   onScaleBackground: _onScaleBackground,
   calibrationMode,
@@ -136,10 +158,11 @@ export function GridCanvas({
   } | null>(null);
   // 排水溝のドラッグ中状態（設備IDのみ保持。位置はマウスから直接計算）
   const [drainDragging, setDrainDragging] = useState<string | null>(null);
-  // エルボ(配管中間点)ドラッグ中状態
+  // エルボ(配管中間点)ドラッグ中状態 - 対象コーナーのindexも保持
   const [elbowDragging, setElbowDragging] = useState<{
     fixtureId: string;
     pipeType: PipeType;
+    cornerIndex: number;
   } | null>(null);
   // 背景画像のドラッグ中（開始位置と背景元位置を保持）
   const [bgDragging, setBgDragging] = useState<{
@@ -398,9 +421,9 @@ export function GridCanvas({
 
   /** エルボ(配管中間点)mousedown */
   const handleElbowMouseDown = useCallback(
-    (e: React.MouseEvent, fixtureId: string, pipeType: PipeType) => {
+    (e: React.MouseEvent, fixtureId: string, pipeType: PipeType, cornerIndex: number) => {
       e.stopPropagation();
-      setElbowDragging({ fixtureId, pipeType });
+      setElbowDragging({ fixtureId, pipeType, cornerIndex });
     },
     []
   );
@@ -422,14 +445,15 @@ export function GridCanvas({
         onSetGridOffset(mod(newOffX, gridSizeMm), mod(newOffY, gridSizeMm));
         return;
       }
-      // エルボドラッグ
-      if (elbowDragging && onSetPipeMidPoint) {
+      // エルボドラッグ - 指定インデックスのコーナーを更新
+      if (elbowDragging && onUpdatePipePoint) {
         const pos = getMouseMm(e);
         const snappedX = snapToGridWithOffset(pos.x, gridSizeMm, gridOffX);
         const snappedY = snapToGridWithOffset(pos.y, gridSizeMm, gridOffY);
-        onSetPipeMidPoint(
+        onUpdatePipePoint(
           elbowDragging.fixtureId,
           elbowDragging.pipeType,
+          elbowDragging.cornerIndex,
           snappedX,
           snappedY
         );
@@ -501,7 +525,7 @@ export function GridCanvas({
       onMoveFixture,
       onResizeFixtureGeometry,
       onSetDrainOffset,
-      onSetPipeMidPoint,
+      onUpdatePipePoint,
       onMoveBackground,
     ]
   );
@@ -916,6 +940,7 @@ export function GridCanvas({
                 width={mmToPx(f.w)}
                 height={mmToPx(f.h)}
                 fill={color}
+                fillOpacity={0.55}
                 stroke={isSelected ? "#1976d2" : f.type === "ps" ? "#e65100" : "#666"}
                 strokeWidth={isSelected ? 2.5 : 1}
                 rx={2}
@@ -1184,13 +1209,47 @@ export function GridCanvas({
             { key: "sw", cx: xPx, cy: yPx + hPx, cursor: "nesw-resize" },
             { key: "w", cx: xPx, cy: yPx + hPx / 2, cursor: "ew-resize" },
           ];
-          // 選択中設備に紐づく配管のエルボ点ハンドル
-          const elbowHandles = pipeRoutes
-            .filter((r) => r.fixtureId === sel.id && r.points.length >= 3)
-            .map((r) => ({
-              pipeType: r.pipeType,
-              point: r.points[1],
-            }));
+          // 選択中設備に紐づく配管の全コーナーハンドル
+          //  points = [from, ...corners, to] の corners 部分(中間点群)を編集対象
+          //  index は customPipePoints 配列の中のインデックス (=points内のインデックス-1)
+          type CornerHandle = {
+            pipeType: PipeType;
+            point: { x: number; y: number };
+            cornerIndex: number;
+          };
+          // 既存ルートの「セグメント中点」も挿入候補として収集
+          type InsertHandle = {
+            pipeType: PipeType;
+            midPoint: { x: number; y: number };
+            insertIndex: number;
+          };
+          const cornerHandles: CornerHandle[] = [];
+          const insertHandles: InsertHandle[] = [];
+          pipeRoutes
+            .filter((r) => r.fixtureId === sel.id && r.points.length >= 2)
+            .forEach((r) => {
+              // r.points[0] は from(設備), r.points[最後] は to(PS)
+              // 中間 r.points[1..n-1] が corner たち
+              for (let i = 1; i < r.points.length - 1; i++) {
+                cornerHandles.push({
+                  pipeType: r.pipeType,
+                  point: r.points[i],
+                  cornerIndex: i - 1,
+                });
+              }
+              // 各セグメントの中点(挿入用)
+              for (let i = 0; i < r.points.length - 1; i++) {
+                const a = r.points[i];
+                const b = r.points[i + 1];
+                insertHandles.push({
+                  pipeType: r.pipeType,
+                  midPoint: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+                  // セグメント i の中点に挿入する場合、新しいコーナーは
+                  // points[i] と points[i+1] の間 = customPipePoints の i 番目に挿入
+                  insertIndex: i,
+                });
+              }
+            });
 
           return (
             <g>
@@ -1208,9 +1267,9 @@ export function GridCanvas({
                   onMouseDown={(e) => handleResizeMouseDown(e, sel, h.key)}
                 />
               ))}
-              {/* 各配管のエルボ点ハンドル(緑色)。横管の曲がりをドラッグで自由変更 */}
-              {elbowHandles.map((eh) => (
-                <g key={`elbow-${eh.pipeType}`}>
+              {/* 各配管の中間コーナー(緑色)。ドラッグで移動、ダブルクリックで削除 */}
+              {cornerHandles.map((eh, ix) => (
+                <g key={`corner-${eh.pipeType}-${ix}`}>
                   <circle
                     cx={mmToPx(eh.point.x)}
                     cy={mmToPx(eh.point.y)}
@@ -1220,9 +1279,15 @@ export function GridCanvas({
                     strokeWidth={2}
                     style={{ cursor: "move" }}
                     onMouseDown={(e) =>
-                      handleElbowMouseDown(e, sel.id, eh.pipeType)
+                      handleElbowMouseDown(e, sel.id, eh.pipeType, eh.cornerIndex)
                     }
-                  />
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      onRemovePipePoint?.(sel.id, eh.pipeType, eh.cornerIndex);
+                    }}
+                  >
+                    <title>ドラッグで移動 / ダブルクリックで削除</title>
+                  </circle>
                   <circle
                     cx={mmToPx(eh.point.x)}
                     cy={mmToPx(eh.point.y)}
@@ -1230,6 +1295,48 @@ export function GridCanvas({
                     fill="#2e7d32"
                     pointerEvents="none"
                   />
+                </g>
+              ))}
+              {/* 各セグメント中点に「+」マーカー。クリックで新コーナーを挿入 */}
+              {insertHandles.map((ih, ix) => (
+                <g key={`insert-${ih.pipeType}-${ix}`}>
+                  <circle
+                    cx={mmToPx(ih.midPoint.x)}
+                    cy={mmToPx(ih.midPoint.y)}
+                    r={4}
+                    fill="#fff"
+                    stroke="#26a69a"
+                    strokeWidth={1.5}
+                    strokeDasharray="2 1.5"
+                    opacity={0.85}
+                    style={{ cursor: "copy" }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const snappedX = snapToGridWithOffset(ih.midPoint.x, gridSizeMm, gridOffX);
+                      const snappedY = snapToGridWithOffset(ih.midPoint.y, gridSizeMm, gridOffY);
+                      onInsertPipePoint?.(
+                        sel.id,
+                        ih.pipeType,
+                        ih.insertIndex,
+                        snappedX,
+                        snappedY
+                      );
+                    }}
+                  >
+                    <title>クリックでこの位置に新しいコーナーを追加</title>
+                  </circle>
+                  <text
+                    x={mmToPx(ih.midPoint.x)}
+                    y={mmToPx(ih.midPoint.y) + 1}
+                    fontSize={8}
+                    fill="#26a69a"
+                    fontWeight={700}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    pointerEvents="none"
+                  >
+                    +
+                  </text>
                 </g>
               ))}
             </g>

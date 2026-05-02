@@ -263,8 +263,14 @@ export default function App() {
               onRotateFixture={store.rotateFixture}
               onResizeFixtureGeometry={store.setFixtureGeometry}
               onSetDrainOffset={store.setFixtureDrainOffset}
-              onSetPipeMidPoint={(id, pipeType, x, y) =>
-                store.setCustomPipeMidPoint(id, pipeType, x, y)
+              onUpdatePipePoint={(id, pipeType, index, x, y) =>
+                store.updateCustomPipePoint(id, pipeType, index, x, y)
+              }
+              onInsertPipePoint={(id, pipeType, index, x, y) =>
+                store.insertCustomPipePoint(id, pipeType, index, x, y)
+              }
+              onRemovePipePoint={(id, pipeType, index) =>
+                store.removeCustomPipePoint(id, pipeType, index)
               }
               onMoveBackground={(x, y) =>
                 store.updateBackgroundImage({ x, y })
