@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, 'Hiragino Sans',
+    'Yu Gothic UI', 'Meiryo', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'tnum' 1;
+}
+
+@layer components {
+  .panel {
+    @apply bg-panel border border-border rounded-2xl shadow-panel;
+  }
+  .field {
+    @apply w-full bg-panel2 border border-border rounded-lg px-3 py-2 text-ink
+           outline-none focus:border-accent focus:ring-1 focus:ring-accent placeholder-muted;
+  }
+  .label {
+    @apply text-xs font-medium text-muted mb-1 block uppercase tracking-wide;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium
+           transition active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-accent text-app hover:bg-accent2;
+  }
+  .btn-ghost {
+    @apply btn bg-panel2 text-ink hover:bg-border border border-border;
+  }
+  .btn-danger {
+    @apply btn bg-danger/10 text-danger hover:bg-danger/20 border border-danger/30;
+  }
+  .num {
+    @apply font-num tabular-nums;
+  }
+  .pill {
+    @apply inline-flex items-center text-xs px-2 py-0.5 rounded-full bg-panel2 border border-border text-muted;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #1f2a44;
+  border-radius: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
