@@ -61,14 +61,20 @@ export function byHourOfDay(shifts: Shift[]): { hour: number; earnings: number }
   return buckets.map((earnings, hour) => ({ hour, earnings }));
 }
 
+function toLocalIso(d: Date): string {
+  const y = d.getFullYear();
+  const m = (d.getMonth() + 1).toString().padStart(2, '0');
+  const day = d.getDate().toString().padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export function byDate(shifts: Shift[], days = 30): { date: string; earnings: number }[] {
   const map = new Map<string, number>();
   const today = new Date();
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(today.getDate() - i);
-    const key = d.toISOString().slice(0, 10);
-    map.set(key, 0);
+    map.set(toLocalIso(d), 0);
   }
   for (const s of shifts) {
     if (map.has(s.date)) map.set(s.date, (map.get(s.date) ?? 0) + s.earnings);

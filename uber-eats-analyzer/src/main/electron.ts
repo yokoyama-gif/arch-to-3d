@@ -37,8 +37,8 @@ const createWindow = async () => {
   await window.loadFile(path.join(app.getAppPath(), 'dist', 'index.html'));
 };
 
-app.whenReady().then(() => {
-  initDb(app.getPath('userData'));
+app.whenReady().then(async () => {
+  await initDb(app.getPath('userData'));
 
   ipcMain.handle('shifts:list', (_e, filter: ShiftFilter | undefined) => listShifts(filter ?? {}));
   ipcMain.handle('shifts:insert', (_e, input: ShiftInput) => insertShift(input));

@@ -11,19 +11,17 @@
     "build": "npm run build:renderer && npm run build:main",
     "build:renderer": "vite build",
     "build:main": "tsc -p tsconfig.main.json",
-    "preview": "vite preview",
-    "rebuild:sqlite": "electron-rebuild -f -w better-sqlite3"
+    "preview": "vite preview"
   },
   "dependencies": {
-    "better-sqlite3": "^11.3.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "sql.js": "^1.13.0",
     "zustand": "^5.0.8"
   },
   "devDependencies": {
-    "@electron/rebuild": "^3.7.1",
-    "@types/better-sqlite3": "^7.6.11",
     "@types/node": "^24.6.0",
+    "@types/sql.js": "^1.4.9",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^5.0.4",
