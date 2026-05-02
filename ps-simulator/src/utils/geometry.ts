@@ -1,6 +1,18 @@
-/** グリッドにスナップ */
+/** グリッドにスナップ（原点0スタート） */
 export function snapToGrid(value: number, gridSize: number): number {
   return Math.round(value / gridSize) * gridSize;
+}
+
+/**
+ * グリッドオフセット込みのスナップ。
+ * グリッド線が `offset + n*gridSize` の位置にある場合、最寄りに丸める。
+ */
+export function snapToGridWithOffset(
+  value: number,
+  gridSize: number,
+  offset: number
+): number {
+  return offset + Math.round((value - offset) / gridSize) * gridSize;
 }
 
 /**

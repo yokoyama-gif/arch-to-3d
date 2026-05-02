@@ -281,6 +281,8 @@ export default function App() {
               onAddMarker={(offsetX, offsetY) =>
                 store.addBackgroundMarker(offsetX, offsetY)
               }
+              gridOffsetMm={store.gridOffsetMm}
+              onSetGridOffset={store.setGridOffset}
             />
           </div>
 
@@ -311,8 +313,10 @@ export default function App() {
               onToggleMarkingMode={() => setMarkingMode((v) => !v)}
               onClearMarkers={() => store.clearBackgroundMarkers()}
               onAlignByFirstMarker={() =>
-                store.alignBackgroundByMarker(0, store.buildingSettings.gridSizeMm)
+                store.alignGridByMarker(0, store.buildingSettings.gridSizeMm)
               }
+              onResetGridOffset={() => store.setGridOffset(0, 0)}
+              gridOffsetMm={store.gridOffsetMm}
             />
 
             <div style={{ margin: "16px 0", borderTop: "1px solid #eee" }} />

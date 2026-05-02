@@ -27,6 +27,10 @@ type Props = {
   onClearMarkers: () => void;
   /** 1番目のマーカーで全体をグリッド整列 */
   onAlignByFirstMarker: () => void;
+  /** グリッドオフセットを0にリセット */
+  onResetGridOffset: () => void;
+  /** 現在のグリッドオフセット表示用 */
+  gridOffsetMm: { x: number; y: number };
 };
 
 /**
@@ -49,6 +53,8 @@ export function BackgroundPanel({
   onToggleMarkingMode,
   onClearMarkers,
   onAlignByFirstMarker,
+  onResetGridOffset,
+  gridOffsetMm,
 }: Props) {
   const snapStep = snapToModule ? moduleMm : gridSizeMm;
   const markerCount = backgroundImage?.markers?.length ?? 0;
@@ -147,9 +153,9 @@ export function BackgroundPanel({
               color: bgDragMode ? "#fff" : undefined,
               fontWeight: bgDragMode ? 700 : 400,
             }}
-            title="ONの時だけ図面をドラッグで動かせます。設備配置と切り替えてご使用ください"
+            title="ONの間、ドラッグや十字キーでグリッドを動かして図面に合わせます（図面は固定）"
           >
-            {bgDragMode ? "図面移動中" : "図面を移動"}
+            {bgDragMode ? "グリッド移動中" : "グリッドを移動"}
           </button>
           <button
             onClick={onToggleCalibration}
@@ -230,9 +236,16 @@ export function BackgroundPanel({
           <button
             onClick={() => onUpdate({ x: 0, y: 0 })}
             style={{ padding: "4px 8px", fontSize: 11, cursor: "pointer" }}
-            title="原点(0,0)に瞬時に戻す"
+            title="図面の左上を原点(0,0)に戻す"
           >
-            原点(0,0)へ
+            図面を原点へ
+          </button>
+          <button
+            onClick={onResetGridOffset}
+            style={{ padding: "4px 8px", fontSize: 11, cursor: "pointer" }}
+            title="グリッドオフセットを 0 にリセット（グリッドが原点スタートに戻る）"
+          >
+            グリッドリセット
           </button>
         </div>
       )}
@@ -275,9 +288,9 @@ export function BackgroundPanel({
                 cursor: markerCount === 0 ? "not-allowed" : "pointer",
                 opacity: markerCount === 0 ? 0.5 : 1,
               }}
-              title="1番目のマークを最寄りグリッド交点に合わせるよう図面全体を平行移動"
+              title="1番目のマークの絶対座標にグリッド交点が来るよう、グリッドオフセットを設定"
             >
-              1番目のマークで整列
+              1番目のマークにグリッド合わせ
             </button>
             <button
               onClick={onClearMarkers}
@@ -370,6 +383,20 @@ export function BackgroundPanel({
           読込後にX/Y位置と幅/高さで配置を合わせてください。
         </div>
       )}
+
+      {/* グリッドオフセット現在値 */}
+      <div
+        style={{
+          marginTop: 6,
+          fontSize: 11,
+          color: "#555",
+          padding: "3px 6px",
+          background: "#eef",
+          borderRadius: 3,
+        }}
+      >
+        グリッドオフセット: ({(gridOffsetMm?.x ?? 0).toFixed(1)}, {(gridOffsetMm?.y ?? 0).toFixed(1)}) mm
+      </div>
     </div>
   );
 }

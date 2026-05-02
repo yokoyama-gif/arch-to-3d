@@ -22,7 +22,7 @@ import { calcSlopeResults } from "../domain/calcSlope";
 import { calcPsSize } from "../domain/calcPsSize";
 import { calcPlanSummary } from "../domain/scoring";
 import { generateId } from "../utils/id";
-import { snapToGrid } from "../utils/geometry";
+import { snapToGrid, snapToGridWithOffset } from "../utils/geometry";
 
 type SavedPlan = {
   name: string;
@@ -58,6 +58,14 @@ type SimulatorState = {
   deleteFixture: (id: string) => void;
   selectFixture: (id: string | null) => void;
   setFixtures: (fixtures: Fixture[]) => void;
+
+  // グリッドの平行移動オフセット (mm)
+  // 図面側は固定して、こちらの値を変えてグリッドの方を図面に合わせる仕様
+  gridOffsetMm: { x: number; y: number };
+  setGridOffset: (x: number, y: number) => void;
+  nudgeGridOffset: (dx: number, dy: number) => void;
+  /** マーカーの絶対座標にグリッド交点が来るようグリッドオフセットを設定 */
+  alignGridByMarker: (markerIndex: number, gridSizeMm: number) => void;
 
   // 背景画像（平面図の下絵として表示）
   backgroundImage: BackgroundImage | null;
@@ -150,12 +158,13 @@ export const useSimulatorStore = create<SimulatorState>((set, get) => {
 
     addFixture: (type, x, y) => {
       const grid = get().buildingSettings.gridSizeMm;
+      const off = get().gridOffsetMm;
       const defaults = fixtureDefaults[type];
       const newFixture: Fixture = {
         id: generateId(),
         type,
-        x: snapToGrid(x, grid),
-        y: snapToGrid(y, grid),
+        x: snapToGridWithOffset(x, grid, off.x),
+        y: snapToGridWithOffset(y, grid, off.y),
         w: defaults.w,
         h: defaults.h,
         rotation: 0,
@@ -184,9 +193,16 @@ export const useSimulatorStore = create<SimulatorState>((set, get) => {
 
     moveFixture: (id, x, y) => {
       const grid = get().buildingSettings.gridSizeMm;
+      const off = get().gridOffsetMm;
       set((state) => ({
         fixtures: state.fixtures.map((f) =>
-          f.id === id ? { ...f, x: snapToGrid(x, grid), y: snapToGrid(y, grid) } : f
+          f.id === id
+            ? {
+                ...f,
+                x: snapToGridWithOffset(x, grid, off.x),
+                y: snapToGridWithOffset(y, grid, off.y),
+              }
+            : f
         ),
       }));
       get().recalculate();
@@ -249,16 +265,18 @@ export const useSimulatorStore = create<SimulatorState>((set, get) => {
     },
 
     setFixtureGeometry: (id, x, y, w, h) => {
-      // ドラッグハンドルからのリサイズ。位置と寸法をグリッドにスナップして一括更新。
+      // ドラッグハンドルからのリサイズ。位置はグリッド(オフセット込)にスナップ、
+      // 寸法はグリッド倍数に丸める。
       const grid = get().buildingSettings.gridSizeMm;
+      const off = get().gridOffsetMm;
       const minSize = 50;
       set((state) => ({
         fixtures: state.fixtures.map((f) =>
           f.id === id
             ? {
                 ...f,
-                x: snapToGrid(x, grid),
-                y: snapToGrid(y, grid),
+                x: snapToGridWithOffset(x, grid, off.x),
+                y: snapToGridWithOffset(y, grid, off.y),
                 w: Math.max(minSize, snapToGrid(w, grid)),
                 h: Math.max(minSize, snapToGrid(h, grid)),
               }
@@ -305,6 +323,32 @@ export const useSimulatorStore = create<SimulatorState>((set, get) => {
     setFixtures: (fixtures) => {
       set({ fixtures });
       get().recalculate();
+    },
+
+    gridOffsetMm: { x: 0, y: 0 },
+    setGridOffset: (x, y) => set({ gridOffsetMm: { x, y } }),
+    nudgeGridOffset: (dx, dy) =>
+      set((state) => ({
+        gridOffsetMm: {
+          x: state.gridOffsetMm.x + dx,
+          y: state.gridOffsetMm.y + dy,
+        },
+      })),
+    alignGridByMarker: (markerIndex, gridSizeMm) => {
+      const bg = get().backgroundImage;
+      if (!bg || !bg.markers || !bg.markers[markerIndex]) return;
+      const m = bg.markers[markerIndex];
+      // マーカーの絶対座標
+      const absX = bg.x + m.x;
+      const absY = bg.y + m.y;
+      // 「値 = offset + n*step」となる offset を [0, step) に収める
+      const mod = (v: number, s: number) => ((v % s) + s) % s;
+      set({
+        gridOffsetMm: {
+          x: mod(absX, gridSizeMm),
+          y: mod(absY, gridSizeMm),
+        },
+      });
     },
 
     backgroundImage: null,

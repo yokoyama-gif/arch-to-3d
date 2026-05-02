@@ -15,7 +15,7 @@ import {
 } from "../domain/rules/fixtureDefaults";
 import { pipeColors, pipeTypeLabels } from "../domain/rules/pipeSpecs";
 import { CANVAS_DEFAULTS } from "../domain/rules/canvasDefaults";
-import { snapToGrid } from "../utils/geometry";
+import { snapToGrid, snapToGridWithOffset } from "../utils/geometry";
 
 // キャンバス＝A3横@1/100の実寸範囲 (42000×29700mm)
 const DEFAULT_CANVAS_W = CANVAS_DEFAULTS.widthMm;
@@ -77,6 +77,10 @@ type Props = {
   markingMode?: boolean;
   /** マーク追加コールバック(背景左上からのmmオフセット) */
   onAddMarker?: (offsetX: number, offsetY: number) => void;
+  /** グリッドオフセット(mm) - グリッドを動かして図面に合わせる用 */
+  gridOffsetMm?: { x: number; y: number };
+  /** グリッドオフセットを直接設定 */
+  onSetGridOffset?: (x: number, y: number) => void;
 };
 
 export function GridCanvas({
@@ -104,7 +108,11 @@ export function GridCanvas({
   bgSnapStepMm,
   markingMode,
   onAddMarker,
+  gridOffsetMm,
+  onSetGridOffset,
 }: Props) {
+  const gridOffX = gridOffsetMm?.x ?? 0;
+  const gridOffY = gridOffsetMm?.y ?? 0;
   // _onScaleBackground は API 互換のため受け取り、実際の計算は親で onCalibrationDone 経由
   void _onScaleBackground;
   const svgRef = useRef<SVGSVGElement>(null);
@@ -214,24 +222,23 @@ export function GridCanvas({
         }
       } else if (
         bgDragMode &&
-        backgroundImage &&
-        onMoveBackground &&
+        onSetGridOffset &&
         (e.key === "ArrowUp" ||
           e.key === "ArrowDown" ||
           e.key === "ArrowLeft" ||
           e.key === "ArrowRight")
       ) {
-        // 図面移動モードON+設備未選択なら、十字キーで背景画像を移動
-        // モジュールスナップが有効ならbgSnapStepMmを使う（粗合わせ）
+        // グリッド移動モードON+設備未選択なら、十字キーでグリッドオフセットを動かす
         e.preventDefault();
         const step = bgSnapStepMm ?? gridSizeMm;
-        let nx = backgroundImage.x;
-        let ny = backgroundImage.y;
+        const mod = (v: number, s: number) => ((v % s) + s) % s;
+        let nx = gridOffX;
+        let ny = gridOffY;
         if (e.key === "ArrowUp") ny -= step;
         if (e.key === "ArrowDown") ny += step;
         if (e.key === "ArrowLeft") nx -= step;
         if (e.key === "ArrowRight") nx += step;
-        onMoveBackground(nx, ny);
+        onSetGridOffset(mod(nx, gridSizeMm), mod(ny, gridSizeMm));
       } else if (e.key === "Escape" && placingType) {
         // 配置モードをキャンセル（親でハンドル）
       }
@@ -243,6 +250,8 @@ export function GridCanvas({
     placingType,
     fixtures,
     gridSizeMm,
+    gridOffX,
+    gridOffY,
     bgDragMode,
     bgSnapStepMm,
     backgroundImage,
@@ -250,7 +259,7 @@ export function GridCanvas({
     onRotateFixture,
     onSelectFixture,
     onSetDrainOffset,
-    onMoveBackground,
+    onSetGridOffset,
   ]);
 
   // --- ズーム（マウスホイールで直接） ---
@@ -328,21 +337,20 @@ export function GridCanvas({
   /** 背景画像 mousedown：ドラッグ開始 */
   const handleBackgroundMouseDown = useCallback(
     (e: React.MouseEvent) => {
-      if (!backgroundImage || !onMoveBackground) return;
-      // 背景ドラッグは「図面移動モード」がONのときのみ反応する。
-      // OFFのときはパレット配置や設備選択の邪魔にならないよう完全に無視。
-      if (!bgDragMode) return;
+      // グリッド移動モードがONのときのみ、背景クリックでグリッドオフセットドラッグを開始
+      if (!bgDragMode || !onSetGridOffset) return;
       if (placingType || calibrationMode) return;
       e.stopPropagation();
       const pos = getMouseMm(e);
       setBgDragging({
         startMouseX: pos.x,
         startMouseY: pos.y,
-        startX: backgroundImage.x,
-        startY: backgroundImage.y,
+        // 開始時のグリッドオフセットを保持
+        startX: gridOffX,
+        startY: gridOffY,
       });
     },
-    [backgroundImage, onMoveBackground, placingType, calibrationMode, bgDragMode, getMouseMm]
+    [bgDragMode, onSetGridOffset, placingType, calibrationMode, gridOffX, gridOffY, getMouseMm]
   );
 
   const handleFixtureMouseDown = useCallback(
@@ -399,23 +407,26 @@ export function GridCanvas({
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
-      // 背景ドラッグ
-      if (bgDragging && onMoveBackground) {
+      // グリッド移動モードのドラッグ → グリッドオフセットを変更
+      if (bgDragging && onSetGridOffset) {
         const pos = getMouseMm(e);
         const dx = pos.x - bgDragging.startMouseX;
         const dy = pos.y - bgDragging.startMouseY;
-        // モジュールスナップが有効ならbgSnapStepMmを使う
+        // ドラッグ開始時のオフセットからの差分でオフセット更新
+        // bgDragging.startX/Y には開始時の gridOffset を入れている
         const step = bgSnapStepMm ?? gridSizeMm;
-        const newX = snapToGrid(bgDragging.startX + dx, step);
-        const newY = snapToGrid(bgDragging.startY + dy, step);
-        onMoveBackground(newX, newY);
+        const newOffX = snapToGrid(bgDragging.startX + dx, step);
+        const newOffY = snapToGrid(bgDragging.startY + dy, step);
+        // オフセット値は[0, gridSize)に正規化
+        const mod = (v: number, s: number) => ((v % s) + s) % s;
+        onSetGridOffset(mod(newOffX, gridSizeMm), mod(newOffY, gridSizeMm));
         return;
       }
       // エルボドラッグ
       if (elbowDragging && onSetPipeMidPoint) {
         const pos = getMouseMm(e);
-        const snappedX = snapToGrid(pos.x, gridSizeMm);
-        const snappedY = snapToGrid(pos.y, gridSizeMm);
+        const snappedX = snapToGridWithOffset(pos.x, gridSizeMm, gridOffX);
+        const snappedY = snapToGridWithOffset(pos.y, gridSizeMm, gridOffY);
         onSetPipeMidPoint(
           elbowDragging.fixtureId,
           elbowDragging.pipeType,
@@ -471,8 +482,8 @@ export function GridCanvas({
       }
       if (!dragging) return;
       const pos = getMouseMm(e);
-      const newX = snapToGrid(pos.x - dragging.offsetX, gridSizeMm);
-      const newY = snapToGrid(pos.y - dragging.offsetY, gridSizeMm);
+      const newX = snapToGridWithOffset(pos.x - dragging.offsetX, gridSizeMm, gridOffX);
+      const newY = snapToGridWithOffset(pos.y - dragging.offsetY, gridSizeMm, gridOffY);
       onMoveFixture(dragging.id, newX, newY);
     },
     [
@@ -485,6 +496,8 @@ export function GridCanvas({
       fixtures,
       getMouseMm,
       gridSizeMm,
+      gridOffX,
+      gridOffY,
       onMoveFixture,
       onResizeFixtureGeometry,
       onSetDrainOffset,
@@ -502,21 +515,24 @@ export function GridCanvas({
   }, []);
 
   /**
-   * グリッド線生成
+   * グリッド線生成（オフセット対応）
    * - 太線 (moduleMm) ごと
-   * - 細線 (moduleMm / gridDivision) ごと（gridSizeMm）
-   * インデックスベースで描画して浮動小数誤差を回避する。
+   * - 細線 (moduleMm / gridDivision) ごと
+   * - グリッド全体を gridOffsetMm.x / .y だけ平行移動して描画
    * iが gridDivision の倍数なら太線（モジュール境界）。
    */
   const gridLines: JSX.Element[] = [];
-  // 描画範囲のモジュール境界数 + 余裕分
-  const maxIxX = Math.ceil(canvasW / gridSizeMm);
-  const maxIxY = Math.ceil(canvasH / gridSizeMm);
+  // オフセット込みで [0, canvasW] / [0, canvasH] をカバーする最初/最後のi
+  const startIxX = Math.floor((0 - gridOffX) / gridSizeMm);
+  const endIxX = Math.ceil((canvasW - gridOffX) / gridSizeMm);
+  const startIxY = Math.floor((0 - gridOffY) / gridSizeMm);
+  const endIxY = Math.ceil((canvasH - gridOffY) / gridSizeMm);
 
-  for (let i = 0; i <= maxIxX; i++) {
-    const xMm = i * gridSizeMm;
-    if (xMm > canvasW + gridSizeMm) break;
-    const isMajor = i % gridDivision === 0;
+  for (let i = startIxX; i <= endIxX; i++) {
+    const xMm = gridOffX + i * gridSizeMm;
+    if (xMm < -gridSizeMm || xMm > canvasW + gridSizeMm) continue;
+    // i が gridDivision の倍数のとき太線（モジュール境界）
+    const isMajor = ((i % gridDivision) + gridDivision) % gridDivision === 0;
     gridLines.push(
       <line
         key={`gv-${i}`}
@@ -529,10 +545,10 @@ export function GridCanvas({
       />
     );
   }
-  for (let i = 0; i <= maxIxY; i++) {
-    const yMm = i * gridSizeMm;
-    if (yMm > canvasH + gridSizeMm) break;
-    const isMajor = i % gridDivision === 0;
+  for (let i = startIxY; i <= endIxY; i++) {
+    const yMm = gridOffY + i * gridSizeMm;
+    if (yMm < -gridSizeMm || yMm > canvasH + gridSizeMm) continue;
+    const isMajor = ((i % gridDivision) + gridDivision) % gridDivision === 0;
     gridLines.push(
       <line
         key={`gh-${i}`}
