@@ -77,9 +77,9 @@ export default function App() {
       placingAnchor
     );
     store.addFixtureRaw(type, offset.x, offset.y);
-    if (type !== "ps") {
-      setPlacingType(null);
-    }
+    // 配置後は常に配置モードを解除する。
+    // (PSも例外なし。連続配置したいときはパレットを再度クリック)
+    setPlacingType(null);
   };
 
   const handleExport = () => {

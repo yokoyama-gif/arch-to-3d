@@ -292,6 +292,11 @@ export function GridCanvas({
         return;
       }
       if (placingType) {
+        // 既存の設備(data-fixture)をクリックした場合は配置しない（誤配置防止）
+        const target = e.target as Element;
+        const onFixture = target.getAttribute("data-fixture") ||
+          target.closest("[data-fixture]");
+        if (onFixture) return;
         const pos = getMouseMm(e);
         onAddFixture(placingType, pos.x, pos.y);
         return;
