@@ -21,6 +21,12 @@ type Props = {
   /** スナップ単位を「モジュール」にするか（false=細グリッド） */
   snapToModule: boolean;
   onToggleSnapToModule: () => void;
+  /** 柱マーク追加モード */
+  markingMode: boolean;
+  onToggleMarkingMode: () => void;
+  onClearMarkers: () => void;
+  /** 1番目のマーカーで全体をグリッド整列 */
+  onAlignByFirstMarker: () => void;
 };
 
 /**
@@ -39,8 +45,13 @@ export function BackgroundPanel({
   moduleMm,
   snapToModule,
   onToggleSnapToModule,
+  markingMode,
+  onToggleMarkingMode,
+  onClearMarkers,
+  onAlignByFirstMarker,
 }: Props) {
   const snapStep = snapToModule ? moduleMm : gridSizeMm;
+  const markerCount = backgroundImage?.markers?.length ?? 0;
   const fileRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -223,6 +234,65 @@ export function BackgroundPanel({
           >
             原点(0,0)へ
           </button>
+        </div>
+      )}
+
+      {/* 柱マーク機能 */}
+      {backgroundImage && (
+        <div
+          style={{
+            marginTop: 8,
+            padding: 6,
+            background: "#f9fbe7",
+            border: "1px solid #c5e1a5",
+            borderRadius: 4,
+          }}
+        >
+          <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4 }}>
+            柱マーク → グリッド整列 (現在 {markerCount} 個)
+          </div>
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+            <button
+              onClick={onToggleMarkingMode}
+              style={{
+                padding: "4px 8px",
+                fontSize: 11,
+                cursor: "pointer",
+                background: markingMode ? "#ef5350" : "#f5f5f5",
+                color: markingMode ? "#fff" : undefined,
+                fontWeight: markingMode ? 700 : 400,
+              }}
+              title="ON中、図面上の柱中心をクリックすると赤い点が打たれます"
+            >
+              {markingMode ? "マーク追加中…" : "柱マーク追加"}
+            </button>
+            <button
+              onClick={onAlignByFirstMarker}
+              disabled={markerCount === 0}
+              style={{
+                padding: "4px 8px",
+                fontSize: 11,
+                cursor: markerCount === 0 ? "not-allowed" : "pointer",
+                opacity: markerCount === 0 ? 0.5 : 1,
+              }}
+              title="1番目のマークを最寄りグリッド交点に合わせるよう図面全体を平行移動"
+            >
+              1番目のマークで整列
+            </button>
+            <button
+              onClick={onClearMarkers}
+              disabled={markerCount === 0}
+              style={{
+                padding: "4px 8px",
+                fontSize: 11,
+                cursor: markerCount === 0 ? "not-allowed" : "pointer",
+                opacity: markerCount === 0 ? 0.5 : 1,
+                color: "#f44336",
+              }}
+            >
+              全マーク削除
+            </button>
+          </div>
           <button
             onClick={() =>
               onUpdate({

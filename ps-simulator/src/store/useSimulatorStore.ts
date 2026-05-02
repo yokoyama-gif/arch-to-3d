@@ -63,6 +63,15 @@ type SimulatorState = {
   backgroundImage: BackgroundImage | null;
   setBackgroundImage: (img: BackgroundImage | null) => void;
   updateBackgroundImage: (patch: Partial<BackgroundImage>) => void;
+  /** 背景画像にマーカー(柱中心など)を追加。座標は背景左上からのmmオフセット */
+  addBackgroundMarker: (offsetX: number, offsetY: number) => void;
+  /** 全マーカー削除 */
+  clearBackgroundMarkers: () => void;
+  /**
+   * 指定インデックスのマーカーを最寄りグリッド交点に合わせるため、
+   * 背景画像全体を必要分だけ平行移動する。
+   */
+  alignBackgroundByMarker: (markerIndex: number, gridSizeMm: number) => void;
 
   // 配管径設定 (横管・竪管ごとに編集可能)
   pipeDiameters: PipeDiameters;
@@ -306,6 +315,46 @@ export const useSimulatorStore = create<SimulatorState>((set, get) => {
           ? { ...state.backgroundImage, ...patch }
           : null,
       })),
+
+    addBackgroundMarker: (offsetX, offsetY) =>
+      set((state) => {
+        if (!state.backgroundImage) return {};
+        const next = [
+          ...(state.backgroundImage.markers ?? []),
+          { x: offsetX, y: offsetY },
+        ];
+        return {
+          backgroundImage: { ...state.backgroundImage, markers: next },
+        };
+      }),
+
+    clearBackgroundMarkers: () =>
+      set((state) => {
+        if (!state.backgroundImage) return {};
+        return {
+          backgroundImage: { ...state.backgroundImage, markers: [] },
+        };
+      }),
+
+    alignBackgroundByMarker: (markerIndex, gridSizeMm) => {
+      const bg = get().backgroundImage;
+      if (!bg || !bg.markers || !bg.markers[markerIndex]) return;
+      const m = bg.markers[markerIndex];
+      // マーカーの絶対座標
+      const absX = bg.x + m.x;
+      const absY = bg.y + m.y;
+      // 最寄りグリッド交点
+      const gx = Math.round(absX / gridSizeMm) * gridSizeMm;
+      const gy = Math.round(absY / gridSizeMm) * gridSizeMm;
+      // 背景全体を平行移動 (マーカーは bg.x からの相対なので追従する)
+      set({
+        backgroundImage: {
+          ...bg,
+          x: bg.x + (gx - absX),
+          y: bg.y + (gy - absY),
+        },
+      });
+    },
 
     pipeDiameters: createDefaultPipeDiameters(),
     setPipeDiameter: (pipeType, kind, valueMm) => {

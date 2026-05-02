@@ -73,6 +73,10 @@ type Props = {
    * モジュール(900等)を渡すと、ドラッグ中も粗いグリッドで動く。
    */
   bgSnapStepMm?: number;
+  /** 柱マーク追加モード(ON時、背景上のクリックでマーク追加) */
+  markingMode?: boolean;
+  /** マーク追加コールバック(背景左上からのmmオフセット) */
+  onAddMarker?: (offsetX: number, offsetY: number) => void;
 };
 
 export function GridCanvas({
@@ -98,6 +102,8 @@ export function GridCanvas({
   onCalibrationDone,
   bgDragMode,
   bgSnapStepMm,
+  markingMode,
+  onAddMarker,
 }: Props) {
   // _onScaleBackground は API 互換のため受け取り、実際の計算は親で onCalibrationDone 経由
   void _onScaleBackground;
@@ -266,6 +272,14 @@ export function GridCanvas({
   const handleCanvasClick = useCallback(
     (e: React.MouseEvent) => {
       if (dragging || bgDragging) return;
+      // 柱マーク追加モード: クリック位置に背景左上からのオフセットでマーク追加
+      if (markingMode && backgroundImage && onAddMarker) {
+        const pos = getMouseMm(e);
+        const offsetX = pos.x - backgroundImage.x;
+        const offsetY = pos.y - backgroundImage.y;
+        onAddMarker(offsetX, offsetY);
+        return;
+      }
       // 校正モード: 2点指定で完了
       if (calibrationMode) {
         const pos = getMouseMm(e);
@@ -296,6 +310,9 @@ export function GridCanvas({
       bgDragging,
       calibrationMode,
       calibPoint1,
+      markingMode,
+      backgroundImage,
+      onAddMarker,
       getMouseMm,
       onAddFixture,
       onSelectFixture,
@@ -573,7 +590,9 @@ export function GridCanvas({
           border: "1px solid #ccc",
           cursor: zoomBox
             ? "zoom-in"
-            : calibrationMode || placingType ? "crosshair" : "default",
+            : calibrationMode || placingType || markingMode
+              ? "crosshair"
+              : "default",
         }}
         onClick={(e) => {
           // ラバーバンドズーム中・直後の click は無視
@@ -695,6 +714,37 @@ export function GridCanvas({
             onMouseDown={handleBackgroundMouseDown}
           />
         )}
+
+        {/* 柱マーク（背景に追従、赤いクロスヘア） */}
+        {backgroundImage?.markers?.map((m, i) => {
+          const ax = backgroundImage.x + m.x;
+          const ay = backgroundImage.y + m.y;
+          const cx = mmToPx(ax);
+          const cy = mmToPx(ay);
+          // グリッド交点との差を判定して色を変える
+          const gxNearest = Math.round(ax / gridSizeMm) * gridSizeMm;
+          const gyNearest = Math.round(ay / gridSizeMm) * gridSizeMm;
+          const offGrid =
+            Math.abs(ax - gxNearest) > 0.5 || Math.abs(ay - gyNearest) > 0.5;
+          const color = offGrid ? "#e53935" : "#43a047";
+          return (
+            <g key={`marker-${i}`} pointerEvents="none">
+              <line x1={cx - 8} y1={cy} x2={cx + 8} y2={cy} stroke={color} strokeWidth={1.5} />
+              <line x1={cx} y1={cy - 8} x2={cx} y2={cy + 8} stroke={color} strokeWidth={1.5} />
+              <circle cx={cx} cy={cy} r={3} fill={color} />
+              <text
+                x={cx + 10}
+                y={cy - 4}
+                fontSize={9}
+                fill={color}
+                fontWeight={700}
+                style={{ paintOrder: "stroke", stroke: "#fff", strokeWidth: 3 }}
+              >
+                {i + 1}{offGrid ? "" : " ✓"}
+              </text>
+            </g>
+          );
+        })}
 
         {/* 背景画像の四隅に座標ラベル（移動モード中のみ表示）*/}
         {backgroundImage && bgDragMode && (() => {

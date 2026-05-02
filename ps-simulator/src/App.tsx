@@ -27,6 +27,8 @@ export default function App() {
   const [bgDragMode, setBgDragMode] = useState(false);
   // 背景のスナップ単位 true=モジュール / false=細グリッド
   const [snapToModule, setSnapToModule] = useState(false);
+  // 柱マーク追加モード
+  const [markingMode, setMarkingMode] = useState(false);
   // 背景図面の校正モード（2点クリックで実距離指定）
   const [calibrationMode, setCalibrationMode] = useState(false);
 
@@ -275,6 +277,10 @@ export default function App() {
                   ? store.buildingSettings.moduleMm
                   : store.buildingSettings.gridSizeMm
               }
+              markingMode={markingMode}
+              onAddMarker={(offsetX, offsetY) =>
+                store.addBackgroundMarker(offsetX, offsetY)
+              }
             />
           </div>
 
@@ -301,6 +307,12 @@ export default function App() {
               moduleMm={store.buildingSettings.moduleMm}
               snapToModule={snapToModule}
               onToggleSnapToModule={() => setSnapToModule((v) => !v)}
+              markingMode={markingMode}
+              onToggleMarkingMode={() => setMarkingMode((v) => !v)}
+              onClearMarkers={() => store.clearBackgroundMarkers()}
+              onAlignByFirstMarker={() =>
+                store.alignBackgroundByMarker(0, store.buildingSettings.gridSizeMm)
+              }
             />
 
             <div style={{ margin: "16px 0", borderTop: "1px solid #eee" }} />

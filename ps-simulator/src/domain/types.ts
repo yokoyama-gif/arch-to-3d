@@ -135,6 +135,11 @@ export type BackgroundImage = {
   opacity: number;
   /** 白黒(グレースケール)で表示するか */
   grayscale?: boolean;
+  /**
+   * 柱マーク等の参照点。背景画像の左上(x,y)からのmmオフセット。
+   * 図面を平行移動してもマークは図面に追従する。
+   */
+  markers?: Point[];
 };
 
 /** 配管径(横管・竪管)のペア */
