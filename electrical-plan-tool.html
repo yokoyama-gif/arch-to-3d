@@ -956,8 +956,18 @@ function buildSubpalette(){
     const ps=document.createElement('div');ps.className='prop-section';
     ps.innerHTML=`<h4>配線種類</h4>
       <div class="tool-row">
+        <button class="tool-btn" data-tool="select">選択・移動・削除 <span class="key">V</span></button>
         <button class="tool-btn" data-tool="wire">配線(実線) <span class="key">W</span></button>
         <button class="tool-btn" data-tool="wire-dash">隠蔽配線(破線) <span class="key">H</span></button>
+      </div>
+      <div style="font-size:9px;color:#666;line-height:1.4;margin-top:4px;padding:4px;background:#f6f0e0;border-left:2px solid #cc6633">
+        <b>編集操作:</b><br>
+        ・配線をクリック → 選択 (橙色)<br>
+        ・選択中の配線をドラッグ → 平行移動<br>
+        ・頂点の□をドラッグ → 頂点移動<br>
+        ・配線セグメントをダブルクリック → 頂点追加<br>
+        ・右クリック → 即削除 (頂点も配線本体も)<br>
+        ・選択して Del キー → 削除
       </div>`;
     sp.appendChild(ps);
     const cs=document.createElement('div');cs.className='prop-section';
@@ -1334,9 +1344,10 @@ function drawWires(){
   for(const w of state.wires){
     if(w.points.length<2) continue;
     const sel=state.selected.has(w.id);
+    const hov=state.hoverItem&&state.hoverItem.kind==='wire'&&state.hoverItem.id===w.id;
     const col=LAYERS['E-WIRE'].color;
-    ctx.strokeStyle=sel?'rgba(168,50,50,0.9)':col;
-    ctx.lineWidth=sel?2.8:1.6;
+    ctx.strokeStyle=sel?'rgba(204,102,51,0.95)':(hov?'rgba(204,102,51,0.6)':col);
+    ctx.lineWidth=sel?2.8:(hov?2.2:1.6);
     if(w.style==='dash') ctx.setLineDash([8,4]); else ctx.setLineDash([]);
     ctx.beginPath();
     for(let i=0;i<w.points.length;i++){
@@ -1562,6 +1573,28 @@ function drawSheetFrame(){
 /* ---- 10. 入力 ---- */
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
 
+// ダブルクリックで配線セグメント上に頂点追加
+canvas.addEventListener('dblclick',e=>{
+  const rect=canvas.getBoundingClientRect();
+  const sx=e.clientX-rect.left,sy=e.clientY-rect.top;
+  const wp=screen2world(sx,sy);
+  const sp=getSnapPoint(wp);
+  // 配線セグメント上か判定
+  for(let i=state.wires.length-1;i>=0;i--){
+    const w=state.wires[i];
+    for(let j=0;j<w.points.length-1;j++){
+      if(distToSeg({x:wp.x,y:wp.y},w.points[j],w.points[j+1])<state.symSize*.4){
+        pushHistory();
+        w.points.splice(j+1,0,{x:sp.x,y:sp.y});
+        state.selected.clear();state.selected.add(w.id);
+        toast('頂点を追加しました');
+        updateSelectionPanel();render();
+        return;
+      }
+    }
+  }
+});
+
 canvas.addEventListener('mousedown',e=>{
   const rect=canvas.getBoundingClientRect();
   const sx=e.clientX-rect.left,sy=e.clientY-rect.top;
@@ -1575,8 +1608,32 @@ canvas.addEventListener('mousedown',e=>{
   }
 
   if(e.button===2){
-    if(state.drawingWire&&state.drawingWire.points.length>=2) finishWire();
-    else{ state.drawingWire=null; state.selected.clear(); render(); }
+    if(state.drawingWire&&state.drawingWire.points.length>=2){ finishWire(); return; }
+    // 選択中の配線の頂点なら削除 / 配線そのものなら丸ごと削除
+    const hit2=pickAt(wp.x,wp.y);
+    if(hit2&&hit2.kind==='vertex'){
+      const w=state.wires.find(w=>w.id===hit2.id);
+      if(w&&w.points.length>2){
+        pushHistory();
+        w.points.splice(hit2.vertIdx,1);
+        toast('頂点を削除しました');
+        render(); return;
+      }
+    }
+    if(hit2&&(hit2.kind==='wire'||hit2.kind==='symbol'||hit2.kind==='text'||hit2.kind==='homerun')){
+      // 右クリックでコンテキスト風: 確認なしで即削除
+      pushHistory();
+      state.selected.add(hit2.id);
+      state.symbols=state.symbols.filter(s=>!state.selected.has(s.id));
+      state.wires=state.wires.filter(w=>!state.selected.has(w.id));
+      state.texts=state.texts.filter(t=>!state.selected.has(t.id));
+      state.homeruns=state.homeruns.filter(h=>!state.selected.has(h.id));
+      state.selected.clear();
+      buildLayerPanel();updateSelectionPanel();
+      toast('要素を削除しました');
+      render(); return;
+    }
+    state.drawingWire=null; state.selected.clear(); updateSelectionPanel(); render();
     return;
   }
   if(e.button!==0) return;
@@ -1679,6 +1736,15 @@ canvas.addEventListener('mousemove',e=>{
     render();
   } else if(state.drawingWire){
     render();
+  } else if(state.tool==='select'){
+    // ホバーハイライト
+    const h=pickAt(wp.x,wp.y);
+    const prev=state.hoverItem;
+    if((!h&&prev)||(h&&(!prev||prev.id!==h.id||prev.kind!==h.kind))){
+      state.hoverItem=h;
+      canvas.style.cursor=h?(h.kind==='vertex'?'move':'pointer'):'default';
+      render();
+    }
   }
   const sp=snap(wp);
   document.getElementById('stat-coord').textContent=`${Math.round(sp.x)},${Math.round(sp.y)}`;
