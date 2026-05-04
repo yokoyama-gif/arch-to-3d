@@ -2009,62 +2009,190 @@ function parseDxf(text){
     if(isNaN(code)){i--;continue;}
     pairs.push([code,value]);
   }
-  const entities=[];
-  let inEnt=false,cur=null,polyPts=[],inPoly=false,polyClosed=false;
+
+  // セクション・ブロック・エンティティを横断で収集
+  const blocks={};        // name -> [entities]
+  const topEntities=[];   // ENTITIESセクション直接配下
+  let section=null;       // 'ENTITIES' | 'BLOCKS' | other
+  let curBlock=null;      // {name, entities}
+  let cur=null;
+  let polyPts=[],inPoly=false,polyClosed=false;
+  let pendingSectionName=false;  // 直後のcode=2でセクション名
+
+  function emit(e){
+    if(curBlock) curBlock.entities.push(e);
+    else if(section==='ENTITIES') topEntities.push(e);
+  }
+  function finalizeCur(){
+    if(!cur) return;
+    const e=cur;
+    if(e.type==='LINE'&&e.x1!==undefined) emit({type:'LINE',x1:e.x1,y1:e.y1,x2:e.x2,y2:e.y2});
+    else if(e.type==='LWPOLYLINE'&&e.points) emit({type:'POLYLINE',points:e.points,closed:!!e.closed});
+    else if(e.type==='VERTEX'&&inPoly&&e._x!==undefined) polyPts.push({x:e._x,y:e._y});
+    else if(e.type==='CIRCLE'&&e.cx!==undefined) emit({type:'CIRCLE',cx:e.cx,cy:e.cy,r:e.r});
+    else if(e.type==='ARC'&&e.cx!==undefined) emit({type:'ARC',cx:e.cx,cy:e.cy,r:e.r,startAngle:e.startAngle||0,endAngle:e.endAngle||360});
+    else if((e.type==='TEXT'||e.type==='MTEXT')&&e.text) emit({type:'TEXT',x:e.x||0,y:e.y||0,h:e.h||100,text:e.text});
+    else if(e.type==='ELLIPSE'&&e.cx!==undefined&&e.mx!==undefined){
+      // 簡易: 円として近似 (長径/短径平均)
+      const r=Math.hypot(e.mx,e.my)*((e.ratio||1)+1)/2;
+      emit({type:'CIRCLE',cx:e.cx,cy:e.cy,r});
+    }
+    else if(e.type==='SOLID'&&e.x1!==undefined){
+      // 三角/四角形を線分で
+      const pts=[[e.x1,e.y1],[e.x2,e.y2],[e.x4!==undefined?e.x4:e.x3,e.y4!==undefined?e.y4:e.y3],[e.x3,e.y3]];
+      for(let i=0;i<pts.length;i++){
+        const a=pts[i],b=pts[(i+1)%pts.length];
+        if(a[0]!==undefined&&b[0]!==undefined) emit({type:'LINE',x1:a[0],y1:a[1],x2:b[0],y2:b[1]});
+      }
+    }
+    else if(e.type==='INSERT'&&e.name){
+      emit({type:'INSERT',name:e.name,x:e.x||0,y:e.y||0,
+        sx:e.sx!=null?e.sx:1,sy:e.sy!=null?e.sy:1,
+        rot:(e.rot||0)*Math.PI/180,
+        cols:e.cols||1,rows:e.rows||1,colSpace:e.colSpace||0,rowSpace:e.rowSpace||0});
+    }
+  }
+
   for(const [code,value] of pairs){
     if(code===0){
-      if(cur&&inEnt) finalizeDxf(cur);
+      finalizeCur();
       const v=(value||'').trim();
-      if(v==='ENDSEC'){inEnt=false;cur=null;}
-      else if(v==='EOF') break;
-      else if(inEnt){
-        if(v==='SEQEND'){
-          if(inPoly) entities.push({type:'POLYLINE',points:polyPts.slice(),closed:polyClosed});
-          polyPts=[];inPoly=false;polyClosed=false;cur=null;
-        } else {
-          cur={type:v};
-          if(v==='POLYLINE'){inPoly=true;polyPts=[];polyClosed=false;}
-        }
+      if(v==='SECTION'){section=null;pendingSectionName=true;cur=null;continue;}
+      if(v==='ENDSEC'){section=null;cur=null;curBlock=null;continue;}
+      if(v==='EOF') break;
+      if(v==='ENDBLK'){
+        if(curBlock){curBlock=null;}
+        cur=null;continue;
       }
-    } else if(code===2){
-      if((value||'').trim()==='ENTITIES') inEnt=true;
-    } else if(inEnt&&cur){
-      const num=parseFloat(value);
-      switch(cur.type){
-        case 'LINE':
-          if(code===10)cur.x1=num;else if(code===20)cur.y1=num;
-          else if(code===11)cur.x2=num;else if(code===21)cur.y2=num;break;
-        case 'LWPOLYLINE':
-          if(code===10)cur._x=num;
-          else if(code===20)(cur.points=cur.points||[]).push({x:cur._x,y:num});
-          else if(code===70)cur.closed=(parseInt(value,10)&1)===1;break;
-        case 'POLYLINE':
-          if(code===70)polyClosed=(parseInt(value,10)&1)===1;break;
-        case 'VERTEX':
-          if(code===10)cur._x=num;else if(code===20)cur._y=num;break;
-        case 'CIRCLE':
-          if(code===10)cur.cx=num;else if(code===20)cur.cy=num;else if(code===40)cur.r=num;break;
-        case 'ARC':
-          if(code===10)cur.cx=num;else if(code===20)cur.cy=num;else if(code===40)cur.r=num;
-          else if(code===50)cur.startAngle=num;else if(code===51)cur.endAngle=num;break;
-        case 'TEXT':case 'MTEXT':
-          if(code===10)cur.x=num;else if(code===20)cur.y=num;else if(code===40)cur.h=num;
-          else if(code===1)cur.text=(cur.text||'')+value;break;
+      if(v==='SEQEND'){
+        if(inPoly){emit({type:'POLYLINE',points:polyPts.slice(),closed:polyClosed});polyPts=[];inPoly=false;polyClosed=false;}
+        cur=null;continue;
+      }
+      if(v==='BLOCK'){cur={type:'BLOCK'};continue;}
+      // エンティティ開始
+      if(section==='ENTITIES'||section==='BLOCKS'){
+        cur={type:v};
+        if(v==='POLYLINE'){inPoly=true;polyPts=[];polyClosed=false;}
+      }
+      continue;
+    }
+    if(pendingSectionName&&code===2){section=(value||'').trim();pendingSectionName=false;continue;}
+    if(!cur) continue;
+    const num=parseFloat(value);
+    if(cur.type==='BLOCK'){
+      if(code===2){cur.name=(value||'').trim();blocks[cur.name]={name:cur.name,entities:[],bx:0,by:0};curBlock=blocks[cur.name];}
+      else if(code===10) curBlock&&(curBlock.bx=num);
+      else if(code===20) curBlock&&(curBlock.by=num);
+      continue;
+    }
+    switch(cur.type){
+      case 'LINE':
+        if(code===10)cur.x1=num;else if(code===20)cur.y1=num;
+        else if(code===11)cur.x2=num;else if(code===21)cur.y2=num;break;
+      case 'LWPOLYLINE':
+        if(code===10)cur._x=num;
+        else if(code===20)(cur.points=cur.points||[]).push({x:cur._x,y:num});
+        else if(code===70)cur.closed=(parseInt(value,10)&1)===1;break;
+      case 'POLYLINE':
+        if(code===70)polyClosed=(parseInt(value,10)&1)===1;break;
+      case 'VERTEX':
+        if(code===10)cur._x=num;else if(code===20)cur._y=num;break;
+      case 'CIRCLE':
+        if(code===10)cur.cx=num;else if(code===20)cur.cy=num;else if(code===40)cur.r=num;break;
+      case 'ARC':
+        if(code===10)cur.cx=num;else if(code===20)cur.cy=num;else if(code===40)cur.r=num;
+        else if(code===50)cur.startAngle=num;else if(code===51)cur.endAngle=num;break;
+      case 'ELLIPSE':
+        if(code===10)cur.cx=num;else if(code===20)cur.cy=num;
+        else if(code===11)cur.mx=num;else if(code===21)cur.my=num;
+        else if(code===40)cur.ratio=num;break;
+      case 'TEXT':case 'MTEXT':
+        if(code===10)cur.x=num;else if(code===20)cur.y=num;else if(code===40)cur.h=num;
+        else if(code===1)cur.text=(cur.text||'')+(value||'');break;
+      case 'SOLID':
+        if(code===10)cur.x1=num;else if(code===20)cur.y1=num;
+        else if(code===11)cur.x2=num;else if(code===21)cur.y2=num;
+        else if(code===12)cur.x3=num;else if(code===22)cur.y3=num;
+        else if(code===13)cur.x4=num;else if(code===23)cur.y4=num;break;
+      case 'INSERT':
+        if(code===2)cur.name=(value||'').trim();
+        else if(code===10)cur.x=num;else if(code===20)cur.y=num;
+        else if(code===41)cur.sx=num;else if(code===42)cur.sy=num;
+        else if(code===50)cur.rot=num;
+        else if(code===70)cur.cols=parseInt(value,10);else if(code===71)cur.rows=parseInt(value,10);
+        else if(code===44)cur.colSpace=num;else if(code===45)cur.rowSpace=num;break;
+    }
+  }
+  finalizeCur();
+
+  // ===== INSERT展開 (再帰) =====
+  const out=[];
+  function expandInsert(ins,parentTx){
+    const blk=blocks[ins.name];if(!blk) return;
+    // 配列INSERT (cols × rows)
+    const cols=Math.max(1,ins.cols||1), rows=Math.max(1,ins.rows||1);
+    for(let cc=0;cc<cols;cc++) for(let rr=0;rr<rows;rr++){
+      const ox=ins.x + cc*(ins.colSpace||0);
+      const oy=ins.y + rr*(ins.rowSpace||0);
+      // ローカル変換: scale → rotate → translate(ox-bx*sx, oy-by*sy)
+      const tx=composeTx(parentTx,{ox,oy,sx:ins.sx||1,sy:ins.sy||1,rot:ins.rot||0,bx:blk.bx||0,by:blk.by||0});
+      for(const e of blk.entities){
+        if(e.type==='INSERT'){expandInsert(e,tx);}
+        else out.push(transformEntity(e,tx));
       }
     }
   }
-  if(cur&&inEnt) finalizeDxf(cur);
-  if(inPoly&&polyPts.length>0) entities.push({type:'POLYLINE',points:polyPts.slice(),closed:polyClosed});
-  return entities;
-
-  function finalizeDxf(e){
-    if(e.type==='LINE'&&e.x1!==undefined) entities.push({type:'LINE',x1:e.x1,y1:e.y1,x2:e.x2,y2:e.y2});
-    else if(e.type==='LWPOLYLINE'&&e.points) entities.push({type:'POLYLINE',points:e.points,closed:!!e.closed});
-    else if(e.type==='VERTEX'&&inPoly&&e._x!==undefined) polyPts.push({x:e._x,y:e._y});
-    else if(e.type==='CIRCLE'&&e.cx!==undefined) entities.push({type:'CIRCLE',cx:e.cx,cy:e.cy,r:e.r});
-    else if(e.type==='ARC'&&e.cx!==undefined) entities.push({type:'ARC',cx:e.cx,cy:e.cy,r:e.r,startAngle:e.startAngle||0,endAngle:e.endAngle||360});
-    else if((e.type==='TEXT'||e.type==='MTEXT')&&e.text) entities.push({type:'TEXT',x:e.x||0,y:e.y||0,h:e.h||100,text:e.text});
+  for(const e of topEntities){
+    if(e.type==='INSERT') expandInsert(e,identityTx());
+    else out.push(e);
   }
+  return out;
+}
+
+function identityTx(){return {a:1,b:0,c:0,d:1,e:0,f:0};}
+// ローカルINSERT: P_world = parent * ( Translate(ox,oy) * Rotate(rot) * Scale(sx,sy) * Translate(-bx,-by) ) * P_local
+function composeTx(parent, ins){
+  const c=Math.cos(ins.rot), s=Math.sin(ins.rot);
+  // ローカル行列
+  const a=ins.sx*c, b=ins.sx*s, cc=-ins.sy*s, d=ins.sy*c;
+  const e=ins.ox - (a*ins.bx + cc*ins.by);
+  const f=ins.oy - (b*ins.bx + d*ins.by);
+  // parent * local
+  return {
+    a:parent.a*a+parent.c*b,
+    b:parent.b*a+parent.d*b,
+    c:parent.a*cc+parent.c*d,
+    d:parent.b*cc+parent.d*d,
+    e:parent.a*e+parent.c*f+parent.e,
+    f:parent.b*e+parent.d*f+parent.f,
+  };
+}
+function txPt(tx,x,y){return {x:tx.a*x+tx.c*y+tx.e, y:tx.b*x+tx.d*y+tx.f};}
+function txScale(tx){return Math.hypot(tx.a,tx.b);}  // 統一スケール近似
+
+function transformEntity(e,tx){
+  if(e.type==='LINE'){
+    const p1=txPt(tx,e.x1,e.y1),p2=txPt(tx,e.x2,e.y2);
+    return {type:'LINE',x1:p1.x,y1:p1.y,x2:p2.x,y2:p2.y};
+  }
+  if(e.type==='POLYLINE'){
+    return {type:'POLYLINE',points:e.points.map(p=>txPt(tx,p.x,p.y)),closed:e.closed};
+  }
+  if(e.type==='CIRCLE'){
+    const p=txPt(tx,e.cx,e.cy);
+    return {type:'CIRCLE',cx:p.x,cy:p.y,r:e.r*txScale(tx)};
+  }
+  if(e.type==='ARC'){
+    const p=txPt(tx,e.cx,e.cy);
+    // 回転考慮
+    const rotDeg=Math.atan2(tx.b,tx.a)*180/Math.PI;
+    return {type:'ARC',cx:p.x,cy:p.y,r:e.r*txScale(tx),startAngle:(e.startAngle||0)+rotDeg,endAngle:(e.endAngle||0)+rotDeg};
+  }
+  if(e.type==='TEXT'){
+    const p=txPt(tx,e.x,e.y);
+    return {type:'TEXT',x:p.x,y:p.y,h:(e.h||100)*txScale(tx),text:e.text};
+  }
+  return e;
 }
 
 document.getElementById('btnLoadDxf').onclick=()=>document.getElementById('fileInput').click();
@@ -2159,8 +2287,20 @@ function loadDxfFile(f){
 }
 function loadDxfText(text,name){
   pushHistory();
-  state.bgEntities=parseDxf(text);
-  toast(`${name} を読込: ${state.bgEntities.length} 図形`);
+  try{
+    const t0=performance.now();
+    state.bgEntities=parseDxf(text);
+    const ms=Math.round(performance.now()-t0);
+    if(state.bgEntities.length===0){
+      toast(`${name}: エンティティが見つかりませんでした。BLOCK内/未対応形式の可能性`);
+    } else {
+      toast(`${name} を読込: ${state.bgEntities.length} 図形 (${ms}ms)`);
+    }
+  }catch(err){
+    toast('DXFパース失敗: '+err.message);
+    console.error(err);
+    state.bgEntities=[];
+  }
   buildLayerPanel();fitView();
 }
 
