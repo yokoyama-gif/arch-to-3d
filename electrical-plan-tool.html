@@ -549,53 +549,70 @@ function pText(ctx,x,y,h,txt,anchor='center'){
 }
 
 /* --- コンセント (JIS C 0303: D形半円, フラット側=壁面) --- */
+/* JIS C 0303 / 電気工事士慣行: ○ + 黒丸2つ (差込口の2極を表現) */
 function makeOutlet(id,name,suffix,opts={}){
+  const dotR=0.085, dotX=0.18;
   SYMBOLS[id]={
     id,name,cat:'outlet',layer:'E-OUTLET',color:1,
     paint(ctx,u){
-      // D形半円: 上半円 (curved part 上, 直径=壁側)
-      ctx.beginPath();
-      ctx.arc(0,0,u*.5,0,Math.PI);
-      ctx.closePath();
-      ctx.stroke();
-      // ラベル (半円内)
-      if(suffix) pText(ctx,0,u*.22,u*.32,suffix);
-      else if(opts.twoGang) pText(ctx,0,u*.22,u*.32,'2');
-      // 接続線 (壁の反対側に伸びる: 配線接続用)
-      if(opts.lead!==false) pLine(ctx,0,0,0,-u*.25);
+      // 大円
+      pCircle(ctx,0,0,u*.5);
+      // 差込口 (2極) 黒丸
+      ctx.save();ctx.fillStyle=ctx.strokeStyle;
+      pCircle(ctx,-u*dotX,0,u*dotR,true);
+      pCircle(ctx, u*dotX,0,u*dotR,true);
+      ctx.restore();
+      // suffix (右側)
+      if(suffix) pText(ctx,u*.85,u*.05,u*.36,suffix,'left');
+      // 床コンセント: 円を四角で囲む
+      if(opts.floor){
+        ctx.beginPath();ctx.rect(-u*.6,-u*.6,u*1.2,u*1.2);ctx.stroke();
+      }
+      // 防水: 上に山形
+      if(opts.wp){
+        pLine(ctx,-u*.55,u*.5,0,u*.85);
+        pLine(ctx, u*.55,u*.5,0,u*.85);
+      }
     },
     dxf(b,x,y,rot,layer,u){
       const tx=(dx,dy)=>{const[a,c]=rot2(dx,dy,rot);return[x+a,y+c];};
-      const ra=(rot||0)*180/Math.PI;
-      // 半円弧
-      b.arc(x,y,u*.5,ra,ra+180,layer);
-      // 直径線 (D形のフラット辺)
-      let p1=tx(-u*.5,0),p2=tx(u*.5,0);
-      b.line(p1[0],p1[1],p2[0],p2[1],layer);
-      // 接続棒
-      if(opts.lead!==false){
-        p1=tx(0,0);p2=tx(0,-u*.25);
+      b.circle(x,y,u*.5,layer);
+      let p=tx(-u*dotX,0); b.circle(p[0],p[1],u*dotR,layer);
+      p=tx( u*dotX,0); b.circle(p[0],p[1],u*dotR,layer);
+      if(suffix){const tp=tx(u*.85,-u*.05);b.text(tp[0],tp[1],u*.32,suffix,layer);}
+      if(opts.floor){
+        const c=[[-u*.6,-u*.6],[u*.6,-u*.6],[u*.6,u*.6],[-u*.6,u*.6]];
+        const tc=c.map(([a,cv])=>{const v=rot2(a,cv,rot);return[x+v[0],y+v[1]];});
+        for(let i=0;i<4;i++) b.line(tc[i][0],tc[i][1],tc[(i+1)%4][0],tc[(i+1)%4][1],layer);
+      }
+      if(opts.wp){
+        let p1=tx(-u*.55,u*.5),p2=tx(0,u*.85);
+        b.line(p1[0],p1[1],p2[0],p2[1],layer);
+        p1=tx(u*.55,u*.5);p2=tx(0,u*.85);
         b.line(p1[0],p1[1],p2[0],p2[1],layer);
       }
-      const lab=suffix||(opts.twoGang?'2':'');
-      if(lab){const tp=tx(0,u*.22);b.text(tp[0]-u*.18,tp[1]-u*.1,u*.28,lab,layer);}
     },
     icon:`<svg class="sym-icon" viewBox="-14 -14 28 28">
-      <path d="M-9 0 A9 9 0 0 0 9 0 L-9 0 Z"/>
-      <line x1="0" y1="0" x2="0" y2="5"/>
-      ${(suffix||opts.twoGang)?`<text class="stext" x="0" y="-3" text-anchor="middle" style="font-size:6px">${suffix||'2'}</text>`:''}
+      <circle cx="0" cy="0" r="8"/>
+      <circle class="sfill" cx="-3" cy="0" r="1.5"/>
+      <circle class="sfill" cx="3" cy="0" r="1.5"/>
+      ${suffix?`<text class="stext" x="9" y="2" style="font-size:6px">${suffix}</text>`:''}
+      ${opts.floor?`<rect x="-11" y="-11" width="22" height="22" fill="none"/>`:''}
+      ${opts.wp?`<path d="M-8 8 L0 12 L8 8" fill="none"/>`:''}
     </svg>`
   };
 }
 makeOutlet('out-1','一般コンセント',null);
-makeOutlet('out-2g','2口コンセント',null,{twoGang:true});
-makeOutlet('out-E','接地コンセント','E');
+makeOutlet('out-2g','2口コンセント','2');
+makeOutlet('out-3g','3口コンセント','3');
+makeOutlet('out-E','接地','E');
+makeOutlet('out-ET','接地端子','ET');
 makeOutlet('out-EL','漏電遮断','EL');
-makeOutlet('out-wp','防水コンセント','WP');
+makeOutlet('out-wp','防水','WP',{wp:true});
 makeOutlet('out-200','200V','200');
-makeOutlet('out-ac','エアコン用','AC');
-makeOutlet('out-ref','冷蔵庫用','RF');
-makeOutlet('out-floor','床コンセント','F');
+makeOutlet('out-ac','エアコン','AC');
+makeOutlet('out-ref','冷蔵庫','RF');
+makeOutlet('out-floor','床コンセント','F',{floor:true});
 
 /* --- スイッチ (JIS: 実線円●+壁方向線) --- */
 function makeSwitch(id,name,mark,opts={}){
@@ -640,26 +657,59 @@ makeSwitch('sw-pull','プルスイッチ','P');
 makeSwitch('sw-key','確認表示灯','L');
 makeSwitch('sw-timer','タイマースイッチ','T');
 
-/* --- 照明器具 --- */
+/* --- 照明器具 (JIS C 0303 / jp-wat準拠) --- */
+SYMBOLS['lt-incand']={
+  id:'lt-incand',name:'白熱灯',cat:'light',layer:'E-LIGHT',color:2,
+  paint(ctx,u){ pCircle(ctx,0,0,u*.5); },
+  dxf(b,x,y,rot,layer,u){ b.circle(x,y,u*.5,layer); },
+  icon:`<svg class="sym-icon" viewBox="-14 -14 28 28"><circle cx="0" cy="0" r="9"/></svg>`
+};
+
 SYMBOLS['lt-ceiling']={
   id:'lt-ceiling',name:'シーリング',cat:'light',layer:'E-LIGHT',color:2,
   paint(ctx,u){
     pCircle(ctx,0,0,u*.5);
-    const a=u*.354;
-    pLine(ctx,-a,-a,a,a); pLine(ctx,-a,a,a,-a);
+    pText(ctx,0,u*.02,u*.36,'CL');
   },
   dxf(b,x,y,rot,layer,u){
     b.circle(x,y,u*.5,layer);
-    const a=u*.354;
-    let p1=rot2(-a,-a,rot),p2=rot2(a,a,rot);
-    b.line(x+p1[0],y+p1[1],x+p2[0],y+p2[1],layer);
-    p1=rot2(-a,a,rot);p2=rot2(a,-a,rot);
-    b.line(x+p1[0],y+p1[1],x+p2[0],y+p2[1],layer);
+    b.text(x-u*.18,y-u*.12,u*.32,'CL',layer);
   },
   icon:`<svg class="sym-icon" viewBox="-14 -14 28 28">
-    <circle cx="0" cy="0" r="7"/>
-    <line x1="-5" y1="-5" x2="5" y2="5"/>
-    <line x1="-5" y1="5" x2="5" y2="-5"/>
+    <circle cx="0" cy="0" r="9"/>
+    <text class="stext" x="0" y="2.5" text-anchor="middle" style="font-size:7px">CL</text>
+  </svg>`
+};
+
+SYMBOLS['lt-mercury']={
+  id:'lt-mercury',name:'水銀灯',cat:'light',layer:'E-LIGHT',color:2,
+  paint(ctx,u){
+    pCircle(ctx,0,0,u*.5);
+    pText(ctx,0,u*.02,u*.4,'H');
+  },
+  dxf(b,x,y,rot,layer,u){
+    b.circle(x,y,u*.5,layer);
+    b.text(x-u*.1,y-u*.12,u*.36,'H',layer);
+  },
+  icon:`<svg class="sym-icon" viewBox="-14 -14 28 28">
+    <circle cx="0" cy="0" r="9"/>
+    <text class="stext" x="0" y="3" text-anchor="middle" style="font-size:9px">H</text>
+  </svg>`
+};
+
+SYMBOLS['lt-fluor-l']={
+  id:'lt-fluor-l',name:'蛍光灯(L)',cat:'light',layer:'E-LIGHT',color:2,
+  paint(ctx,u){
+    pCircle(ctx,0,0,u*.5);
+    pText(ctx,0,u*.02,u*.36,'L');
+  },
+  dxf(b,x,y,rot,layer,u){
+    b.circle(x,y,u*.5,layer);
+    b.text(x-u*.08,y-u*.12,u*.32,'L',layer);
+  },
+  icon:`<svg class="sym-icon" viewBox="-14 -14 28 28">
+    <circle cx="0" cy="0" r="9"/>
+    <text class="stext" x="0" y="3" text-anchor="middle" style="font-size:8px">L</text>
   </svg>`
 };
 
@@ -852,25 +902,44 @@ SYMBOLS['pn-dist']={
 };
 
 SYMBOLS['pn-fan']={
-  id:'pn-fan',name:'換気扇',cat:'panel',layer:'E-PANEL',color:3,
+  id:'pn-fan',name:'換気扇(壁付)',cat:'panel',layer:'E-PANEL',color:3,
   paint(ctx,u){
+    // 大円内に小円2つ (羽根を表現)
+    pCircle(ctx,0,0,u*.5);
+    pCircle(ctx,-u*.18,0,u*.16);
+    pCircle(ctx, u*.18,0,u*.16);
+  },
+  dxf(b,x,y,rot,layer,u){
+    b.circle(x,y,u*.5,layer);
+    let p=rot2(-u*.18,0,rot); b.circle(x+p[0],y+p[1],u*.16,layer);
+    p=rot2( u*.18,0,rot); b.circle(x+p[0],y+p[1],u*.16,layer);
+  },
+  icon:`<svg class="sym-icon" viewBox="-14 -14 28 28">
+    <circle cx="0" cy="0" r="9"/>
+    <circle cx="-3" cy="0" r="2.6"/>
+    <circle cx="3" cy="0" r="2.6"/>
+  </svg>`
+};
+
+SYMBOLS['pn-fan-c']={
+  id:'pn-fan-c',name:'換気扇(天井)',cat:'panel',layer:'E-PANEL',color:3,
+  paint(ctx,u){
+    // 四角内に円2つ
     ctx.beginPath();ctx.rect(-u*.5,-u*.5,u,u);ctx.stroke();
-    pLine(ctx,-u*.5,-u*.5,u*.5,u*.5);
-    pLine(ctx,-u*.5,u*.5,u*.5,-u*.5);
+    pCircle(ctx,-u*.2,0,u*.18);
+    pCircle(ctx, u*.2,0,u*.18);
   },
   dxf(b,x,y,rot,layer,u){
     const c=[[-u*.5,-u*.5],[u*.5,-u*.5],[u*.5,u*.5],[-u*.5,u*.5]];
     const tc=c.map(([a,cv])=>{const r=rot2(a,cv,rot);return[x+r[0],y+r[1]];});
     for(let i=0;i<4;i++) b.line(tc[i][0],tc[i][1],tc[(i+1)%4][0],tc[(i+1)%4][1],layer);
-    let p1=rot2(-u*.5,-u*.5,rot),p2=rot2(u*.5,u*.5,rot);
-    b.line(x+p1[0],y+p1[1],x+p2[0],y+p2[1],layer);
-    p1=rot2(-u*.5,u*.5,rot);p2=rot2(u*.5,-u*.5,rot);
-    b.line(x+p1[0],y+p1[1],x+p2[0],y+p2[1],layer);
+    let p=rot2(-u*.2,0,rot); b.circle(x+p[0],y+p[1],u*.18,layer);
+    p=rot2( u*.2,0,rot); b.circle(x+p[0],y+p[1],u*.18,layer);
   },
   icon:`<svg class="sym-icon" viewBox="-14 -14 28 28">
-    <rect x="-8" y="-8" width="16" height="16"/>
-    <line x1="-8" y1="-8" x2="8" y2="8"/>
-    <line x1="-8" y1="8" x2="8" y2="-8"/>
+    <rect x="-9" y="-9" width="18" height="18"/>
+    <circle cx="-3.5" cy="0" r="3"/>
+    <circle cx="3.5" cy="0" r="3"/>
   </svg>`
 };
 
