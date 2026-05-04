@@ -258,7 +258,7 @@ button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
 
 <!-- ===== Toolbar 1 ===== -->
 <div id="toolbar1">
-  <button class="tb-icon" id="btnLoadDxf" title="DXF / PDF / 画像 読込">📂</button>
+  <button class="tb-icon" id="btnLoadDxf" title="DXF / PDF / 画像 読込" style="background:#cc6633;color:#fff;border:1px solid #993322;padding:0 10px;font-weight:bold;font-size:11px;letter-spacing:.05em">📂 読込</button>
   <button class="tb-icon" title="保存">💾</button>
   <button class="tb-icon" title="設定">⚙</button>
   <button class="tb-icon" title="記号管理"><b>M</b></button>
@@ -1321,6 +1321,7 @@ function render(){
   drawSymbols();
   if(state.drawingWire) drawWirePreview();
   drawSheetFrame();
+  drawEmptyHint();
   updateStats();
 }
 
@@ -2069,23 +2070,90 @@ function parseDxf(text){
 document.getElementById('btnLoadDxf').onclick=()=>document.getElementById('fileInput').click();
 document.getElementById('fileInput').onchange=e=>{
   const f=e.target.files[0];if(!f) return;
+  handleLoadedFile(f);
+  e.target.value='';
+};
+function handleLoadedFile(f){
   const ext=f.name.toLowerCase().split('.').pop();
   if(ext==='dxf') loadDxfFile(f);
   else if(ext==='pdf') loadPdfFile(f);
   else if(['png','jpg','jpeg','webp','bmp','gif'].includes(ext)) loadImageFile(f);
   else toast('対応していないファイル形式: '+ext);
-  e.target.value='';
-};
+}
+
+// ===== ドラッグ&ドロップでファイル読込 (ボタン経由が動かない場合の代替) =====
+const stageEl=document.getElementById('stage');
+let dropOverlay=null;
+function showDropOverlay(show){
+  if(show){
+    if(dropOverlay) return;
+    dropOverlay=document.createElement('div');
+    dropOverlay.style.cssText='position:absolute;inset:0;background:rgba(204,102,51,0.18);border:4px dashed #cc6633;z-index:50;display:flex;align-items:center;justify-content:center;font-size:24px;color:#993322;font-weight:bold;pointer-events:none;letter-spacing:.1em';
+    dropOverlay.textContent='ここにドロップして読込';
+    stageEl.appendChild(dropOverlay);
+  } else {
+    if(dropOverlay){dropOverlay.remove();dropOverlay=null;}
+  }
+}
+['dragenter','dragover'].forEach(ev=>{
+  stageEl.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();showDropOverlay(true);});
+});
+stageEl.addEventListener('dragleave',e=>{
+  e.preventDefault();e.stopPropagation();
+  if(e.target===stageEl||e.target===dropOverlay) showDropOverlay(false);
+});
+stageEl.addEventListener('drop',e=>{
+  e.preventDefault();e.stopPropagation();showDropOverlay(false);
+  const f=e.dataTransfer.files[0];
+  if(f) handleLoadedFile(f);
+});
+// ページ全体でも受け取る (誤ってstage外にドロップした場合)
+window.addEventListener('dragover',e=>e.preventDefault());
+window.addEventListener('drop',e=>{
+  e.preventDefault();
+  if(e.target.closest('#stage')) return; // すでに処理済み
+  const f=e.dataTransfer.files[0];
+  if(f) handleLoadedFile(f);
+});
+
+// ===== 空キャンバス時の読込ガイド =====
+function drawEmptyHint(){
+  if(state.bgEntities.length>0||state.bgImage||state.symbols.length>0||state.wires.length>0) return;
+  const w=canvas.width,h=canvas.height;
+  ctx.save();
+  ctx.fillStyle='rgba(204,102,51,0.06)';
+  const bw=420*devicePixelRatio,bh=200*devicePixelRatio;
+  ctx.fillRect(w/2-bw/2,h/2-bh/2,bw,bh);
+  ctx.strokeStyle='#cc6633';
+  ctx.lineWidth=1.5*devicePixelRatio;
+  ctx.setLineDash([8*devicePixelRatio,5*devicePixelRatio]);
+  ctx.strokeRect(w/2-bw/2,h/2-bh/2,bw,bh);
+  ctx.setLineDash([]);
+  ctx.fillStyle='#993322';
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.font=`bold ${18*devicePixelRatio}px "Meiryo UI",sans-serif`;
+  ctx.fillText('ファイルをここにドラッグ&ドロップ',w/2,h/2-22*devicePixelRatio);
+  ctx.font=`${12*devicePixelRatio}px "Meiryo UI",sans-serif`;
+  ctx.fillStyle='#666';
+  ctx.fillText('または上部の [📂 読込] ボタンから選択',w/2,h/2+8*devicePixelRatio);
+  ctx.font=`${10*devicePixelRatio}px monospace`;
+  ctx.fillText('対応形式: DXF / PDF / PNG / JPG / WEBP / BMP / GIF',w/2,h/2+32*devicePixelRatio);
+  ctx.restore();
+}
 function loadDxfFile(f){
+  toast(`${f.name} を読込中...`);
   const reader=new FileReader();
+  reader.onerror=()=>toast('DXF読込エラー: ファイルを開けません');
   reader.onload=ev=>{
-    const utf8=ev.target.result;
-    if((utf8.match(/�/g)||[]).length>5){
-      const r2=new FileReader();
-      r2.onload=ev2=>loadDxfText(ev2.target.result,f.name);
-      r2.readAsText(f,'shift-jis');return;
-    }
-    loadDxfText(utf8,f.name);
+    try{
+      const utf8=ev.target.result;
+      if((utf8.match(/�/g)||[]).length>5){
+        const r2=new FileReader();
+        r2.onload=ev2=>loadDxfText(ev2.target.result,f.name);
+        r2.readAsText(f,'shift-jis');return;
+      }
+      loadDxfText(utf8,f.name);
+    }catch(err){toast('DXFパースエラー: '+err.message);}
   };
   reader.readAsText(f,'utf-8');
 }
