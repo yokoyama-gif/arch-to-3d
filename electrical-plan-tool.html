@@ -1378,7 +1378,30 @@ function drawBackground(){
     } else if(e.type==='TEXT'){
       const p=world2screen(e.x,e.y);const hh=e.h*state.view.scale*devicePixelRatio;
       if(hh<5) continue;
-      ctx.fillStyle=LAYERS['BG'].color;ctx.font=`${hh}px serif`;ctx.textBaseline='alphabetic';ctx.fillText(e.text,p.x,p.y);
+      ctx.save();
+      ctx.fillStyle=LAYERS['BG'].color;
+      ctx.font=`${hh}px "Yu Gothic UI","Meiryo UI",sans-serif`;
+      // DXF整列コード -> canvas textAlign / textBaseline
+      // halign: 0=Left,1=Center,2=Right,3=Aligned,4=Middle,5=Fit
+      // valign: 0=Baseline,1=Bottom,2=Middle,3=Top
+      const hMap={0:'left',1:'center',2:'right',3:'left',4:'center',5:'left'};
+      const vMap={0:'alphabetic',1:'bottom',2:'middle',3:'top'};
+      ctx.textAlign=hMap[e.halign||0]||'left';
+      ctx.textBaseline=vMap[e.valign||0]||'alphabetic';
+      // 回転（DXFは度・反時計回り、canvasは度・時計回り → 符号反転）
+      if(e.rot){
+        ctx.translate(p.x,p.y);
+        ctx.rotate(-(e.rot)*Math.PI/180);
+        // MTEXT複数行
+        const lines=String(e.text).split('\n');
+        const lh=hh*1.25;
+        for(let i=0;i<lines.length;i++) ctx.fillText(lines[i],0,i*lh);
+      } else {
+        const lines=String(e.text).split('\n');
+        const lh=hh*1.25;
+        for(let i=0;i<lines.length;i++) ctx.fillText(lines[i],p.x,p.y+i*lh);
+      }
+      ctx.restore();
     }
   }
 }
@@ -2031,7 +2054,17 @@ function parseDxf(text){
     else if(e.type==='VERTEX'&&inPoly&&e._x!==undefined) polyPts.push({x:e._x,y:e._y});
     else if(e.type==='CIRCLE'&&e.cx!==undefined) emit({type:'CIRCLE',cx:e.cx,cy:e.cy,r:e.r});
     else if(e.type==='ARC'&&e.cx!==undefined) emit({type:'ARC',cx:e.cx,cy:e.cy,r:e.r,startAngle:e.startAngle||0,endAngle:e.endAngle||360});
-    else if((e.type==='TEXT'||e.type==='MTEXT')&&e.text) emit({type:'TEXT',x:e.x||0,y:e.y||0,h:e.h||100,text:e.text});
+    else if((e.type==='TEXT'||e.type==='MTEXT')&&e.text){
+      // 整列コード72/73が0以外なら(x2,y2)を実位置として優先
+      const useAlt=(e.halign&&e.halign!==0)||(e.valign&&e.valign!==0);
+      const px=useAlt&&e.x2!=null?e.x2:(e.x||0);
+      const py=useAlt&&e.y2!=null?e.y2:(e.y||0);
+      // MTEXT 改行 \P を改行に
+      let txt=String(e.text).replace(/\\P/g,'\n').replace(/\\[A-Za-z][^;]*;/g,'').replace(/[{}]/g,'');
+      emit({type:'TEXT',x:px,y:py,h:e.h||100,text:txt,
+        halign:e.halign||0,valign:e.valign||0,rot:e.rot||0,
+        attachment:e.attachment||0,isMText:e.type==='MTEXT'});
+    }
     else if(e.type==='ELLIPSE'&&e.cx!==undefined&&e.mx!==undefined){
       // 簡易: 円として近似 (長径/短径平均)
       const r=Math.hypot(e.mx,e.my)*((e.ratio||1)+1)/2;
@@ -2107,8 +2140,14 @@ function parseDxf(text){
         else if(code===11)cur.mx=num;else if(code===21)cur.my=num;
         else if(code===40)cur.ratio=num;break;
       case 'TEXT':case 'MTEXT':
-        if(code===10)cur.x=num;else if(code===20)cur.y=num;else if(code===40)cur.h=num;
-        else if(code===1)cur.text=(cur.text||'')+(value||'');break;
+        if(code===10)cur.x=num;else if(code===20)cur.y=num;
+        else if(code===11)cur.x2=num;else if(code===21)cur.y2=num;
+        else if(code===40)cur.h=num;else if(code===50)cur.rot=num;
+        else if(code===72)cur.halign=parseInt(value,10)||0;
+        else if(code===73)cur.valign=parseInt(value,10)||0;
+        else if(code===71)cur.attachment=parseInt(value,10)||0;  // MTEXT
+        else if(code===1)cur.text=(cur.text||'')+(value||'');
+        else if(code===3)cur.text=(cur.text||'')+(value||'');break;  // MTEXT continuation
       case 'SOLID':
         if(code===10)cur.x1=num;else if(code===20)cur.y1=num;
         else if(code===11)cur.x2=num;else if(code===21)cur.y2=num;
@@ -2190,7 +2229,10 @@ function transformEntity(e,tx){
   }
   if(e.type==='TEXT'){
     const p=txPt(tx,e.x,e.y);
-    return {type:'TEXT',x:p.x,y:p.y,h:(e.h||100)*txScale(tx),text:e.text};
+    const txRotDeg=Math.atan2(tx.b,tx.a)*180/Math.PI;
+    return {type:'TEXT',x:p.x,y:p.y,h:(e.h||100)*txScale(tx),text:e.text,
+      halign:e.halign||0,valign:e.valign||0,rot:(e.rot||0)+txRotDeg,
+      isMText:e.isMText};
   }
   return e;
 }
@@ -2294,14 +2336,44 @@ function loadDxfText(text,name){
     if(state.bgEntities.length===0){
       toast(`${name}: エンティティが見つかりませんでした。BLOCK内/未対応形式の可能性`);
     } else {
-      toast(`${name} を読込: ${state.bgEntities.length} 図形 (${ms}ms)`);
+      // 図面範囲から自動的に記号サイズを推定
+      const ext=computeExtent(state.bgEntities);
+      if(ext){
+        const dim=Math.max(ext.w,ext.h);
+        // 記号は図面寸法の約 1/100 (例: 700mm の図面 → 7mm 記号 / 30000mm の実寸 → 300mm 記号)
+        let auto=Math.round(Math.max(5,Math.min(1000, dim/100)));
+        // 5の倍数に丸め
+        auto=Math.round(auto/5)*5;
+        state.symSize=auto;
+        // グリッドサイズも図面に合わせて自動
+        if(dim<2000) state.snap=auto/4;          // 紙scale: 細かめ
+        else if(dim<5000) state.snap=10;
+        else if(dim<20000) state.snap=91;        // 半マス
+        else state.snap=455;                     // 柱間
+        toast(`${name} 読込: ${state.bgEntities.length} 図形 (${ms}ms) / 範囲 ${Math.round(ext.w)}×${Math.round(ext.h)}mm / 記号サイズ自動: ${state.symSize}mm`);
+      } else {
+        toast(`${name} を読込: ${state.bgEntities.length} 図形 (${ms}ms)`);
+      }
     }
   }catch(err){
     toast('DXFパース失敗: '+err.message);
     console.error(err);
     state.bgEntities=[];
   }
-  buildLayerPanel();fitView();
+  buildLayerPanel();buildSubpalette();fitView();
+}
+
+function computeExtent(ents){
+  let xmin=Infinity,ymin=Infinity,xmax=-Infinity,ymax=-Infinity,n=0;
+  const upd=(x,y)=>{n++;if(x<xmin)xmin=x;if(y<ymin)ymin=y;if(x>xmax)xmax=x;if(y>ymax)ymax=y;};
+  for(const e of ents){
+    if(e.type==='LINE'){upd(e.x1,e.y1);upd(e.x2,e.y2);}
+    else if(e.type==='POLYLINE'){for(const p of e.points)upd(p.x,p.y);}
+    else if(e.type==='CIRCLE'||e.type==='ARC'){upd(e.cx-e.r,e.cy-e.r);upd(e.cx+e.r,e.cy+e.r);}
+    else if(e.type==='TEXT')upd(e.x,e.y);
+  }
+  if(n===0) return null;
+  return {xmin,ymin,xmax,ymax,w:xmax-xmin,h:ymax-ymin};
 }
 
 /* PDF読込 (1ページ目を画像化して背景に) */
