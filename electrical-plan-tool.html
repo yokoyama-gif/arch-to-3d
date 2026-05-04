@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>住宅電気図面CADシステム</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>if(window.pdfjsLib){pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}</script>
 <style>
 :root{
   --title-bg:#3a4150;--menu-bg:#ebebeb;--tb-bg:#d9d9d9;--tb-border:#9a9a9a;
@@ -256,7 +258,7 @@ button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
 
 <!-- ===== Toolbar 1 ===== -->
 <div id="toolbar1">
-  <button class="tb-icon" id="btnLoadDxf" title="DXF読込">📂</button>
+  <button class="tb-icon" id="btnLoadDxf" title="DXF / PDF / 画像 読込">📂</button>
   <button class="tb-icon" title="保存">💾</button>
   <button class="tb-icon" title="設定">⚙</button>
   <button class="tb-icon" title="記号管理"><b>M</b></button>
@@ -282,7 +284,7 @@ button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
     <input type="text" placeholder="検索ワードを入力してください">
     <button>🔍</button>
   </div>
-  <input type="file" id="fileInput" accept=".dxf,.DXF">
+  <input type="file" id="fileInput" accept=".dxf,.DXF,.pdf,.PDF,.png,.jpg,.jpeg,.webp,.bmp,.gif">
 </div>
 
 <!-- ===== Toolbar 2 (properties + export) ===== -->
@@ -425,6 +427,8 @@ const state = {
   snap: 91,
   snapHint: null,    // {x,y,id} 記号スナップ表示用
   vertexDrag: null,  // {wireId, vertIdx, origPts} 頂点ドラッグ
+  bgImage: null,     // {img, x, y, w, h, opacity, name}  画像/PDF背景
+  hoverItem: null,
 };
 
 /* ---- 2. ユーティリティ ---- */
@@ -1044,6 +1048,26 @@ function buildSubpalette(){
     sp.appendChild(grid);
   }
 
+  // 背景画像/PDF コントロール
+  if(state.bgImage){
+    const bg=document.createElement('div');bg.className='prop-section';
+    bg.innerHTML=`<h4>背景 (PDF/画像)</h4>
+      <div style="font-size:9px;color:#666;margin-bottom:4px;word-break:break-all">${state.bgImage.name}</div>
+      <div class="prop-row"><label>幅(mm)</label><input type="number" id="bgW" value="${Math.round(state.bgImage.w)}" step="100"></div>
+      <div class="prop-row"><label>高さ(mm)</label><input type="number" id="bgH" value="${Math.round(state.bgImage.h)}" step="100"></div>
+      <div class="prop-row"><label>X位置</label><input type="number" id="bgX" value="${Math.round(state.bgImage.x)}" step="100"></div>
+      <div class="prop-row"><label>Y位置</label><input type="number" id="bgY" value="${Math.round(state.bgImage.y)}" step="100"></div>
+      <div class="prop-row"><label>透明度</label><input type="range" id="bgOpa" min="0.1" max="1" step="0.05" value="${state.bgImage.opacity}"></div>
+      <div class="tool-row" style="margin-top:4px">
+        <button class="tool-btn" id="btnBgFit">画像基準で再フィット</button>
+        <button class="tool-btn" id="btnBgClear" style="color:#a44">背景を削除</button>
+      </div>
+      <div style="font-size:9px;color:#666;margin-top:4px;line-height:1.4;padding:4px;background:#f6f0e0;border-left:2px solid #cc6633">
+        2点間の実寸が分かる場合は幅/高さを実寸で入れてキャリブレーションできます。
+      </div>`;
+    sp.appendChild(bg);
+  }
+
   // 選択中
   const sel=document.createElement('div');sel.className='prop-section';
   sel.innerHTML=`<h4>選択中</h4>
@@ -1108,6 +1132,37 @@ function rebindPaletteHandlers(){
   const e1=document.getElementById('btnExportDxf2');if(e1) e1.onclick=()=>document.getElementById('btnExportDxf').click();
   const e2=document.getElementById('btnExportPdf2');if(e2) e2.onclick=()=>document.getElementById('btnExportPdf').click();
   const e3=document.getElementById('btnExportPng2');if(e3) e3.onclick=()=>document.getElementById('btnExportPng').click();
+  // 背景画像コントロール
+  const bgW=document.getElementById('bgW');if(bgW) bgW.oninput=e=>{
+    if(!state.bgImage) return;
+    const v=parseFloat(e.target.value)||state.bgImage.w;
+    const aspect=state.bgImage.h/state.bgImage.w;
+    state.bgImage.w=v;
+    if(e.target.dataset.lockAspect!=='off') state.bgImage.h=v*aspect;
+    const bgH=document.getElementById('bgH');if(bgH) bgH.value=Math.round(state.bgImage.h);
+    render();
+  };
+  const bgH=document.getElementById('bgH');if(bgH) bgH.oninput=e=>{
+    if(!state.bgImage) return;
+    state.bgImage.h=parseFloat(e.target.value)||state.bgImage.h;render();
+  };
+  const bgX=document.getElementById('bgX');if(bgX) bgX.oninput=e=>{
+    if(!state.bgImage) return;
+    state.bgImage.x=parseFloat(e.target.value)||0;render();
+  };
+  const bgY=document.getElementById('bgY');if(bgY) bgY.oninput=e=>{
+    if(!state.bgImage) return;
+    state.bgImage.y=parseFloat(e.target.value)||0;render();
+  };
+  const bgOpa=document.getElementById('bgOpa');if(bgOpa) bgOpa.oninput=e=>{
+    if(!state.bgImage) return;
+    state.bgImage.opacity=parseFloat(e.target.value);render();
+  };
+  const bgFit=document.getElementById('btnBgFit');if(bgFit) bgFit.onclick=()=>fitView();
+  const bgClr=document.getElementById('btnBgClear');if(bgClr) bgClr.onclick=()=>{
+    pushHistory();state.bgImage=null;buildLayerPanel();buildSubpalette();render();
+    toast('背景を削除しました');
+  };
 }
 
 function selectCategory(catId){
@@ -1254,8 +1309,10 @@ function getOrthoPoints(p1, p2, mode){
 /* ---- 9. レンダリング ---- */
 function render(){
   const w=canvas.width,h=canvas.height;
-  ctx.fillStyle='#f4ecd8';
+  ctx.fillStyle='#f4f4ee';
   ctx.fillRect(0,0,w,h);
+  // 背景画像 (PDF/画像)
+  if(state.bgImage&&LAYERS['BG'].visible) drawBgImage();
   drawGrid();
   if(LAYERS['BG'].visible) drawBackground();
   if(LAYERS['E-WIRE'].visible){ drawWires(); drawJunctions(); }
@@ -1285,6 +1342,19 @@ function drawGrid(){
   const o=world2screen(0,0);
   ctx.strokeStyle='rgba(168,50,50,0.35)';ctx.lineWidth=1;
   ctx.beginPath();ctx.moveTo(o.x-10,o.y);ctx.lineTo(o.x+10,o.y);ctx.moveTo(o.x,o.y-10);ctx.lineTo(o.x,o.y+10);ctx.stroke();
+}
+
+function drawBgImage(){
+  const bg=state.bgImage;if(!bg||!bg.img) return;
+  // 画像中心 (bg.x,bg.y) に幅 bg.w mm × 高さ bg.h mm で配置
+  const tl=world2screen(bg.x-bg.w/2, bg.y+bg.h/2);
+  const br=world2screen(bg.x+bg.w/2, bg.y-bg.h/2);
+  const sw=br.x-tl.x, sh=br.y-tl.y;
+  ctx.save();
+  ctx.globalAlpha=bg.opacity!=null?bg.opacity:0.7;
+  ctx.imageSmoothingEnabled=true;
+  ctx.drawImage(bg.img, tl.x, tl.y, sw, sh);
+  ctx.restore();
 }
 
 function drawBackground(){
@@ -1999,6 +2069,14 @@ function parseDxf(text){
 document.getElementById('btnLoadDxf').onclick=()=>document.getElementById('fileInput').click();
 document.getElementById('fileInput').onchange=e=>{
   const f=e.target.files[0];if(!f) return;
+  const ext=f.name.toLowerCase().split('.').pop();
+  if(ext==='dxf') loadDxfFile(f);
+  else if(ext==='pdf') loadPdfFile(f);
+  else if(['png','jpg','jpeg','webp','bmp','gif'].includes(ext)) loadImageFile(f);
+  else toast('対応していないファイル形式: '+ext);
+  e.target.value='';
+};
+function loadDxfFile(f){
   const reader=new FileReader();
   reader.onload=ev=>{
     const utf8=ev.target.result;
@@ -2010,12 +2088,77 @@ document.getElementById('fileInput').onchange=e=>{
     loadDxfText(utf8,f.name);
   };
   reader.readAsText(f,'utf-8');
-};
+}
 function loadDxfText(text,name){
   pushHistory();
   state.bgEntities=parseDxf(text);
   toast(`${name} を読込: ${state.bgEntities.length} 図形`);
   buildLayerPanel();fitView();
+}
+
+/* PDF読込 (1ページ目を画像化して背景に) */
+function loadPdfFile(f){
+  if(!window.pdfjsLib){toast('PDF.jsの読込に失敗しました');return;}
+  toast('PDFを変換中...');
+  const reader=new FileReader();
+  reader.onload=async ev=>{
+    try{
+      const data=new Uint8Array(ev.target.result);
+      const pdf=await pdfjsLib.getDocument({data}).promise;
+      const page=await pdf.getPage(1);
+      // A3=420mm想定。スケールで解像度確保
+      const viewport=page.getViewport({scale:2.0});
+      const c=document.createElement('canvas');
+      c.width=viewport.width;c.height=viewport.height;
+      const cctx=c.getContext('2d');
+      cctx.fillStyle='#fff';cctx.fillRect(0,0,c.width,c.height);
+      await page.render({canvasContext:cctx,viewport}).promise;
+      const img=new Image();
+      img.onload=()=>{
+        // 1点 = 1/72インチ = 25.4/72 mm ≈ 0.3528mm
+        // viewport.scale=2なら1px = 0.1764mm
+        const mmPerPx=25.4/72/2;
+        const wMm=img.width*mmPerPx, hMm=img.height*mmPerPx;
+        pushHistory();
+        state.bgImage={
+          img,
+          x:0,y:0,         // 中心位置 (世界座標mm)
+          w:wMm,h:hMm,
+          opacity:0.7,
+          name:f.name+' (1/'+pdf.numPages+'p)',
+          locked:false,
+        };
+        toast(`${f.name} を読込 (${pdf.numPages}ページ中1ページ目)`);
+        buildLayerPanel();buildSubpalette();fitView();
+      };
+      img.src=c.toDataURL('image/png');
+    } catch(err){
+      toast('PDF読込エラー: '+err.message);
+    }
+  };
+  reader.readAsArrayBuffer(f);
+}
+
+/* 画像読込 (PNG/JPG/etc) */
+function loadImageFile(f){
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const img=new Image();
+    img.onload=()=>{
+      // 画像はピクセル等倍ではなく、A3横の縦210mmを基準にスケーリング (適宜ユーザー側で調整)
+      const baseMm=2000;  // 2m を初期サイズに
+      const aspect=img.width/img.height;
+      const wMm=aspect>=1?baseMm:baseMm*aspect;
+      const hMm=aspect>=1?baseMm/aspect:baseMm;
+      pushHistory();
+      state.bgImage={img,x:0,y:0,w:wMm,h:hMm,opacity:0.7,name:f.name,locked:false};
+      toast(`${f.name} を読込: ${img.width}×${img.height}px`);
+      buildLayerPanel();buildSubpalette();fitView();
+    };
+    img.onerror=()=>toast('画像の読込に失敗しました');
+    img.src=ev.target.result;
+  };
+  reader.readAsDataURL(f);
 }
 
 document.getElementById('btnFit').onclick=fitView;
@@ -2031,6 +2174,10 @@ function fitView(){
   for(const s of state.symbols) all.push([s.x,s.y]);
   for(const w of state.wires) for(const p of w.points) all.push([p.x,p.y]);
   for(const h of state.homeruns) all.push([h.x,h.y]);
+  if(state.bgImage){
+    const b=state.bgImage;
+    all.push([b.x-b.w/2,b.y-b.h/2],[b.x+b.w/2,b.y+b.h/2]);
+  }
   if(all.length===0){state.view={ox:0,oy:0,scale:0.15};render();return;}
   let xmin=Infinity,ymin=Infinity,xmax=-Infinity,ymax=-Infinity;
   for(const [x,y] of all){xmin=Math.min(xmin,x);ymin=Math.min(ymin,y);xmax=Math.max(xmax,x);ymax=Math.max(ymax,y);}
