@@ -12,6 +12,8 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AnchorPicker } from "./components/AnchorPicker";
 import { PipeDiameterPanel } from "./components/PipeDiameterPanel";
 import { BackgroundPanel } from "./components/BackgroundPanel";
+import { LayerPanel } from "./components/LayerPanel";
+import type { LayerVisibility } from "./components/LayerPanel";
 import { fixtureDefaults } from "./domain/rules/fixtureDefaults";
 import type { Anchor } from "./utils/geometry";
 import { applyAnchorOffset } from "./utils/geometry";
@@ -31,6 +33,17 @@ export default function App() {
   const [markingMode, setMarkingMode] = useState(false);
   // 背景図面の校正モード（2点クリックで実距離指定）
   const [calibrationMode, setCalibrationMode] = useState(false);
+  // レイヤー可視性（電気CAD風）
+  const [layerVis, setLayerVis] = useState<LayerVisibility>({
+    background: true,
+    grid: true,
+    fixtures: true,
+    pipes: true,
+    drains: true,
+    markers: true,
+  });
+  // マウス座標(キャンバスmm) - ステータスバー用
+  const [cursorMm, setCursorMm] = useState({ x: 0, y: 0 });
 
   const store = useSimulatorStore();
 
@@ -150,7 +163,10 @@ export default function App() {
           display: "flex",
           flexDirection: "column",
           height: "100vh",
-          fontFamily: "'Segoe UI', 'Hiragino Sans', sans-serif",
+          fontFamily:
+            "'MS PGothic', 'Yu Gothic UI', 'Segoe UI', 'Hiragino Sans', sans-serif",
+          background: "#e8eaed",
+          color: "#222",
         }}
       >
         <Toolbar
@@ -162,12 +178,13 @@ export default function App() {
         />
 
         <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-          {/* 左: パレット */}
+          {/* 左: パレット (電気CAD風 - シンボルライブラリ) */}
           <div
             style={{
-              width: 140,
-              padding: 10,
-              borderRight: "1px solid #ddd",
+              width: 144,
+              padding: 4,
+              background: "#f0f0f0",
+              borderRight: "1px solid #b0b0b0",
               overflowY: "auto",
               flexShrink: 0,
             }}
@@ -178,13 +195,13 @@ export default function App() {
             />
           </div>
 
-          {/* 中央: グリッド */}
+          {/* 中央: グリッド (CAD作業台) */}
           <div
             style={{
               flex: 1,
               overflow: "auto",
-              padding: 10,
-              background: "#fafafa",
+              padding: 8,
+              background: "#dcdcdc",
             }}
           >
             {calibrationMode && (
@@ -289,20 +306,32 @@ export default function App() {
               }
               gridOffsetMm={store.gridOffsetMm}
               onSetGridOffset={store.setGridOffset}
+              layerVisibility={layerVis}
+              onCursorMmChange={(x, y) => setCursorMm({ x, y })}
             />
           </div>
 
-          {/* 右: 設定 + 結果 */}
+          {/* 右: プロパティパネル (電気CAD風) */}
           <div
             style={{
               width: 300,
-              padding: 10,
-              borderLeft: "1px solid #ddd",
+              padding: 6,
+              background: "#f0f0f0",
+              borderLeft: "1px solid #b0b0b0",
               overflowY: "auto",
               flexShrink: 0,
+              fontSize: 12,
             }}
           >
-            {/* STEP1: 平面図取込・スケール調整（最上部、最も目立つ） */}
+            {/* レイヤパネル（電気CAD風 - 表示トグル） */}
+            <LayerPanel
+              visibility={layerVis}
+              onChange={(patch) => setLayerVis((v) => ({ ...v, ...patch }))}
+            />
+
+            <div style={{ margin: "10px 0", borderTop: "1px solid #ccc" }} />
+
+            {/* STEP1: 平面図取込・スケール調整 */}
             <BackgroundPanel
               backgroundImage={store.backgroundImage}
               onSet={store.setBackgroundImage}
@@ -360,6 +389,87 @@ export default function App() {
               onDelete={store.deleteSavedPlan}
               onLoad={handleLoadPlan}
             />
+          </div>
+        </div>
+
+        {/* 下部ステータスバー (電気CAD風) */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            background: "#f0f0f0",
+            borderTop: "1px solid #b0b0b0",
+            padding: "2px 8px",
+            fontSize: 11,
+            color: "#333",
+          }}
+        >
+          <div
+            style={{
+              padding: "1px 8px",
+              background: "#fff",
+              border: "1px solid #c0c0c0",
+              fontWeight: 600,
+            }}
+          >
+            1階 平面図
+          </div>
+          <div>
+            設備 {store.fixtures.length} / 配管 {store.pipeRoutes.length}
+          </div>
+          <div
+            style={{
+              padding: "1px 6px",
+              background: "#fff",
+              border: "1px solid #c0c0c0",
+              fontFamily: "Consolas, 'Courier New', monospace",
+              minWidth: 150,
+              textAlign: "center",
+            }}
+          >
+            X: {cursorMm.x.toFixed(0).padStart(6, " ")} Y:{" "}
+            {cursorMm.y.toFixed(0).padStart(6, " ")}
+          </div>
+          <div style={{ flex: 1 }} />
+          <div>
+            モジュール: {store.buildingSettings.moduleMm}÷
+            {store.buildingSettings.gridDivision}={" "}
+            {store.buildingSettings.gridSizeMm}mm
+          </div>
+          <div>
+            グリッド: ({store.gridOffsetMm.x.toFixed(0)},{" "}
+            {store.gridOffsetMm.y.toFixed(0)})
+          </div>
+          <div
+            style={{
+              padding: "1px 6px",
+              background: "#fff",
+              border: "1px solid #c0c0c0",
+            }}
+          >
+            S=1/100
+          </div>
+          <div
+            style={{
+              padding: "1px 6px",
+              background:
+                placingType || calibrationMode || markingMode || bgDragMode
+                  ? "#ffeb3b"
+                  : "#e0e0e0",
+              border: "1px solid #999",
+              fontWeight: 600,
+            }}
+          >
+            {placingType
+              ? `配置:${placingType}`
+              : calibrationMode
+              ? "校正中"
+              : markingMode
+              ? "柱マーク"
+              : bgDragMode
+              ? "グリッド移動"
+              : "選択"}
           </div>
         </div>
       </div>

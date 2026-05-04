@@ -101,6 +101,17 @@ type Props = {
   gridOffsetMm?: { x: number; y: number };
   /** グリッドオフセットを直接設定 */
   onSetGridOffset?: (x: number, y: number) => void;
+  /** マウス位置(キャンバスmm座標)が変わるたびに通知。ステータスバー表示用 */
+  onCursorMmChange?: (x: number, y: number) => void;
+  /** レイヤー表示制御（電気CAD風のレイヤパネルから） */
+  layerVisibility?: {
+    background: boolean;
+    fixtures: boolean;
+    pipes: boolean;
+    drains: boolean;
+    markers: boolean;
+    grid: boolean;
+  };
 };
 
 export function GridCanvas({
@@ -132,7 +143,18 @@ export function GridCanvas({
   onAddMarker,
   gridOffsetMm,
   onSetGridOffset,
+  onCursorMmChange,
+  layerVisibility,
 }: Props) {
+  // レイヤー可視性。指定されていなければ全部 ON。
+  const lv = {
+    background: layerVisibility?.background ?? true,
+    fixtures: layerVisibility?.fixtures ?? true,
+    pipes: layerVisibility?.pipes ?? true,
+    drains: layerVisibility?.drains ?? true,
+    markers: layerVisibility?.markers ?? true,
+    grid: layerVisibility?.grid ?? true,
+  };
   const gridOffX = gridOffsetMm?.x ?? 0;
   const gridOffY = gridOffsetMm?.y ?? 0;
   // _onScaleBackground は API 互換のため受け取り、実際の計算は親で onCalibrationDone 経由
@@ -645,6 +667,11 @@ export function GridCanvas({
           handleCanvasClick(e);
         }}
         onMouseMove={(e) => {
+          // マウス座標を親に通知（ステータスバー用）
+          if (onCursorMmChange) {
+            const p = getMouseMm(e);
+            onCursorMmChange(p.x, p.y);
+          }
           // 左+右同時押し中ならラバーバンドで範囲選択
           if ((e.buttons & 3) === 3) {
             const pos = getMouseMm(e);
@@ -727,7 +754,7 @@ export function GridCanvas({
         }}
       >
         {/* 背景平面図(グリッドの後ろに表示) */}
-        {backgroundImage && (
+        {lv.background && backgroundImage && (
           <image
             href={backgroundImage.dataUrl}
             x={mmToPx(backgroundImage.x)}
@@ -761,7 +788,7 @@ export function GridCanvas({
         )}
 
         {/* 柱マーク（背景に追従、赤いクロスヘア） */}
-        {backgroundImage?.markers?.map((m, i) => {
+        {lv.markers && backgroundImage?.markers?.map((m, i) => {
           const ax = backgroundImage.x + m.x;
           const ay = backgroundImage.y + m.y;
           const cx = mmToPx(ax);
@@ -823,7 +850,7 @@ export function GridCanvas({
         })()}
 
         {/* グリッド */}
-        {gridLines}
+        {lv.grid && gridLines}
 
         {/* 構造・図面参照要素（背面レイヤー） */}
         {fixtures
@@ -922,7 +949,8 @@ export function GridCanvas({
         })()}
 
         {/* 設備（構造要素は背面に別途描画済みのため除外） */}
-        {fixtures
+        {lv.fixtures &&
+          fixtures
           .filter((f) => !structuralFixtureTypes.has(f.type))
           .map((f) => {
           const isSelected = f.id === selectedFixtureId;
@@ -969,8 +997,8 @@ export function GridCanvas({
                 {f.w}×{f.h}
               </text>
             </g>
-            {/* 排水溝（水回り設備のみ。ドラッグで位置変更可能） */}
-              {(() => {
+            {/* 排水溝（水回り設備のみ。ドラッグで位置変更可能。レイヤーOFFで非表示） */}
+            {lv.drains && (() => {
                 const drain = fixtureDrainSpec[f.type];
                 if (!drain) return null;
                 // 個別オフセットがあればそれを使用、なければデフォルト比率
@@ -1030,8 +1058,9 @@ export function GridCanvas({
           );
         })}
 
-        {/* 配管ルート(設備の上に灰色の横管として描画) */}
-        {pipeRoutes.map((route, i) => {
+        {/* 配管ルート(設備の上に灰色の横管として描画。レイヤーOFFで非表示) */}
+        {lv.pipes &&
+          pipeRoutes.map((route, i) => {
           const sameFixtureRoutes = pipeRoutes.filter(
             (r) => r.fixtureId === route.fixtureId
           );
