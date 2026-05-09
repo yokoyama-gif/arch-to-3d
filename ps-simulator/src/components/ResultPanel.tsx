@@ -171,6 +171,19 @@ export function ResultPanel({ fixtures, slopeResults, psResults }: Props) {
               </div>
               <div>最小必要: {pr.requiredWidthMm}×{pr.requiredDepthMm}mm</div>
               <div>推奨: {pr.recommendedWidthMm}×{pr.recommendedDepthMm}mm</div>
+              {Object.keys(pr.pipeCounts).length > 0 && (
+                <div style={{ marginTop: 4, fontSize: 11, color: "#555" }}>
+                  接続本数:{" "}
+                  {(Object.entries(pr.pipeCounts) as [string, number][]).map(
+                    ([pt, n], i, arr) => (
+                      <span key={pt}>
+                        {pipeTypeLabels[pt as keyof typeof pipeTypeLabels] ?? pt}×{n}
+                        {i < arr.length - 1 ? " / " : ""}
+                      </span>
+                    )
+                  )}
+                </div>
+              )}
             </div>
           );
         })

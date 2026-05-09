@@ -13,7 +13,7 @@ import type {
   Rotation,
   BackgroundImage,
 } from "../domain/types";
-import { computeGridSize } from "../domain/types";
+import { computeGridSize, PLAN_SCHEMA_VERSION } from "../domain/types";
 import { defaultBuildingSettings } from "../domain/rules/buildingDefaults";
 import { fixtureDefaults } from "../domain/rules/fixtureDefaults";
 import { defaultPipeSpecs } from "../domain/rules/pipeSpecs";
@@ -526,19 +526,37 @@ export const useSimulatorStore = create<SimulatorState>((set, get) => {
     exportPlanData: () => {
       const state = get();
       return {
+        schemaVersion: PLAN_SCHEMA_VERSION,
         name: state.currentPlanName,
         buildingSettings: state.buildingSettings,
         fixtures: state.fixtures,
         savedAt: new Date().toISOString(),
+        backgroundImage: state.backgroundImage,
+        gridOffsetMm: state.gridOffsetMm,
+        pipeDiameters: state.pipeDiameters,
       };
     },
 
     importPlanData: (data) => {
-      set({
+      // v1(schemaVersion未指定)で読み込まれたJSONも壊さない。
+      // 不足フィールドはデフォルト/現状値を維持する。
+      set((state) => ({
         currentPlanName: data.name,
         buildingSettings: data.buildingSettings,
         fixtures: data.fixtures,
-      });
+        backgroundImage:
+          data.backgroundImage !== undefined
+            ? data.backgroundImage
+            : state.backgroundImage,
+        gridOffsetMm:
+          data.gridOffsetMm !== undefined
+            ? data.gridOffsetMm
+            : state.gridOffsetMm,
+        pipeDiameters:
+          data.pipeDiameters !== undefined
+            ? data.pipeDiameters
+            : state.pipeDiameters,
+      }));
       get().recalculate();
     },
   };

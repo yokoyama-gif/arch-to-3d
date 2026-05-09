@@ -1,4 +1,5 @@
 import { useRef, useState, useCallback, useEffect } from "react";
+import type { ReactElement } from "react";
 import type {
   Fixture,
   FixtureType,
@@ -133,7 +134,6 @@ export function GridCanvas({
   onUpdatePipePoint,
   onInsertPipePoint,
   onRemovePipePoint,
-  onMoveBackground,
   onScaleBackground: _onScaleBackground,
   calibrationMode,
   onCalibrationDone,
@@ -161,7 +161,19 @@ export function GridCanvas({
   void _onScaleBackground;
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(DEFAULT_SCALE);
+
+  // スクロールコンテナを取得 + 操作するためのヘルパー。
+  // (react-hooks/immutability lint が ref 経由の直接代入を検出するため、
+  //  この関数経由で書き換える形に集約する)
+  const getScrollContainer = (): HTMLElement | null =>
+    containerRef.current?.parentElement ?? null;
+  const setScrollPosition = (left: number, top: number) => {
+    const el = getScrollContainer();
+    if (!el) return;
+    el.scrollLeft = left;
+    el.scrollTop = top;
+  };
+  const [scale, setScale] = useState<number>(DEFAULT_SCALE);
   const [dragging, setDragging] = useState<{
     id: string;
     offsetX: number;
@@ -593,7 +605,7 @@ export function GridCanvas({
       onResizeFixtureGeometry,
       onSetDrainOffset,
       onUpdatePipePoint,
-      onMoveBackground,
+      onSetGridOffset,
     ]
   );
 
@@ -612,7 +624,7 @@ export function GridCanvas({
    * - グリッド全体を gridOffsetMm.x / .y だけ平行移動して描画
    * iが gridDivision の倍数なら太線（モジュール境界）。
    */
-  const gridLines: JSX.Element[] = [];
+  const gridLines: ReactElement[] = [];
   // オフセット込みで [0, canvasW] / [0, canvasH] をカバーする最初/最後のi
   const startIxX = Math.floor((0 - gridOffX) / gridSizeMm);
   const endIxX = Math.ceil((canvasW - gridOffX) / gridSizeMm);
@@ -832,13 +844,10 @@ export function GridCanvas({
           }
           // 中ボタン(button=4)ドラッグ → パン
           if (panDrag && (e.buttons & 4) === 4) {
-            const scrollEl = containerRef.current?.parentElement;
-            if (scrollEl) {
-              scrollEl.scrollLeft =
-                panDrag.startScrollLeft - (e.clientX - panDrag.startClientX);
-              scrollEl.scrollTop =
-                panDrag.startScrollTop - (e.clientY - panDrag.startClientY);
-            }
+            setScrollPosition(
+              panDrag.startScrollLeft - (e.clientX - panDrag.startClientX),
+              panDrag.startScrollTop - (e.clientY - panDrag.startClientY)
+            );
             return;
           }
           // 左+右同時押し中 → ArchiTrend両ボタンドラッグ(現在位置を保持)

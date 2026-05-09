@@ -10,21 +10,31 @@ function occupiedSize(pipeType: PipeType): number {
 
 /**
  * PS内に収容すべき配管を集計し、必要PS寸法を概算する。
+ *
+ * 旧実装は管種を Set で重複除去していたため、複数戸が同じPSを使っても
+ * 「管種=1本」として扱われ実際より小さく見積もる問題があった。
+ * 新実装は接続している配管ルートを管種ごとにカウントし、本数分を
+ * 1列/2列配置で集計する。
  */
 export function calcPsSize(
   psFixture: Fixture,
   routes: PipeRoute[]
 ): PsResult {
-  // このPSに接続する配管のタイプを重複除去して集める
-  const pipeTypesSet = new Set<PipeType>();
+  // このPSに来る配管を管種ごとに本数カウント
+  const pipeCounts: Partial<Record<PipeType, number>> = {};
   for (const r of routes) {
-    if (r.psId === psFixture.id) {
-      pipeTypesSet.add(r.pipeType);
-    }
+    if (r.psId !== psFixture.id) continue;
+    pipeCounts[r.pipeType] = (pipeCounts[r.pipeType] ?? 0) + 1;
   }
-  const pipeTypes = Array.from(pipeTypesSet);
 
-  if (pipeTypes.length === 0) {
+  // 全管を「1本ずつのリスト」として展開（多戸接続なら複数本になる）
+  const allPipes: PipeType[] = [];
+  (Object.keys(pipeCounts) as PipeType[]).forEach((pt) => {
+    const n = pipeCounts[pt] ?? 0;
+    for (let i = 0; i < n; i++) allPipes.push(pt);
+  });
+
+  if (allPipes.length === 0) {
     return {
       psId: psFixture.id,
       requiredWidthMm: 0,
@@ -32,11 +42,12 @@ export function calcPsSize(
       recommendedWidthMm: 0,
       recommendedDepthMm: 0,
       status: "ok",
+      pipeCounts,
     };
   }
 
   // 各管の占有寸法
-  const sizes = pipeTypes.map((pt) => occupiedSize(pt));
+  const sizes = allPipes.map((pt) => occupiedSize(pt));
   const totalLinear = sizes.reduce((a, b) => a + b, 0);
 
   // --- 1列配置案 ---
@@ -46,8 +57,8 @@ export function calcPsSize(
   // --- 2列配置案 ---
   let twoColWidth = 0;
   let twoColDepth = 0;
-  if (psRules.allowTwoColumnLayout && pipeTypes.length >= 2) {
-    // 大きい管と小さい管に分ける
+  if (psRules.allowTwoColumnLayout && allPipes.length >= 2) {
+    // 大きい順に並べて偶奇で2列に振り分ける（最も大きい管同士が同じ列にならないよう）
     const sorted = [...sizes].sort((a, b) => b - a);
     const col1 = sorted.filter((_, i) => i % 2 === 0);
     const col2 = sorted.filter((_, i) => i % 2 === 1);
@@ -97,5 +108,6 @@ export function calcPsSize(
     recommendedWidthMm: Math.round(recommendedW),
     recommendedDepthMm: Math.round(recommendedD),
     status,
+    pipeCounts,
   };
 }

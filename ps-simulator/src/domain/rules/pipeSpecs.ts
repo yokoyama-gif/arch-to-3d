@@ -1,4 +1,4 @@
-import type { PipeSpec, PipeType, FixtureType } from "../types";
+import type { PipeSpec, PipeType, EquipmentFixtureType } from "../types";
 
 /** 管種ごとのスペック */
 export const defaultPipeSpecs: Record<PipeType, PipeSpec> = {
@@ -10,8 +10,11 @@ export const defaultPipeSpecs: Record<PipeType, PipeSpec> = {
   gas: { diameterMm: 20, insulationMm: 0, clearanceMm: 20 },
 };
 
-/** 設備ごとの必要配管 */
-export const fixturePipeMap: Record<Exclude<FixtureType, "ps">, PipeType[]> = {
+/**
+ * 設備ごとの必要配管。
+ * 配管対象は「水回り設備のみ」。PSと構造要素(column/beam/wall)は配管を持たない。
+ */
+export const fixturePipeMap: Record<EquipmentFixtureType, PipeType[]> = {
   toilet: ["soil", "vent", "cold"],
   ub: ["waste", "cold", "hot"],
   washbasin: ["waste", "cold", "hot"],

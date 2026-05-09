@@ -289,9 +289,6 @@ export default function App() {
               onRemovePipePoint={(id, pipeType, index) =>
                 store.removeCustomPipePoint(id, pipeType, index)
               }
-              onMoveBackground={(x, y) =>
-                store.updateBackgroundImage({ x, y })
-              }
               calibrationMode={calibrationMode}
               onCalibrationDone={handleCalibrationDone}
               bgDragMode={bgDragMode}

@@ -1,4 +1,10 @@
-import type { Fixture, PipeRoute, PipeType, Point } from "./types";
+import type {
+  Fixture,
+  PipeRoute,
+  PipeType,
+  Point,
+  EquipmentFixtureType,
+} from "./types";
 import { structuralFixtureTypes } from "./types";
 import { fixturePipeMap } from "./rules/pipeSpecs";
 import { fixtureDrainSpec } from "./rules/fixtureDefaults";
@@ -81,7 +87,8 @@ export function calcPipeRoutes(fixtures: Fixture[]): PipeRoute[] {
     const ps = findNearestPs(eq, psList);
     if (!ps) continue;
 
-    const pipeTypes = fixturePipeMap[eq.type as keyof typeof fixturePipeMap];
+    // 配管対象外の設備(PS/構造)は上で除外済み。残りはEquipmentFixtureType
+    const pipeTypes = fixturePipeMap[eq.type as EquipmentFixtureType];
     if (!pipeTypes) continue;
 
     // 給水系の出発点 = 設備中心、排水系の出発点 = 排水溝

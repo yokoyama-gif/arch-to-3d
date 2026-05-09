@@ -6,11 +6,15 @@
  * これにより、A3で出力された平面図PDF/画像をアップロードすると、
  * キャンバス全体にぴったり収まる構成になる。
  */
-export const CANVAS_DEFAULTS = {
+export const CANVAS_DEFAULTS: {
+  widthMm: number;
+  heightMm: number;
+  defaultScale: number;
+} = {
   /** キャンバス幅(mm) - A3横の長辺 × 100 */
   widthMm: 42000,
   /** キャンバス高さ(mm) - A3横の短辺 × 100 */
   heightMm: 29700,
   /** 起動時の表示倍率 - 42000mm × 0.04 = 1680px (一般的な画面に収まる) */
   defaultScale: 0.04,
-} as const;
+};

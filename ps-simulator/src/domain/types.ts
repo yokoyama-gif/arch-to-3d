@@ -27,6 +27,15 @@ export const structuralFixtureTypes: ReadonlySet<FixtureType> = new Set([
   "wall",
 ]);
 
+/**
+ * 水回り設備種別（PSと構造要素を除く）。
+ * fixturePipeMap など「配管が必要な設備のみ」を扱う型はこれを使う。
+ */
+export type EquipmentFixtureType = Exclude<
+  FixtureType,
+  "ps" | "column" | "beam" | "wall"
+>;
+
 /** 配管種別 */
 export type PipeType = "soil" | "waste" | "vent" | "cold" | "hot" | "gas";
 
@@ -173,6 +182,11 @@ export type PsResult = {
   recommendedWidthMm: number;
   recommendedDepthMm: number;
   status: RouteStatus;
+  /**
+   * 接続している管種ごとの本数（同じ管種が複数設備から来ていれば加算）。
+   * 例: 3戸からwasteが来ていれば pipeCounts.waste = 3
+   */
+  pipeCounts: Partial<Record<PipeType, number>>;
 };
 
 /** 案サマリ */
@@ -187,10 +201,27 @@ export type PlanSummary = {
   totalScore: number;
 };
 
+/**
+ * 現行のスキーマバージョン。
+ * - v1: 暗黙(無印)。name/buildingSettings/fixtures/savedAt のみ
+ * - v2: backgroundImage / gridOffsetMm / pipeDiameters を保持
+ *
+ * import時に未指定なら v1 とみなしてフィールドを補完する。
+ */
+export const PLAN_SCHEMA_VERSION = 2 as const;
+
 /** 保存データ */
 export type PlanData = {
+  /** スキーマバージョン。未指定(v1)で読んでも壊れないよう補完される */
+  schemaVersion?: number;
   name: string;
   buildingSettings: BuildingSettings;
   fixtures: Fixture[];
   savedAt: string;
+  /** v2+: 背景平面図(画像/PDF読込結果) */
+  backgroundImage?: BackgroundImage | null;
+  /** v2+: グリッドオフセット */
+  gridOffsetMm?: { x: number; y: number };
+  /** v2+: 管種ごとの横管・竪管φ */
+  pipeDiameters?: PipeDiameters;
 };

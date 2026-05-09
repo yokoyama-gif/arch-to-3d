@@ -50,6 +50,40 @@ function validatePlanData(data: unknown): data is PlanData {
     if (typeof fix.w !== "number" || typeof fix.h !== "number") return false;
   }
 
+  // v2フィールドは存在すれば軽く整合性確認、不正なら除去して欠落扱い
+  if ("backgroundImage" in obj) {
+    const bg = obj.backgroundImage;
+    if (
+      bg !== null &&
+      (typeof bg !== "object" ||
+        typeof (bg as { dataUrl?: unknown }).dataUrl !== "string")
+    ) {
+      delete (obj as Record<string, unknown>).backgroundImage;
+    }
+  }
+  if ("gridOffsetMm" in obj) {
+    const g = obj.gridOffsetMm as { x?: unknown; y?: unknown } | null;
+    if (
+      g === null ||
+      typeof g !== "object" ||
+      typeof g.x !== "number" ||
+      typeof g.y !== "number"
+    ) {
+      delete (obj as Record<string, unknown>).gridOffsetMm;
+    }
+  }
+  if ("pipeDiameters" in obj) {
+    const pd = obj.pipeDiameters;
+    if (pd === null || typeof pd !== "object") {
+      delete (obj as Record<string, unknown>).pipeDiameters;
+    }
+  }
+
+  // schemaVersionは無くても良いが、未指定なら v1 として補完
+  if (typeof obj.schemaVersion !== "number") {
+    obj.schemaVersion = 1;
+  }
+
   return true;
 }
 
