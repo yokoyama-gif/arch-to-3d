@@ -195,13 +195,35 @@ export function GridCanvas({
   } | null>(null);
   // 校正用の最初のクリック点（2点目で確定）
   const [calibPoint1, setCalibPoint1] = useState<{ x: number; y: number } | null>(null);
-  // 左+右同時ドラッグでのズーム用：直前のクライアントY座標を保持(レガシー、未使用)
-  const [dualBtnZoomY, setDualBtnZoomY] = useState<number | null>(null);
-  // ラバーバンドズーム: 左+右ドラッグで範囲を選択し、その範囲に拡大表示する
-  const [zoomBox, setZoomBox] = useState<{
+  // ArchiTrend式 両ボタンドラッグ: 押下時の点を保持。離した時の方向で機能切替
+  const [dualBtnDrag, setDualBtnDrag] = useState<{
     startMm: { x: number; y: number };
-    currentMm: { x: number; y: number };
+    startClientX: number;
+    startClientY: number;
+    currentClientX: number;
+    currentClientY: number;
   } | null>(null);
+  // 「前倍率」用の直前のスケール履歴（左下方向ドラッグで戻すため）
+  const [prevScaleStack, setPrevScaleStack] = useState<number[]>([]);
+  // 中ボタンドラッグでのパン
+  const [panDrag, setPanDrag] = useState<{
+    startClientX: number;
+    startClientY: number;
+    startScrollLeft: number;
+    startScrollTop: number;
+  } | null>(null);
+  // 右クリックポップアップメニュー
+  const [contextMenu, setContextMenu] = useState<{
+    clientX: number;
+    clientY: number;
+  } | null>(null);
+  // (互換のため zoomBox エイリアス)
+  const zoomBox = dualBtnDrag
+    ? {
+        startMm: dualBtnDrag.startMm,
+        currentMm: { x: dualBtnDrag.startMm.x, y: dualBtnDrag.startMm.y },
+      }
+    : null;
 
   const canvasW = DEFAULT_CANVAS_W;
   const canvasH = DEFAULT_CANVAS_H;
@@ -307,17 +329,40 @@ export function GridCanvas({
     onSetGridOffset,
   ]);
 
-  // --- ズーム（マウスホイールで直接） ---
+  // --- ホイールズーム（カーソル位置を中心に拡大／縮小: ArchiTrend仕様） ---
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
-      // 縮小方向にずらした倍率: ホイール量に比例してズーム量を調整
-      const delta = e.deltaY > 0 ? -ZOOM_STEP * 2 : ZOOM_STEP * 2;
-      setScale((prev) =>
-        Math.min(MAX_SCALE, Math.max(MIN_SCALE, prev + delta))
-      );
+      const scrollEl = container.parentElement;
+      if (!scrollEl) return;
+
+      // 倍率変更: 拡大は1.1倍、縮小は1/1.1倍(乗算で滑らか)
+      const factor = e.deltaY > 0 ? 1 / 1.1 : 1.1;
+      setScale((prev) => {
+        const next = Math.min(MAX_SCALE, Math.max(MIN_SCALE, prev * factor));
+        if (next === prev) return prev;
+
+        // カーソル位置のキャンバス座標をmm単位で取得
+        const rect = container.querySelector("svg")?.getBoundingClientRect();
+        if (!rect) return next;
+        const cursorPxFromSvgLeft = e.clientX - rect.left;
+        const cursorPxFromSvgTop = e.clientY - rect.top;
+        const cursorMmX = cursorPxFromSvgLeft / prev;
+        const cursorMmY = cursorPxFromSvgTop / prev;
+
+        // 新スケール後の同じmm点のpx座標
+        const newCursorPxX = cursorMmX * next;
+        const newCursorPxY = cursorMmY * next;
+
+        // 「新px - 旧px」分だけスクロール調整 → カーソル位置のmm点が画面上同じ場所に残る
+        requestAnimationFrame(() => {
+          scrollEl.scrollLeft += newCursorPxX - cursorPxFromSvgLeft;
+          scrollEl.scrollTop += newCursorPxY - cursorPxFromSvgTop;
+        });
+        return next;
+      });
     };
     container.addEventListener("wheel", handleWheel, { passive: false });
     return () => container.removeEventListener("wheel", handleWheel);
@@ -609,7 +654,120 @@ export function GridCanvas({
   }
 
   return (
-    <div ref={containerRef}>
+    <div ref={containerRef} style={{ position: "relative" }}>
+      {/* ArchiTrend式 右クリックポップアップメニュー */}
+      {contextMenu && (
+        <>
+          {/* 背景クリック領域(クリックでメニューを閉じる) */}
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 99,
+            }}
+            onClick={() => setContextMenu(null)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setContextMenu(null);
+            }}
+          />
+          <div
+            style={{
+              position: "fixed",
+              top: contextMenu.clientY,
+              left: contextMenu.clientX,
+              zIndex: 100,
+              background: "#fff",
+              border: "1px solid #888",
+              boxShadow: "2px 2px 6px rgba(0,0,0,0.25)",
+              fontSize: 12,
+              minWidth: 160,
+              padding: "2px 0",
+            }}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            <MenuHeader>表示</MenuHeader>
+            <MenuItem
+              onClick={() => {
+                const scrollEl = containerRef.current?.parentElement;
+                if (!scrollEl) return setContextMenu(null);
+                const t = Math.min(
+                  scrollEl.clientWidth / canvasW,
+                  scrollEl.clientHeight / canvasH
+                ) * 0.95;
+                setPrevScaleStack((s) => [...s, scale]);
+                setScale(Math.min(MAX_SCALE, Math.max(MIN_SCALE, t)));
+                requestAnimationFrame(() => {
+                  scrollEl.scrollLeft = (canvasW / 2) * t - scrollEl.clientWidth / 2;
+                  scrollEl.scrollTop = (canvasH / 2) * t - scrollEl.clientHeight / 2;
+                });
+                setContextMenu(null);
+              }}
+            >
+              全体表示
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                setPrevScaleStack((s) => [...s, scale]);
+                setScale((s) => Math.min(MAX_SCALE, s * 1.5));
+                setContextMenu(null);
+              }}
+            >
+              拡大
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                setPrevScaleStack((s) => [...s, scale]);
+                setScale((s) => Math.max(MIN_SCALE, s * 0.7));
+                setContextMenu(null);
+              }}
+            >
+              縮小
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                const last = prevScaleStack[prevScaleStack.length - 1];
+                if (last !== undefined) {
+                  setPrevScaleStack((s) => s.slice(0, -1));
+                  setScale(last);
+                }
+                setContextMenu(null);
+              }}
+            >
+              前倍率
+            </MenuItem>
+            <MenuSeparator />
+            <MenuHeader>編集</MenuHeader>
+            <MenuItem
+              disabled={!selectedFixtureId}
+              onClick={() => {
+                if (selectedFixtureId) onDeleteFixture?.(selectedFixtureId);
+                setContextMenu(null);
+              }}
+            >
+              選択要素を削除
+            </MenuItem>
+            <MenuItem
+              disabled={!selectedFixtureId}
+              onClick={() => {
+                if (selectedFixtureId) onRotateFixture?.(selectedFixtureId);
+                setContextMenu(null);
+              }}
+            >
+              選択要素を90°回転
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                onSelectFixture(null);
+                setContextMenu(null);
+              }}
+            >
+              選択解除
+            </MenuItem>
+          </div>
+        </>
+      )}
+
       {/* ズームコントロール */}
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, fontSize: 12 }}>
         <button
@@ -644,7 +802,7 @@ export function GridCanvas({
           詳細
         </button>
         <span style={{ color: "#999", fontSize: 11, marginLeft: 8 }}>
-          範囲 {DEFAULT_CANVAS_W / 1000}×{DEFAULT_CANVAS_H / 1000}m / ホイールでズーム / 左+右ドラッグで範囲ズーム / 図面はドラッグ・十字キーで移動
+          {DEFAULT_CANVAS_W / 1000}×{DEFAULT_CANVAS_H / 1000}m | ホイール=カーソル中心ズーム | 中ボタン=パン | 左+右ドラッグ↘範囲拡大↖縮小↗全体↙前倍率 | 右クリック=メニュー
         </span>
       </div>
 
@@ -662,8 +820,8 @@ export function GridCanvas({
               : "default",
         }}
         onClick={(e) => {
-          // ラバーバンドズーム中・直後の click は無視
-          if (zoomBox || dualBtnZoomY != null) return;
+          // 両ボタンドラッグ中・直後 / 中ボタンパン直後 の click は無視
+          if (dualBtnDrag || panDrag || contextMenu) return;
           handleCanvasClick(e);
         }}
         onMouseMove={(e) => {
@@ -672,26 +830,59 @@ export function GridCanvas({
             const p = getMouseMm(e);
             onCursorMmChange(p.x, p.y);
           }
-          // 左+右同時押し中ならラバーバンドで範囲選択
+          // 中ボタン(button=4)ドラッグ → パン
+          if (panDrag && (e.buttons & 4) === 4) {
+            const scrollEl = containerRef.current?.parentElement;
+            if (scrollEl) {
+              scrollEl.scrollLeft =
+                panDrag.startScrollLeft - (e.clientX - panDrag.startClientX);
+              scrollEl.scrollTop =
+                panDrag.startScrollTop - (e.clientY - panDrag.startClientY);
+            }
+            return;
+          }
+          // 左+右同時押し中 → ArchiTrend両ボタンドラッグ(現在位置を保持)
           if ((e.buttons & 3) === 3) {
-            const pos = getMouseMm(e);
-            if (!zoomBox) {
-              // ドラッグ中の他のすべての操作をキャンセル(ズーム選択へ即切替)
+            if (!dualBtnDrag) {
+              // 開始
+              const pos = getMouseMm(e);
               setDragging(null);
               setBgDragging(null);
               setResizing(null);
               setDrainDragging(null);
               setElbowDragging(null);
-              setZoomBox({ startMm: pos, currentMm: pos });
+              setDualBtnDrag({
+                startMm: pos,
+                startClientX: e.clientX,
+                startClientY: e.clientY,
+                currentClientX: e.clientX,
+                currentClientY: e.clientY,
+              });
             } else {
-              setZoomBox({ ...zoomBox, currentMm: pos });
+              setDualBtnDrag({
+                ...dualBtnDrag,
+                currentClientX: e.clientX,
+                currentClientY: e.clientY,
+              });
             }
             return;
           }
-          // 同時押しが解除された → 何もしない（mouseupで処理）
           handleMouseMove(e);
         }}
         onMouseDown={(e) => {
+          // 中ボタン(button=1) → パン開始
+          if (e.button === 1) {
+            e.preventDefault();
+            const scrollEl = containerRef.current?.parentElement;
+            setPanDrag({
+              startClientX: e.clientX,
+              startClientY: e.clientY,
+              startScrollLeft: scrollEl?.scrollLeft ?? 0,
+              startScrollTop: scrollEl?.scrollTop ?? 0,
+            });
+            return;
+          }
+          // 左+右同時押し → 両ボタンドラッグ開始
           if ((e.buttons & 3) === 3) {
             e.preventDefault();
             const pos = getMouseMm(e);
@@ -700,57 +891,107 @@ export function GridCanvas({
             setResizing(null);
             setDrainDragging(null);
             setElbowDragging(null);
-            setZoomBox({ startMm: pos, currentMm: pos });
+            setDualBtnDrag({
+              startMm: pos,
+              startClientX: e.clientX,
+              startClientY: e.clientY,
+              currentClientX: e.clientX,
+              currentClientY: e.clientY,
+            });
           }
         }}
         onMouseUp={(e) => {
-          // どちらかのボタンが離されたタイミングでズームを確定
-          if (zoomBox && (e.buttons & 3) !== 3) {
-            const x1 = Math.min(zoomBox.startMm.x, zoomBox.currentMm.x);
-            const y1 = Math.min(zoomBox.startMm.y, zoomBox.currentMm.y);
-            const x2 = Math.max(zoomBox.startMm.x, zoomBox.currentMm.x);
-            const y2 = Math.max(zoomBox.startMm.y, zoomBox.currentMm.y);
-            const boxW = x2 - x1;
-            const boxH = y2 - y1;
-            // 極小選択は無視(クリック扱い)
-            if (boxW < 100 || boxH < 100) {
-              setZoomBox(null);
-              return;
-            }
-            // 親スクロールコンテナのサイズを取得して目標スケールを計算
+          // 中ボタンを離した → パン終了
+          if (panDrag && e.button === 1) {
+            setPanDrag(null);
+            return;
+          }
+          // 両ボタンドラッグの「離した瞬間」 → 方向判定して機能実行
+          if (dualBtnDrag && (e.buttons & 3) !== 3) {
+            const dx = dualBtnDrag.currentClientX - dualBtnDrag.startClientX;
+            const dy = dualBtnDrag.currentClientY - dualBtnDrag.startClientY;
+            const dist = Math.hypot(dx, dy);
             const scrollEl = containerRef.current?.parentElement;
-            if (scrollEl) {
-              const viewW = scrollEl.clientWidth;
-              const viewH = scrollEl.clientHeight;
-              // 90%余白で枠が画面に余裕で収まるサイズに
-              const targetScale = Math.min(
-                MAX_SCALE,
-                Math.max(
-                  MIN_SCALE,
-                  Math.min(viewW / boxW, viewH / boxH) * 0.9
-                )
-              );
-              setScale(targetScale);
-              // スケール反映後にスクロール位置を中央へ
-              const cxMm = (x1 + x2) / 2;
-              const cyMm = (y1 + y2) / 2;
-              requestAnimationFrame(() => {
-                scrollEl.scrollLeft = cxMm * targetScale - viewW / 2;
-                scrollEl.scrollTop = cyMm * targetScale - viewH / 2;
-              });
+            const viewW = scrollEl?.clientWidth ?? 800;
+            const viewH = scrollEl?.clientHeight ?? 600;
+
+            const startMm = dualBtnDrag.startMm;
+            const performZoom = (newScale: number, centerMm?: { x: number; y: number }) => {
+              setPrevScaleStack((s) => [...s, scale]);
+              const clamped = Math.min(MAX_SCALE, Math.max(MIN_SCALE, newScale));
+              setScale(clamped);
+              if (centerMm && scrollEl) {
+                requestAnimationFrame(() => {
+                  scrollEl.scrollLeft = centerMm.x * clamped - viewW / 2;
+                  scrollEl.scrollTop = centerMm.y * clamped - viewH / 2;
+                });
+              }
+            };
+
+            if (dist < 5) {
+              // 中央(動かさず離す) → シフト: クリック点を画面中心に
+              if (scrollEl) {
+                requestAnimationFrame(() => {
+                  scrollEl.scrollLeft = startMm.x * scale - viewW / 2;
+                  scrollEl.scrollTop = startMm.y * scale - viewH / 2;
+                });
+              }
+            } else if (dx > 0 && dy > 0) {
+              // 右下 → 範囲拡大(押下点と離した点を対角とする矩形を画面に)
+              const endX = (dualBtnDrag.currentClientX -
+                (scrollEl?.getBoundingClientRect().left ?? 0) +
+                (scrollEl?.scrollLeft ?? 0)) / scale;
+              const endY = (dualBtnDrag.currentClientY -
+                (scrollEl?.getBoundingClientRect().top ?? 0) +
+                (scrollEl?.scrollTop ?? 0)) / scale;
+              const x1 = Math.min(startMm.x, endX);
+              const y1 = Math.min(startMm.y, endY);
+              const x2 = Math.max(startMm.x, endX);
+              const y2 = Math.max(startMm.y, endY);
+              const boxW = x2 - x1;
+              const boxH = y2 - y1;
+              if (boxW > 50 && boxH > 50) {
+                const target = Math.min(viewW / boxW, viewH / boxH) * 0.95;
+                performZoom(target, { x: (x1 + x2) / 2, y: (y1 + y2) / 2 });
+              }
+            } else if (dx < 0 && dy < 0) {
+              // 左上 → 縮小(画面中心基準で 0.7倍)
+              performZoom(scale * 0.7);
+            } else if (dx > 0 && dy < 0) {
+              // 右上 → 全体表示(キャンバス全体が画面に収まる倍率)
+              const target = Math.min(viewW / canvasW, viewH / canvasH) * 0.95;
+              performZoom(target, { x: canvasW / 2, y: canvasH / 2 });
+            } else if (dx < 0 && dy > 0) {
+              // 左下 → 前倍率に戻す
+              const last = prevScaleStack[prevScaleStack.length - 1];
+              if (last !== undefined) {
+                setPrevScaleStack((s) => s.slice(0, -1));
+                setScale(last);
+              }
             }
-            setZoomBox(null);
+            setDualBtnDrag(null);
+            return;
           }
           handleMouseUp();
         }}
         onMouseLeave={() => {
-          setZoomBox(null);
-          setDualBtnZoomY(null);
+          setDualBtnDrag(null);
+          setPanDrag(null);
           handleMouseUp();
         }}
         onContextMenu={(e) => {
-          // 右ドラッグズーム時にコンテキストメニューが出ると邪魔なので抑制
+          // ブラウザの既定メニューを抑制し、ArchiTrend式の独自ポップアップを出す
           e.preventDefault();
+          // 何もコマンド入力中でない場合のみコンテキストメニューを表示
+          if (
+            !placingType &&
+            !calibrationMode &&
+            !markingMode &&
+            !dualBtnDrag &&
+            !panDrag
+          ) {
+            setContextMenu({ clientX: e.clientX, clientY: e.clientY });
+          }
         }}
       >
         {/* 背景平面図(グリッドの後ろに表示) */}
@@ -1372,25 +1613,126 @@ export function GridCanvas({
           );
         })()}
 
-        {/* ラバーバンドズームの選択枠（最前面） */}
-        {zoomBox && (
-          <rect
-            x={mmToPx(Math.min(zoomBox.startMm.x, zoomBox.currentMm.x))}
-            y={mmToPx(Math.min(zoomBox.startMm.y, zoomBox.currentMm.y))}
-            width={mmToPx(
-              Math.abs(zoomBox.currentMm.x - zoomBox.startMm.x)
-            )}
-            height={mmToPx(
-              Math.abs(zoomBox.currentMm.y - zoomBox.startMm.y)
-            )}
-            fill="rgba(33,150,243,0.15)"
-            stroke="#1976d2"
-            strokeWidth={1.5}
-            strokeDasharray="6 3"
-            pointerEvents="none"
-          />
-        )}
+        {/* ArchiTrend式 両ボタンドラッグ中の方向プレビュー(右下=範囲拡大の枠表示) */}
+        {dualBtnDrag && (() => {
+          const dx = dualBtnDrag.currentClientX - dualBtnDrag.startClientX;
+          const dy = dualBtnDrag.currentClientY - dualBtnDrag.startClientY;
+          const dist = Math.hypot(dx, dy);
+          if (dist < 5) return null;
+          const startPx = {
+            x: mmToPx(dualBtnDrag.startMm.x),
+            y: mmToPx(dualBtnDrag.startMm.y),
+          };
+          // 右下方向のみ範囲拡大の矩形プレビュー
+          if (dx > 0 && dy > 0) {
+            return (
+              <rect
+                x={startPx.x}
+                y={startPx.y}
+                width={dx}
+                height={dy}
+                fill="rgba(33,150,243,0.12)"
+                stroke="#1976d2"
+                strokeWidth={1.5}
+                strokeDasharray="6 3"
+                pointerEvents="none"
+              />
+            );
+          }
+          // それ以外は方向ラベルを起点付近に表示
+          const label =
+            dx < 0 && dy < 0
+              ? "縮小"
+              : dx > 0 && dy < 0
+                ? "全体表示"
+                : dx < 0 && dy > 0
+                  ? "前倍率"
+                  : "";
+          return (
+            <g pointerEvents="none">
+              <rect
+                x={startPx.x - 30}
+                y={startPx.y - 12}
+                width={60}
+                height={20}
+                fill="rgba(33,150,243,0.85)"
+                rx={2}
+              />
+              <text
+                x={startPx.x}
+                y={startPx.y + 2}
+                fontSize={11}
+                fill="#fff"
+                fontWeight={700}
+                textAnchor="middle"
+              >
+                {label}
+              </text>
+            </g>
+          );
+        })()}
       </svg>
     </div>
+  );
+}
+
+// ─── ArchiTrend式コンテキストメニューの構成要素 ─────────────────
+function MenuHeader({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        padding: "3px 12px",
+        fontSize: 10,
+        color: "#666",
+        background: "#f5f5f5",
+        borderBottom: "1px solid #eee",
+        fontWeight: 600,
+        letterSpacing: 0.5,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function MenuItem({
+  children,
+  onClick,
+  disabled,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div
+      onClick={disabled ? undefined : onClick}
+      style={{
+        padding: "5px 14px",
+        cursor: disabled ? "default" : "pointer",
+        color: disabled ? "#aaa" : "#222",
+        userSelect: "none",
+      }}
+      onMouseEnter={(e) => {
+        if (!disabled) e.currentTarget.style.background = "#dbe6f4";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = "transparent";
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function MenuSeparator() {
+  return (
+    <div
+      style={{
+        height: 1,
+        background: "#e0e0e0",
+        margin: "3px 0",
+      }}
+    />
   );
 }
