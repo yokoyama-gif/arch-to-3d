@@ -20,6 +20,52 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8080"],
       "port": 8080
+    },
+    {
+      "name": "retro-game",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8081"],
+      "port": 8081,
+      "cwd": "retro-action-game"
+    },
+    {
+      "name": "key-escape",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8082"],
+      "port": 8082
+    },
+    {
+      "name": "face-creator",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\npm.cmd",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5174"],
+      "port": 5174,
+      "cwd": "face-creator"
+    }
+    ,{
+      "name": "pdf-preview",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8085"],
+      "port": 8085,
+      "cwd": "pdf-utility-pro"
+    }
+    ,{
+      "name": "multi-ai-hub",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8086", "--directory", "multi-ai-hub"],
+      "port": 8086
+    }
+    ,{
+      "name": "pacman",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8181"],
+      "port": 8181
+    }
+    ,{
+      "name": "placement-cad",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\npm.cmd",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5173,
+      "cwd": "placement-cad"
     }
   ]
 }
