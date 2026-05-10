@@ -22,6 +22,7 @@ import { exportPlanToJson } from "./utils/exportJson";
 import { exportPlanToDxf, DEFAULT_DXF_OPTIONS } from "./utils/exportDxf";
 import type { DxfExportOptions } from "./utils/exportDxf";
 import { DxfOptionsPanel } from "./components/DxfOptionsPanel";
+import { PipeSelectionPanel } from "./components/PipeSelectionPanel";
 import { importPlanFromJson } from "./utils/importJson";
 
 export default function App() {
@@ -307,6 +308,8 @@ export default function App() {
               onRemovePipePoint={(id, pipeType, index) =>
                 store.removeCustomPipePoint(id, pipeType, index)
               }
+              selectedPipeRoute={store.selectedPipeRoute}
+              onSelectPipeRoute={store.selectPipeRoute}
               calibrationMode={calibrationMode}
               onCalibrationDone={handleCalibrationDone}
               bgDragMode={bgDragMode}
@@ -381,6 +384,24 @@ export default function App() {
             />
 
             <div style={{ margin: "16px 0", borderTop: "1px solid #eee" }} />
+
+            <PipeSelectionPanel
+              selected={store.selectedPipeRoute}
+              fixtures={store.fixtures}
+              pipeRoutes={store.pipeRoutes}
+              onClearCustom={() => {
+                if (store.selectedPipeRoute) {
+                  store.clearCustomPipePoints(
+                    store.selectedPipeRoute.fixtureId,
+                    store.selectedPipeRoute.pipeType
+                  );
+                }
+              }}
+              onDeselect={() => store.selectPipeRoute(null)}
+            />
+            {store.selectedPipeRoute && (
+              <div style={{ margin: "12px 0", borderTop: "1px solid #eee" }} />
+            )}
 
             <ResultPanel
               fixtures={store.fixtures}
@@ -478,7 +499,11 @@ export default function App() {
             style={{
               padding: "1px 6px",
               background:
-                placingType || calibrationMode || markingMode || bgDragMode
+                placingType ||
+                calibrationMode ||
+                markingMode ||
+                bgDragMode ||
+                store.selectedPipeRoute
                   ? "#ffeb3b"
                   : "#e0e0e0",
               border: "1px solid #999",
@@ -493,6 +518,8 @@ export default function App() {
               ? "柱マーク"
               : bgDragMode
               ? "グリッド移動"
+              : store.selectedPipeRoute
+              ? `配管編集: ${store.selectedPipeRoute.pipeType}`
               : "選択"}
           </div>
         </div>

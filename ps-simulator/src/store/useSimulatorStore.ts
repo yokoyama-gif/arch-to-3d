@@ -79,6 +79,14 @@ type SimulatorState = {
   selectFixture: (id: string | null) => void;
   setFixtures: (fixtures: Fixture[]) => void;
 
+  /**
+   * 選択中の配管ルート (設備ID + 管種)。
+   * 設備選択とは独立した「配管編集モード」用。
+   * ホバー強調・ハンドル表示・ステータスバー表示に使う。
+   */
+  selectedPipeRoute: { fixtureId: string; pipeType: PipeType } | null;
+  selectPipeRoute: (sel: { fixtureId: string; pipeType: PipeType } | null) => void;
+
   // グリッドの平行移動オフセット (mm)
   // 図面側は固定して、こちらの値を変えてグリッドの方を図面に合わせる仕様
   gridOffsetMm: { x: number; y: number };
@@ -175,6 +183,8 @@ export const useSimulatorStore = create<SimulatorState>((set, get) => {
 
     fixtures: initialFixtures,
     selectedFixtureId: null,
+    selectedPipeRoute: null,
+    selectPipeRoute: (sel) => set({ selectedPipeRoute: sel }),
 
     addFixture: (type, x, y) => {
       const grid = get().buildingSettings.gridSizeMm;

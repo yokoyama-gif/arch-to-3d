@@ -73,6 +73,12 @@ type Props = {
     pipeType: PipeType,
     index: number
   ) => void;
+  /** 配管ルート選択中(設備ID + 管種) */
+  selectedPipeRoute?: { fixtureId: string; pipeType: PipeType } | null;
+  /** 配管ルート選択コールバック */
+  onSelectPipeRoute?: (
+    sel: { fixtureId: string; pipeType: PipeType } | null
+  ) => void;
   /** 背景画像移動 (mm単位の絶対位置) */
   onMoveBackground?: (x: number, y: number) => void;
   /** 背景画像のスケール調整: 現状のwidthMm/heightMmにfactorを掛ける */
@@ -134,6 +140,8 @@ export function GridCanvas({
   onUpdatePipePoint,
   onInsertPipePoint,
   onRemovePipePoint,
+  selectedPipeRoute,
+  onSelectPipeRoute,
   onScaleBackground: _onScaleBackground,
   calibrationMode,
   onCalibrationDone,
@@ -197,6 +205,24 @@ export function GridCanvas({
     fixtureId: string;
     pipeType: PipeType;
     cornerIndex: number;
+  } | null>(null);
+  // 配管ホバー中(設備ID + 管種)
+  const [hoverPipe, setHoverPipe] = useState<{
+    fixtureId: string;
+    pipeType: PipeType;
+  } | null>(null);
+  // 線分ドラッグ中(セグメントを平行移動。直交配管維持のため水平/垂直軸に制限)
+  const [segmentDragging, setSegmentDragging] = useState<{
+    fixtureId: string;
+    pipeType: PipeType;
+    /** 線分の前端コーナーindex(=points[i]がpoints[i+1]とで作る線の i)。-1 は始点側 */
+    segmentIndex: number;
+    /** "h"=水平線分(上下に動く), "v"=垂直線分(左右に動く) */
+    axis: "h" | "v";
+    /** ドラッグ開始時のマウスmm座標 */
+    startMm: { x: number; y: number };
+    /** ドラッグ開始時の points 配列(後で差分復元用) */
+    startPoints: Array<{ x: number; y: number }>;
   } | null>(null);
   // 背景画像のドラッグ中（開始位置と背景元位置を保持）
   const [bgDragging, setBgDragging] = useState<{
@@ -538,6 +564,67 @@ export function GridCanvas({
         );
         return;
       }
+      // 線分ドラッグ - 軸方向のみに平行移動。前後の中間点を追従更新
+      if (
+        segmentDragging &&
+        onUpdatePipePoint &&
+        onInsertPipePoint &&
+        getMouseMm
+      ) {
+        const pos = getMouseMm(e);
+        const seg = segmentDragging;
+        const a0 = seg.startPoints[seg.segmentIndex];
+        const b0 = seg.startPoints[seg.segmentIndex + 1];
+        if (!a0 || !b0) return;
+
+        // 動かす方向の差分を計算 (axis="h": 上下=Y軸 / "v": 左右=X軸)
+        const targetMm =
+          seg.axis === "h"
+            ? snapToGridWithOffset(pos.y, gridSizeMm, gridOffY)
+            : snapToGridWithOffset(pos.x, gridSizeMm, gridOffX);
+
+        // a, b 両端を新位置に移動。両端は corner の場合のみ動かせる(始点/終点は固定)。
+        // segmentIndex=0 の場合 a0 は始点(設備接続点)→ a 側は動かさず b のみ
+        // segmentIndex=last の場合 b0 は終点(PS) → b 側は動かさず a のみ
+        const last = seg.startPoints.length - 1;
+
+        const moveA = seg.segmentIndex !== 0; // 始点でなければ a を動かす
+        const moveB = seg.segmentIndex !== last - 1; // 終点でなければ b を動かす
+
+        // 編集後の各 corner を計算して onUpdatePipePoint
+        // points[0]=from(設備),points[last]=to(PS) で固定。
+        // customPipePoints は points[1..last-1] = corners
+        // よって corner index = pointIndex - 1
+        if (moveA) {
+          const idx = seg.segmentIndex - 1; // a の corner index
+          const newA =
+            seg.axis === "h"
+              ? { x: a0.x, y: targetMm }
+              : { x: targetMm, y: a0.y };
+          onUpdatePipePoint(
+            seg.fixtureId,
+            seg.pipeType,
+            idx,
+            newA.x,
+            newA.y
+          );
+        }
+        if (moveB) {
+          const idx = seg.segmentIndex; // b の corner index
+          const newB =
+            seg.axis === "h"
+              ? { x: b0.x, y: targetMm }
+              : { x: targetMm, y: b0.y };
+          onUpdatePipePoint(
+            seg.fixtureId,
+            seg.pipeType,
+            idx,
+            newB.x,
+            newB.y
+          );
+        }
+        return;
+      }
       // 排水溝ドラッグ
       if (drainDragging && onSetDrainOffset) {
         const fixture = fixtures.find((f) => f.id === drainDragging);
@@ -595,6 +682,7 @@ export function GridCanvas({
       drainDragging,
       elbowDragging,
       bgDragging,
+      segmentDragging,
       bgSnapStepMm,
       fixtures,
       getMouseMm,
@@ -605,6 +693,7 @@ export function GridCanvas({
       onResizeFixtureGeometry,
       onSetDrainOffset,
       onUpdatePipePoint,
+      onInsertPipePoint,
       onSetGridOffset,
     ]
   );
@@ -615,6 +704,7 @@ export function GridCanvas({
     setDrainDragging(null);
     setElbowDragging(null);
     setBgDragging(null);
+    setSegmentDragging(null);
   }, []);
 
   /**
@@ -1365,17 +1455,102 @@ export function GridCanvas({
           //  - ガス(gas)→黄 #f9a825
           const horizColor = isDrainPipe ? "#777" : pipeColor;
 
+          // 選択/ホバー判定
+          const isSelected =
+            selectedPipeRoute?.fixtureId === route.fixtureId &&
+            selectedPipeRoute?.pipeType === route.pipeType;
+          const isHover =
+            hoverPipe?.fixtureId === route.fixtureId &&
+            hoverPipe?.pipeType === route.pipeType;
+
           return (
             <g key={`route-${i}`}>
+              {/* 透明な太いhitライン: ホバー判定とクリック選択用 */}
               <polyline
                 points={pts}
                 fill="none"
-                stroke={horizColor}
-                strokeWidth={horizStrokePx}
+                stroke="transparent"
+                strokeWidth={Math.max(horizStrokePx + 6, 12)}
+                style={{ cursor: "pointer" }}
+                onMouseEnter={() =>
+                  setHoverPipe({
+                    fixtureId: route.fixtureId,
+                    pipeType: route.pipeType,
+                  })
+                }
+                onMouseLeave={() => setHoverPipe(null)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectPipeRoute?.({
+                    fixtureId: route.fixtureId,
+                    pipeType: route.pipeType,
+                  });
+                }}
+                onDoubleClick={(e) => {
+                  // ダブルクリックされた位置にコーナーを挿入（最寄りセグメントの index を計算）
+                  e.stopPropagation();
+                  if (!onInsertPipePoint) return;
+                  const svg = svgRef.current;
+                  if (!svg) return;
+                  const rect = svg.getBoundingClientRect();
+                  const mx = (e.clientX - rect.left) / scale;
+                  const my = (e.clientY - rect.top) / scale;
+                  // 各セグメントへの距離を計算し、最寄りのセグメントを選ぶ
+                  let bestIdx = 0;
+                  let bestDist = Infinity;
+                  for (let s = 0; s < route.points.length - 1; s++) {
+                    const a = route.points[s];
+                    const b = route.points[s + 1];
+                    // 線分上に投影した点との距離
+                    const dx = b.x - a.x;
+                    const dy = b.y - a.y;
+                    const len2 = dx * dx + dy * dy;
+                    const t =
+                      len2 > 0
+                        ? Math.max(
+                            0,
+                            Math.min(1, ((mx - a.x) * dx + (my - a.y) * dy) / len2)
+                          )
+                        : 0;
+                    const px = a.x + t * dx;
+                    const py = a.y + t * dy;
+                    const d = Math.hypot(mx - px, my - py);
+                    if (d < bestDist) {
+                      bestDist = d;
+                      bestIdx = s;
+                    }
+                  }
+                  // クリック位置をスナップして挿入
+                  const sx = snapToGridWithOffset(mx, gridSizeMm, gridOffX);
+                  const sy = snapToGridWithOffset(my, gridSizeMm, gridOffY);
+                  onInsertPipePoint(
+                    route.fixtureId,
+                    route.pipeType,
+                    bestIdx,
+                    sx,
+                    sy
+                  );
+                  onSelectPipeRoute?.({
+                    fixtureId: route.fixtureId,
+                    pipeType: route.pipeType,
+                  });
+                }}
+              />
+              {/* 実体ライン: 選択/ホバー時に強調 */}
+              <polyline
+                points={pts}
+                fill="none"
+                stroke={isSelected ? "#1976d2" : isHover ? "#42a5f5" : horizColor}
+                strokeWidth={
+                  isSelected ? Math.max(horizStrokePx + 2, 3) :
+                  isHover ? Math.max(horizStrokePx + 1, 2.5) :
+                  horizStrokePx
+                }
                 strokeLinecap="butt"
                 strokeLinejoin="miter"
                 strokeDasharray={route.pipeType === "vent" ? "4 2" : undefined}
-                opacity={0.85}
+                opacity={isSelected || isHover ? 1 : 0.85}
+                pointerEvents="none"
               />
               {/* 管種ラベル */}
               <rect
@@ -1618,6 +1793,79 @@ export function GridCanvas({
                   </text>
                 </g>
               ))}
+            </g>
+          );
+        })()}
+
+        {/* 選択中配管の線分ドラッグハンドル: 各セグメントの中点に「↕」「↔」 */}
+        {selectedPipeRoute && (() => {
+          const route = pipeRoutes.find(
+            (r) =>
+              r.fixtureId === selectedPipeRoute.fixtureId &&
+              r.pipeType === selectedPipeRoute.pipeType
+          );
+          if (!route || route.points.length < 2) return null;
+          return (
+            <g>
+              {route.points.slice(0, -1).map((a, i) => {
+                const b = route.points[i + 1];
+                // セグメント方向: x差>y差なら水平線分(縦に動かす), 逆なら垂直線分
+                const dx = Math.abs(b.x - a.x);
+                const dy = Math.abs(b.y - a.y);
+                if (dx === 0 && dy === 0) return null;
+                const axis: "h" | "v" = dx >= dy ? "h" : "v";
+                const cx = (a.x + b.x) / 2;
+                const cy = (a.y + b.y) / 2;
+                const cursor = axis === "h" ? "ns-resize" : "ew-resize";
+                return (
+                  <g key={`segdrag-${i}`}>
+                    <rect
+                      x={mmToPx(cx) - 7}
+                      y={mmToPx(cy) - 7}
+                      width={14}
+                      height={14}
+                      fill="rgba(255,255,255,0.95)"
+                      stroke="#1976d2"
+                      strokeWidth={1.5}
+                      rx={2}
+                      style={{ cursor }}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        const svg = svgRef.current;
+                        if (!svg) return;
+                        const rect = svg.getBoundingClientRect();
+                        setSegmentDragging({
+                          fixtureId: route.fixtureId,
+                          pipeType: route.pipeType,
+                          segmentIndex: i,
+                          axis,
+                          startMm: {
+                            x: (e.clientX - rect.left) / scale,
+                            y: (e.clientY - rect.top) / scale,
+                          },
+                          startPoints: route.points.map((p) => ({ ...p })),
+                        });
+                      }}
+                    >
+                      <title>
+                        {axis === "h" ? "↕ 水平線分を上下にドラッグ" : "↔ 垂直線分を左右にドラッグ"}
+                      </title>
+                    </rect>
+                    <text
+                      x={mmToPx(cx)}
+                      y={mmToPx(cy) + 1}
+                      fontSize={10}
+                      fill="#1976d2"
+                      fontWeight={700}
+                      textAnchor="middle"
+                      dominantBaseline="central"
+                      pointerEvents="none"
+                    >
+                      {axis === "h" ? "↕" : "↔"}
+                    </text>
+                  </g>
+                );
+              })}
             </g>
           );
         })()}
