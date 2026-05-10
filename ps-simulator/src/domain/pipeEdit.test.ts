@@ -81,6 +81,26 @@ describe("配管手動編集 (customPipePoints)", () => {
     expect(clearedSoil.lengthMm).toBeCloseTo(autoSoil.lengthMm, 0);
   });
 
+  it("複数の中間点を経由するルートはpoints配列の順序を保持する", () => {
+    const customToilet: Fixture = {
+      ...toilet,
+      customPipePoints: {
+        soil: [
+          { x: 1500, y: 800 },
+          { x: 1500, y: 400 },
+          { x: 1000, y: 400 },
+        ],
+      },
+    };
+    const routes = calcPipeRoutes([ps, customToilet]);
+    const soil = routes.find((r) => r.pipeType === "soil")!;
+    // [from, ...3 corners, to] = 5点
+    expect(soil.points.length).toBe(5);
+    expect(soil.points[1]).toEqual({ x: 1500, y: 800 });
+    expect(soil.points[2]).toEqual({ x: 1500, y: 400 });
+    expect(soil.points[3]).toEqual({ x: 1000, y: 400 });
+  });
+
   it("DXF出力に customPipePoints の折れ線が反映される", () => {
     const customToilet: Fixture = {
       ...toilet,

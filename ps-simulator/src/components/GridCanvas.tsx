@@ -550,17 +550,18 @@ export function GridCanvas({
         onSetGridOffset(mod(newOffX, gridSizeMm), mod(newOffY, gridSizeMm));
         return;
       }
-      // エルボドラッグ - 指定インデックスのコーナーを更新
+      // エルボドラッグ - 指定インデックスのコーナーを更新 (Alt押下でスナップ無効)
       if (elbowDragging && onUpdatePipePoint) {
         const pos = getMouseMm(e);
-        const snappedX = snapToGridWithOffset(pos.x, gridSizeMm, gridOffX);
-        const snappedY = snapToGridWithOffset(pos.y, gridSizeMm, gridOffY);
+        const noSnap = e.altKey;
+        const newX = noSnap ? pos.x : snapToGridWithOffset(pos.x, gridSizeMm, gridOffX);
+        const newY = noSnap ? pos.y : snapToGridWithOffset(pos.y, gridSizeMm, gridOffY);
         onUpdatePipePoint(
           elbowDragging.fixtureId,
           elbowDragging.pipeType,
           elbowDragging.cornerIndex,
-          snappedX,
-          snappedY
+          newX,
+          newY
         );
         return;
       }
@@ -578,10 +579,16 @@ export function GridCanvas({
         if (!a0 || !b0) return;
 
         // 動かす方向の差分を計算 (axis="h": 上下=Y軸 / "v": 左右=X軸)
+        // Alt押下中はスナップ無効
+        const noSnap = e.altKey;
         const targetMm =
           seg.axis === "h"
-            ? snapToGridWithOffset(pos.y, gridSizeMm, gridOffY)
-            : snapToGridWithOffset(pos.x, gridSizeMm, gridOffX);
+            ? noSnap
+              ? pos.y
+              : snapToGridWithOffset(pos.y, gridSizeMm, gridOffY)
+            : noSnap
+              ? pos.x
+              : snapToGridWithOffset(pos.x, gridSizeMm, gridOffX);
 
         // a, b 両端を新位置に移動。両端は corner の場合のみ動かせる(始点/終点は固定)。
         // segmentIndex=0 の場合 a0 は始点(設備接続点)→ a 側は動かさず b のみ
@@ -1465,7 +1472,7 @@ export function GridCanvas({
 
           return (
             <g key={`route-${i}`}>
-              {/* 透明な太いhitライン: ホバー判定とクリック選択用 */}
+              {/* 透明な太いhitライン: ホバー判定/クリック選択/任意位置ドラッグ */}
               <polyline
                 points={pts}
                 fill="none"
@@ -1481,6 +1488,68 @@ export function GridCanvas({
                 onMouseLeave={() => setHoverPipe(null)}
                 onClick={(e) => {
                   e.stopPropagation();
+                  onSelectPipeRoute?.({
+                    fixtureId: route.fixtureId,
+                    pipeType: route.pipeType,
+                  });
+                }}
+                onMouseDown={(e) => {
+                  // 配管線上の任意位置をクリック+ドラッグ → その点にコーナーを生成して
+                  // 即ドラッグ状態にする (e.altKey 押下中はスナップ無効)
+                  if (e.button !== 0) return;
+                  if (!onInsertPipePoint || !onUpdatePipePoint) return;
+                  e.stopPropagation();
+                  const svg = svgRef.current;
+                  if (!svg) return;
+                  const rect = svg.getBoundingClientRect();
+                  const mx = (e.clientX - rect.left) / scale;
+                  const my = (e.clientY - rect.top) / scale;
+                  // 最寄りセグメントの判定
+                  let bestIdx = 0;
+                  let bestDist = Infinity;
+                  for (let s = 0; s < route.points.length - 1; s++) {
+                    const a = route.points[s];
+                    const b = route.points[s + 1];
+                    const dx = b.x - a.x;
+                    const dy = b.y - a.y;
+                    const len2 = dx * dx + dy * dy;
+                    const t =
+                      len2 > 0
+                        ? Math.max(
+                            0,
+                            Math.min(
+                              1,
+                              ((mx - a.x) * dx + (my - a.y) * dy) / len2
+                            )
+                          )
+                        : 0;
+                    const px = a.x + t * dx;
+                    const py = a.y + t * dy;
+                    const d = Math.hypot(mx - px, my - py);
+                    if (d < bestDist) {
+                      bestDist = d;
+                      bestIdx = s;
+                    }
+                  }
+                  const sx = e.altKey
+                    ? mx
+                    : snapToGridWithOffset(mx, gridSizeMm, gridOffX);
+                  const sy = e.altKey
+                    ? my
+                    : snapToGridWithOffset(my, gridSizeMm, gridOffY);
+                  onInsertPipePoint(
+                    route.fixtureId,
+                    route.pipeType,
+                    bestIdx,
+                    sx,
+                    sy
+                  );
+                  // 挿入されたコーナーは customPipePoints の bestIdx 番目
+                  setElbowDragging({
+                    fixtureId: route.fixtureId,
+                    pipeType: route.pipeType,
+                    cornerIndex: bestIdx,
+                  });
                   onSelectPipeRoute?.({
                     fixtureId: route.fixtureId,
                     pipeType: route.pipeType,
@@ -1732,15 +1801,27 @@ export function GridCanvas({
                     stroke="#2e7d32"
                     strokeWidth={2}
                     style={{ cursor: "move" }}
-                    onMouseDown={(e) =>
-                      handleElbowMouseDown(e, sel.id, eh.pipeType, eh.cornerIndex)
-                    }
+                    onMouseDown={(e) => {
+                      // 右クリック → 削除
+                      if (e.button === 2) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onRemovePipePoint?.(sel.id, eh.pipeType, eh.cornerIndex);
+                        return;
+                      }
+                      handleElbowMouseDown(e, sel.id, eh.pipeType, eh.cornerIndex);
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onRemovePipePoint?.(sel.id, eh.pipeType, eh.cornerIndex);
+                    }}
                     onDoubleClick={(e) => {
                       e.stopPropagation();
                       onRemovePipePoint?.(sel.id, eh.pipeType, eh.cornerIndex);
                     }}
                   >
-                    <title>ドラッグで移動 / ダブルクリックで削除</title>
+                    <title>ドラッグで移動 / 右クリックまたはダブルクリックで削除 / Alt+ドラッグでスナップ無効</title>
                   </circle>
                   <circle
                     cx={mmToPx(eh.point.x)}
@@ -1866,6 +1947,40 @@ export function GridCanvas({
                   </g>
                 );
               })}
+            </g>
+          );
+        })()}
+
+        {/* 配管編集中のルート長表示 - 選択中ルートの現在長さを画面右上に表示 */}
+        {selectedPipeRoute && (elbowDragging || segmentDragging) && (() => {
+          const r = pipeRoutes.find(
+            (rt) =>
+              rt.fixtureId === selectedPipeRoute.fixtureId &&
+              rt.pipeType === selectedPipeRoute.pipeType
+          );
+          if (!r) return null;
+          // SVG左上付近に固定表示
+          const labelW = 180;
+          const labelH = 26;
+          return (
+            <g pointerEvents="none">
+              <rect
+                x={10}
+                y={10}
+                width={labelW}
+                height={labelH}
+                fill="rgba(25,118,210,0.92)"
+                rx={3}
+              />
+              <text
+                x={20}
+                y={27}
+                fontSize={12}
+                fill="#fff"
+                fontWeight={700}
+              >
+                {`${r.pipeType} L=${r.lengthMm.toFixed(0)}mm`}
+              </text>
             </g>
           );
         })()}

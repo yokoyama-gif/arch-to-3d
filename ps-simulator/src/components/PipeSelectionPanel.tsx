@@ -91,7 +91,10 @@ export function PipeSelectionPanel({
         </button>
       </div>
       <div style={{ marginTop: 6, fontSize: 10, color: "#888", lineHeight: 1.4 }}>
-        操作: 線分↕↔ドラッグで移動 / セグメントダブルクリックで中間点追加 / コーナー◯ドラッグで個別移動 / コーナーDoubleClickで削除
+        ・配管線の任意位置をクリック+ドラッグで「ひっぱって曲げる」
+        <br />・線分↕↔ハンドルで線分平行移動 (直交維持)
+        <br />・コーナー◯ドラッグで個別移動 / 右クリック削除
+        <br />・<strong>Altキー押下中はスナップ無効</strong>(自由配置)
       </div>
     </div>
   );
