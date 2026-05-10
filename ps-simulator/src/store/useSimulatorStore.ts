@@ -504,12 +504,7 @@ export const useSimulatorStore = create<SimulatorState>((set, get) => {
         state.slopeResults,
         state.psResults
       );
-      const data: PlanData = {
-        name: state.currentPlanName,
-        buildingSettings: state.buildingSettings,
-        fixtures: state.fixtures,
-        savedAt: new Date().toISOString(),
-      };
+      const data = get().exportPlanData();
       set((s) => {
         // 同名なら上書き
         const filtered = s.savedPlans.filter((p) => p.name !== state.currentPlanName);

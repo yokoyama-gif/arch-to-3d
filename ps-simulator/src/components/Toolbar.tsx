@@ -3,6 +3,7 @@ type Props = {
   onPlanNameChange: (name: string) => void;
   onSave: () => void;
   onExport: () => void;
+  onExportDxf: () => void;
   onImport: () => void;
 };
 
@@ -11,6 +12,7 @@ export function Toolbar({
   onPlanNameChange,
   onSave,
   onExport,
+  onExportDxf,
   onImport,
 }: Props) {
   return (
@@ -38,6 +40,9 @@ export function Toolbar({
       <div style={{ flex: 1 }} />
       <button onClick={onExport} style={btnStyle}>
         JSON出力
+      </button>
+      <button onClick={onExportDxf} style={btnStyle}>
+        DXF出力
       </button>
       <button onClick={onImport} style={btnStyle}>
         JSON読込

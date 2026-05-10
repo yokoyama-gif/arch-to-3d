@@ -19,6 +19,7 @@ import type { Anchor } from "./utils/geometry";
 import { applyAnchorOffset } from "./utils/geometry";
 import { snapToGrid } from "./utils/geometry";
 import { exportPlanToJson } from "./utils/exportJson";
+import { exportPlanToDxf } from "./utils/exportDxf";
 import { importPlanFromJson } from "./utils/importJson";
 
 export default function App() {
@@ -100,6 +101,17 @@ export default function App() {
     exportPlanToJson(data);
   };
 
+  const handleDxfExport = () => {
+    exportPlanToDxf({
+      name: store.currentPlanName,
+      buildingSettings: store.buildingSettings,
+      fixtures: store.fixtures,
+      pipeRoutes: store.pipeRoutes,
+      backgroundImage: store.backgroundImage,
+      gridOffsetMm: store.gridOffsetMm,
+    });
+  };
+
   const handleImport = async () => {
     try {
       const data = await importPlanFromJson();
@@ -174,6 +186,7 @@ export default function App() {
           onPlanNameChange={store.setCurrentPlanName}
           onSave={store.savePlan}
           onExport={handleExport}
+          onExportDxf={handleDxfExport}
           onImport={handleImport}
         />
 
