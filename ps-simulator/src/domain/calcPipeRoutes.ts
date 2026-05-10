@@ -32,6 +32,38 @@ function manhattan(a: Point, b: Point): number {
   return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 }
 
+/**
+ * ポリラインを直交化(エルボ化)する。
+ * 隣接2点が斜めなら、間に L字の補助コーナーを挿入して必ず水平/垂直線分にする。
+ * デフォルトは「水平→垂直」順 (進行方向の差分が大きい軸を先に解消)。
+ *
+ * 配管はエルボ継手でしか曲がらない、という現実の制約を表現する。
+ * customPipePoints はユーザーの意図した中継点だが、斜め線になっても
+ * 表示上はエルボに分解される。
+ */
+export function orthogonalizePolyline(points: Point[]): Point[] {
+  if (points.length < 2) return points.slice();
+  const result: Point[] = [points[0]];
+  for (let i = 1; i < points.length; i++) {
+    const prev = result[result.length - 1];
+    const curr = points[i];
+    const dx = Math.abs(prev.x - curr.x);
+    const dy = Math.abs(prev.y - curr.y);
+    if (dx > 0.5 && dy > 0.5) {
+      // 斜め線分 → L字に分解 (差分が大きい軸を先に進める)
+      if (dx >= dy) {
+        // 水平→垂直: helper(curr.x, prev.y)
+        result.push({ x: curr.x, y: prev.y });
+      } else {
+        // 垂直→水平: helper(prev.x, curr.y)
+        result.push({ x: prev.x, y: curr.y });
+      }
+    }
+    result.push(curr);
+  }
+  return result;
+}
+
 /** 最寄りのPSを見つける */
 function findNearestPs(fixture: Fixture, psList: Fixture[]): Fixture | null {
   if (psList.length === 0) return null;
@@ -103,12 +135,15 @@ export function calcPipeRoutes(fixtures: Fixture[]): PipeRoute[] {
 
       // ユーザーが手動で追加したコーナー(複数)があれば優先
       const customPts = eq.customPipePoints?.[pipeType as PipeType];
-      const points =
+      const rawPoints =
         customPts && customPts.length > 0
           ? [from, ...customPts, to]
           : buildRoute(from, to, variant);
 
-      // 配管長は実際の経路に沿った長さで計算
+      // 配管はエルボでしか曲がらないので、斜め線分はL字に分解する
+      const points = orthogonalizePolyline(rawPoints);
+
+      // 配管長は実際の(直交化後の)経路に沿った長さで計算
       let lengthMm = 0;
       for (let i = 1; i < points.length; i++) {
         lengthMm += manhattan(points[i - 1], points[i]);

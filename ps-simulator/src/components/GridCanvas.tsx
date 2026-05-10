@@ -1748,27 +1748,34 @@ export function GridCanvas({
           };
           const cornerHandles: CornerHandle[] = [];
           const insertHandles: InsertHandle[] = [];
+          // 配管はエルボでしか曲がらないので、route.points には自動補助コーナーが
+          // 含まれる。ユーザー操作対象は customPipePoints のみとする:
+          //  - コーナーハンドル(緑◯) は customPipePoints の各点
+          //  - 挿入ハンドル(+) は ユーザー視点のセグメント [from, c1, c2, ..., to]
+          //    の中点(つまり customPipePoints が無ければ直接の from→to の中点)
           pipeRoutes
             .filter((r) => r.fixtureId === sel.id && r.points.length >= 2)
             .forEach((r) => {
-              // r.points[0] は from(設備), r.points[最後] は to(PS)
-              // 中間 r.points[1..n-1] が corner たち
-              for (let i = 1; i < r.points.length - 1; i++) {
+              const customs = sel.customPipePoints?.[r.pipeType] ?? [];
+              for (let i = 0; i < customs.length; i++) {
                 cornerHandles.push({
                   pipeType: r.pipeType,
-                  point: r.points[i],
-                  cornerIndex: i - 1,
+                  point: customs[i],
+                  cornerIndex: i,
                 });
               }
-              // 各セグメントの中点(挿入用)
-              for (let i = 0; i < r.points.length - 1; i++) {
-                const a = r.points[i];
-                const b = r.points[i + 1];
+              // route.points[0] = from, route.points[last] = to
+              const from = r.points[0];
+              const to = r.points[r.points.length - 1];
+              const userPts = [from, ...customs, to];
+              for (let i = 0; i < userPts.length - 1; i++) {
+                const a = userPts[i];
+                const b = userPts[i + 1];
                 insertHandles.push({
                   pipeType: r.pipeType,
                   midPoint: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
-                  // セグメント i の中点に挿入する場合、新しいコーナーは
-                  // points[i] と points[i+1] の間 = customPipePoints の i 番目に挿入
+                  // セグメント i (= userPts[i] と userPts[i+1] の間)に挿入
+                  // 新しいコーナーは customPipePoints の i 番目に入る
                   insertIndex: i,
                 });
               }
