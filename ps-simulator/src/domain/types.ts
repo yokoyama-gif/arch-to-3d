@@ -187,6 +187,13 @@ export type PsResult = {
    * 例: 3戸からwasteが来ていれば pipeCounts.waste = 3
    */
   pipeCounts: Partial<Record<PipeType, number>>;
+  /**
+   * 管種ごとの占有寸法内訳。「なぜこの寸法になるのか」の説明用。
+   * 例: { soil: { count: 3, perPipeMm: 130, totalMm: 390 } }
+   */
+  pipeBreakdown: Partial<
+    Record<PipeType, { count: number; perPipeMm: number; totalMm: number }>
+  >;
 };
 
 /** 案サマリ */
@@ -224,4 +231,11 @@ export type PlanData = {
   gridOffsetMm?: { x: number; y: number };
   /** v2+: 管種ごとの横管・竪管φ */
   pipeDiameters?: PipeDiameters;
+  /** v2+: 最後に使ったDXF出力オプション（再現性のため記録） */
+  dxfOptions?: {
+    mode: "all" | "equipmentAndPipes" | "pipesOnly";
+    includeGrid: boolean;
+    includeBackground: boolean;
+    includeLabels: boolean;
+  };
 };

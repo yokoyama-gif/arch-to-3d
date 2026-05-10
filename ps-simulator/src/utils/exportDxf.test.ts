@@ -176,4 +176,67 @@ describe("buildPlanDxf", () => {
     const around = dxf.substring(idx, idx + 40);
     expect(around).toMatch(/\n70\n4\n/);
   });
+
+  it("pipesOnlyモードでは設備矩形のLINEは出ない", () => {
+    const dxfPipesOnly = buildPlanDxf({
+      name: "pipes-only",
+      buildingSettings,
+      fixtures,
+      pipeRoutes: routes,
+      backgroundImage: null,
+      gridOffsetMm: { x: 0, y: 0 },
+      options: {
+        mode: "pipesOnly",
+        includeGrid: false,
+        includeBackground: false,
+        includeLabels: false,
+      },
+    });
+    expect(dxfPipesOnly).toMatch(/\n8\nPIPE_SOIL\n/);
+    // FIXTURE / PSレイヤの矩形(エンティティ)は出ない
+    expect(dxfPipesOnly).not.toMatch(/\n8\nFIXTURE\n/);
+    expect(dxfPipesOnly).not.toMatch(/\n8\nPS\n/);
+    // ラベルも出ない
+    expect(dxfPipesOnly).not.toContain("汚水");
+  });
+
+  it("includeGrid=falseでGRIDレイヤのエンティティが出ない", () => {
+    const dxf = buildPlanDxf({
+      name: "no-grid",
+      buildingSettings,
+      fixtures,
+      pipeRoutes: routes,
+      backgroundImage: null,
+      gridOffsetMm: { x: 0, y: 0 },
+      options: {
+        mode: "all",
+        includeGrid: false,
+        includeBackground: true,
+        includeLabels: true,
+      },
+    });
+    expect(dxf).not.toMatch(/\n8\nGRID_MAJOR\n/);
+    expect(dxf).not.toMatch(/\n8\nGRID_MINOR\n/);
+    // FIXTUREは残る
+    expect(dxf).toMatch(/\n8\nFIXTURE\n/);
+  });
+
+  it("includeLabels=falseで設備名・管種ラベルが出ない", () => {
+    const dxf = buildPlanDxf({
+      name: "no-labels",
+      buildingSettings,
+      fixtures,
+      pipeRoutes: routes,
+      backgroundImage: null,
+      gridOffsetMm: { x: 0, y: 0 },
+      options: {
+        mode: "all",
+        includeGrid: true,
+        includeBackground: true,
+        includeLabels: false,
+      },
+    });
+    expect(dxf).not.toContain("トイレ");
+    expect(dxf).not.toContain("汚水");
+  });
 });

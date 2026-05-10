@@ -11,6 +11,28 @@ import { pipeTypeLabels } from "../domain/rules/pipeSpecs";
 import { CANVAS_DEFAULTS } from "../domain/rules/canvasDefaults";
 import { structuralFixtureTypes } from "../domain/types";
 
+/**
+ * DXF出力モード:
+ *  - "all": 設備+構造+配管+背景+グリッドすべて
+ *  - "equipmentAndPipes": 設備と配管のみ(構造・背景・グリッド省略)
+ *  - "pipesOnly": 配管経路のみ(他は補助情報として最小限)
+ */
+export type DxfExportMode = "all" | "equipmentAndPipes" | "pipesOnly";
+
+export type DxfExportOptions = {
+  mode: DxfExportMode;
+  includeGrid: boolean;
+  includeBackground: boolean;
+  includeLabels: boolean;
+};
+
+export const DEFAULT_DXF_OPTIONS: DxfExportOptions = {
+  mode: "all",
+  includeGrid: true,
+  includeBackground: true,
+  includeLabels: true,
+};
+
 type DxfExportInput = {
   name: string;
   buildingSettings: BuildingSettings;
@@ -18,6 +40,7 @@ type DxfExportInput = {
   pipeRoutes: PipeRoute[];
   backgroundImage: BackgroundImage | null;
   gridOffsetMm: Point;
+  options?: DxfExportOptions;
 };
 
 type DxfPoint = {
@@ -234,7 +257,7 @@ function backgroundEntities(backgroundImage: BackgroundImage | null): string {
   ].join("");
 }
 
-function fixtureEntities(fixtures: Fixture[]): string {
+function fixtureEntities(fixtures: Fixture[], includeLabels = true): string {
   return fixtures
     .map((fixture) => {
       const layer = fixtureLayer(fixture);
@@ -242,35 +265,54 @@ function fixtureEntities(fixtures: Fixture[]): string {
       const drain = drainPosition(fixture);
       return [
         rectangle(layer, fixture.x, fixture.y, fixture.w, fixture.h),
-        text("TEXT", { x: fixture.x + 80, y: fixture.y + 260 }, 220, label),
+        includeLabels
+          ? text("TEXT", { x: fixture.x + 80, y: fixture.y + 260 }, 220, label)
+          : "",
         drain ? circle("DRAIN", drain.center, drain.radius) : "",
       ].join("");
     })
     .join("");
 }
 
-function pipeEntities(routes: PipeRoute[]): string {
+function pipeEntities(routes: PipeRoute[], includeLabels = true): string {
   return routes
     .map((route) => {
       const first = route.points[0];
       const label = pipeTypeLabels[route.pipeType] ?? route.pipeType;
       return [
         routeLines(route),
-        text("TEXT", { x: first.x + 80, y: first.y - 80 }, 160, label),
+        includeLabels
+          ? text("TEXT", { x: first.x + 80, y: first.y - 80 }, 160, label)
+          : "",
       ].join("");
     })
     .join("");
 }
 
 function entitiesSection(input: DxfExportInput): string {
+  const opts = input.options ?? DEFAULT_DXF_OPTIONS;
+  const includeFixtures = opts.mode !== "pipesOnly";
+  const includeStructures = opts.mode === "all";
+  const includeGrid = opts.includeGrid && opts.mode === "all";
+  const includeBg = opts.includeBackground && opts.mode === "all";
+
+  // 「設備」と「構造要素」を分離してレイヤー出力対象を絞り込む
+  const equipFixtures = input.fixtures.filter(
+    (f) => !structuralFixtureTypes.has(f.type)
+  );
+  const structFixtures = input.fixtures.filter((f) =>
+    structuralFixtureTypes.has(f.type)
+  );
+
   return [
     pair(0, "SECTION"),
     pair(2, "ENTITIES"),
     rectangle("BORDER", 0, 0, CANVAS_DEFAULTS.widthMm, CANVAS_DEFAULTS.heightMm),
-    gridEntities(input.buildingSettings, input.gridOffsetMm),
-    backgroundEntities(input.backgroundImage),
-    fixtureEntities(input.fixtures),
-    pipeEntities(input.pipeRoutes),
+    includeGrid ? gridEntities(input.buildingSettings, input.gridOffsetMm) : "",
+    includeBg ? backgroundEntities(input.backgroundImage) : "",
+    includeFixtures ? fixtureEntities(equipFixtures, opts.includeLabels) : "",
+    includeStructures ? fixtureEntities(structFixtures, opts.includeLabels) : "",
+    pipeEntities(input.pipeRoutes, opts.includeLabels),
     pair(0, "ENDSEC"),
   ].join("");
 }

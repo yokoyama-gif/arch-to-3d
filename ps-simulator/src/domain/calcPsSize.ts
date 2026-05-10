@@ -34,6 +34,20 @@ export function calcPsSize(
     for (let i = 0; i < n; i++) allPipes.push(pt);
   });
 
+  // 内訳: 管種ごとの占有寸法を計算
+  const pipeBreakdown: Partial<
+    Record<PipeType, { count: number; perPipeMm: number; totalMm: number }>
+  > = {};
+  (Object.keys(pipeCounts) as PipeType[]).forEach((pt) => {
+    const count = pipeCounts[pt] ?? 0;
+    const perPipeMm = occupiedSize(pt);
+    pipeBreakdown[pt] = {
+      count,
+      perPipeMm: Math.round(perPipeMm),
+      totalMm: Math.round(perPipeMm * count),
+    };
+  });
+
   if (allPipes.length === 0) {
     return {
       psId: psFixture.id,
@@ -43,6 +57,7 @@ export function calcPsSize(
       recommendedDepthMm: 0,
       status: "ok",
       pipeCounts,
+      pipeBreakdown,
     };
   }
 
@@ -109,5 +124,6 @@ export function calcPsSize(
     recommendedDepthMm: Math.round(recommendedD),
     status,
     pipeCounts,
+    pipeBreakdown,
   };
 }

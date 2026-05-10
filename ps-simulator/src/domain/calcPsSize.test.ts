@@ -71,4 +71,21 @@ describe("calcPsSize", () => {
     ]);
     expect(r.status).toBe("ng");
   });
+
+  it("pipeBreakdown に管種別 1本占有寸法と合計が含まれる", () => {
+    const r = calcPsSize(ps, [
+      makeRoute("t1", "soil"),
+      makeRoute("t2", "soil"),
+      makeRoute("ub1", "waste"),
+    ]);
+    expect(r.pipeBreakdown.soil).toBeDefined();
+    expect(r.pipeBreakdown.soil!.count).toBe(2);
+    expect(r.pipeBreakdown.soil!.perPipeMm).toBeGreaterThan(0);
+    // 合計 = 1本占有 × 本数
+    expect(r.pipeBreakdown.soil!.totalMm).toBe(
+      r.pipeBreakdown.soil!.perPipeMm * 2
+    );
+    expect(r.pipeBreakdown.waste).toBeDefined();
+    expect(r.pipeBreakdown.waste!.count).toBe(1);
+  });
 });

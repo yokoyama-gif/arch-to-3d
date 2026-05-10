@@ -9,6 +9,8 @@ type Props = {
   fixtures: Fixture[];
   slopeResults: SlopeResult[];
   psResults: PsResult[];
+  /** 行クリックで該当設備/PSを選択するためのハンドラ */
+  onSelectFixture?: (id: string | null) => void;
 };
 
 const statusColor = {
@@ -23,7 +25,12 @@ const statusLabel = {
   ng: "NG",
 };
 
-export function ResultPanel({ fixtures, slopeResults, psResults }: Props) {
+export function ResultPanel({
+  fixtures,
+  slopeResults,
+  psResults,
+  onSelectFixture,
+}: Props) {
   const psList = fixtures.filter((f) => f.type === "ps");
   const hasPsWarning = psList.length === 0;
 
@@ -98,8 +105,21 @@ export function ResultPanel({ fixtures, slopeResults, psResults }: Props) {
           <tbody>
             {slopeResults.map((r, i) => {
               const fixture = fixtures.find((f) => f.id === r.fixtureId);
+              const isWarn = r.status !== "ok";
               return (
-                <tr key={i} style={{ borderBottom: "1px solid #eee" }}>
+                <tr
+                  key={i}
+                  style={{
+                    borderBottom: "1px solid #eee",
+                    cursor: onSelectFixture && fixture ? "pointer" : "default",
+                  }}
+                  title={
+                    isWarn
+                      ? `${r.message ?? ""} 行クリックで該当設備を選択`
+                      : "クリックで該当設備を選択"
+                  }
+                  onClick={() => fixture && onSelectFixture?.(fixture.id)}
+                >
                   <td style={tdStyle}>
                     {fixture ? fixtureLabels[fixture.type] : "?"}
                   </td>
@@ -148,11 +168,14 @@ export function ResultPanel({ fixtures, slopeResults, psResults }: Props) {
           return (
             <div
               key={pr.psId}
+              onClick={() => onSelectFixture?.(pr.psId)}
+              title="クリックで該当PSを選択"
               style={{
                 border: `1px solid ${statusColor[pr.status]}`,
                 borderRadius: 4,
                 padding: 8,
                 marginBottom: 6,
+                cursor: onSelectFixture ? "pointer" : "default",
               }}
             >
               <div style={{ fontWeight: 600, marginBottom: 4 }}>
@@ -171,18 +194,47 @@ export function ResultPanel({ fixtures, slopeResults, psResults }: Props) {
               </div>
               <div>最小必要: {pr.requiredWidthMm}×{pr.requiredDepthMm}mm</div>
               <div>推奨: {pr.recommendedWidthMm}×{pr.recommendedDepthMm}mm</div>
-              {Object.keys(pr.pipeCounts).length > 0 && (
-                <div style={{ marginTop: 4, fontSize: 11, color: "#555" }}>
-                  接続本数:{" "}
-                  {(Object.entries(pr.pipeCounts) as [string, number][]).map(
-                    ([pt, n], i, arr) => (
-                      <span key={pt}>
-                        {pipeTypeLabels[pt as keyof typeof pipeTypeLabels] ?? pt}×{n}
-                        {i < arr.length - 1 ? " / " : ""}
-                      </span>
-                    )
-                  )}
-                </div>
+              {Object.keys(pr.pipeBreakdown).length > 0 && (
+                <details style={{ marginTop: 6 }}>
+                  <summary style={{ cursor: "pointer", fontSize: 11, color: "#1976d2" }}>
+                    寸法の根拠（管種別 内訳）
+                  </summary>
+                  <table
+                    style={{
+                      width: "100%",
+                      borderCollapse: "collapse",
+                      fontSize: 10,
+                      marginTop: 4,
+                    }}
+                  >
+                    <thead>
+                      <tr style={{ background: "#f5f5f5" }}>
+                        <th style={tdSubStyle}>管種</th>
+                        <th style={tdSubStyle}>本数</th>
+                        <th style={tdSubStyle}>1本占有(mm)</th>
+                        <th style={tdSubStyle}>合計(mm)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(Object.entries(pr.pipeBreakdown) as [string, { count: number; perPipeMm: number; totalMm: number }][]).map(
+                        ([pt, b]) => (
+                          <tr key={pt}>
+                            <td style={tdSubStyle}>
+                              {pipeTypeLabels[pt as keyof typeof pipeTypeLabels] ?? pt}
+                            </td>
+                            <td style={{ ...tdSubStyle, textAlign: "right" }}>{b.count}</td>
+                            <td style={{ ...tdSubStyle, textAlign: "right" }}>{b.perPipeMm}</td>
+                            <td style={{ ...tdSubStyle, textAlign: "right" }}>{b.totalMm}</td>
+                          </tr>
+                        )
+                      )}
+                    </tbody>
+                  </table>
+                  <div style={{ fontSize: 10, color: "#888", marginTop: 4, lineHeight: 1.4 }}>
+                    1本占有 = 管径 + 保温×2 + クリアランス。
+                    全管をPS内に並べた合計から外周余裕(50mm)・点検余裕(100mm)を加算して必要寸法を算出。
+                  </div>
+                </details>
               )}
             </div>
           );
@@ -202,4 +254,10 @@ const thStyle: React.CSSProperties = {
 const tdStyle: React.CSSProperties = {
   padding: "2px 4px",
   fontSize: 11,
+};
+
+const tdSubStyle: React.CSSProperties = {
+  padding: "1px 3px",
+  fontSize: 10,
+  borderBottom: "1px solid #f0f0f0",
 };

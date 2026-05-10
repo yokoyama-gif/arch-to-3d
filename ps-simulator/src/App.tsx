@@ -19,7 +19,9 @@ import type { Anchor } from "./utils/geometry";
 import { applyAnchorOffset } from "./utils/geometry";
 import { snapToGrid } from "./utils/geometry";
 import { exportPlanToJson } from "./utils/exportJson";
-import { exportPlanToDxf } from "./utils/exportDxf";
+import { exportPlanToDxf, DEFAULT_DXF_OPTIONS } from "./utils/exportDxf";
+import type { DxfExportOptions } from "./utils/exportDxf";
+import { DxfOptionsPanel } from "./components/DxfOptionsPanel";
 import { importPlanFromJson } from "./utils/importJson";
 
 export default function App() {
@@ -45,6 +47,8 @@ export default function App() {
   });
   // マウス座標(キャンバスmm) - ステータスバー用
   const [cursorMm, setCursorMm] = useState({ x: 0, y: 0 });
+  // DXF出力オプション
+  const [dxfOptions, setDxfOptions] = useState<DxfExportOptions>(DEFAULT_DXF_OPTIONS);
 
   const store = useSimulatorStore();
 
@@ -109,6 +113,7 @@ export default function App() {
       pipeRoutes: store.pipeRoutes,
       backgroundImage: store.backgroundImage,
       gridOffsetMm: store.gridOffsetMm,
+      options: dxfOptions,
     });
   };
 
@@ -381,6 +386,7 @@ export default function App() {
               fixtures={store.fixtures}
               slopeResults={store.slopeResults}
               psResults={store.psResults}
+              onSelectFixture={store.selectFixture}
             />
 
             <div style={{ margin: "16px 0", borderTop: "1px solid #eee" }} />
@@ -388,6 +394,14 @@ export default function App() {
             <PipeDiameterPanel
               pipeDiameters={store.pipeDiameters}
               onChange={store.setPipeDiameter}
+            />
+
+            <div style={{ margin: "16px 0", borderTop: "1px solid #eee" }} />
+
+            <DxfOptionsPanel
+              options={dxfOptions}
+              onChange={(patch) => setDxfOptions((o) => ({ ...o, ...patch }))}
+              onExport={handleDxfExport}
             />
 
             <div style={{ margin: "16px 0", borderTop: "1px solid #eee" }} />
